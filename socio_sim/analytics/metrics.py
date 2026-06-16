@@ -39,6 +39,23 @@ def bootstrap_ci(values, stat=np.mean, n_resamples: int = 1000,
     return (float(np.percentile(stats, 2.5)), float(np.percentile(stats, 97.5)))
 
 
+def wilson_interval(successes: int, n: int, z: float = 1.96) -> tuple:
+    """Wilson score interval for a binomial proportion (default 95%).
+
+    Robust at small n and extreme p, where the Wald interval under-covers.
+    Empty sample -> (nan, nan) rather than a fabricated [0, 0].
+    Provenance: analytic-credible (closed-form), not Monte Carlo.
+    """
+    if n <= 0:
+        return (float("nan"), float("nan"))
+    p = successes / n
+    z2 = z * z
+    denom = 1.0 + z2 / n
+    center = (p + z2 / (2 * n)) / denom
+    half = (z * np.sqrt(p * (1 - p) / n + z2 / (4 * n * n))) / denom
+    return (float(max(0.0, center - half)), float(min(1.0, center + half)))
+
+
 def moderation_confusion(log: EventLog) -> dict:
     truth = _truth_map(log)
     actioned = {e["content_id"] for e in log.by_kind("moderation")
@@ -57,6 +74,8 @@ def moderation_confusion(log: EventLog) -> dict:
         "recall": tp / (tp + fn) if (tp + fn) else float("nan"),
         "fpr": fp / (fp + tn) if (fp + tn) else float("nan"),
         "fnr": fn / (fn + tp) if (fn + tp) else float("nan"),
+        "precision_ci": wilson_interval(tp, tp + fp),
+        "recall_ci": wilson_interval(tp, tp + fn),
     }
 
 
@@ -89,6 +108,7 @@ def appeal_stats(log: EventLog) -> dict:
         "filed": len(filed),
         "resolved": len(resolved),
         "granted_rate": len(granted) / len(resolved) if resolved else float("nan"),
+        "granted_rate_ci": wilson_interval(len(granted), len(resolved)),
         "mean_resolution_ticks": (
             float(np.mean([e["data"]["resolution_ticks"] for e in resolved]))
             if resolved else float("nan")),

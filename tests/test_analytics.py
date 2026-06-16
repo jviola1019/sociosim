@@ -87,3 +87,33 @@ def test_report_contains_disclaimer_and_intervals():
     assert "Research use only" in md
     assert "95%" in md
     assert result.manifest.config_hash[:8] in md
+
+
+def test_wilson_interval_brackets_and_orders():
+    from socio_sim.analytics.metrics import wilson_interval
+    lo, hi = wilson_interval(50, 100)
+    assert lo < 0.5 < hi and 0.0 <= lo < hi <= 1.0
+    lo0, hi0 = wilson_interval(0, 10)
+    assert lo0 >= 0.0 and hi0 > 0.0           # never degenerate at 0 successes
+    # more data -> tighter interval around the same proportion
+    wide = wilson_interval(2, 10)
+    narrow = wilson_interval(200, 1000)
+    assert (narrow[1] - narrow[0]) < (wide[1] - wide[0])
+    # empty sample is honest NaN, not a fake interval
+    assert all(np.isnan(x) for x in wilson_interval(0, 0))
+
+
+def test_moderation_confusion_reports_intervals():
+    cm = moderation_confusion(fixture_log())
+    assert "precision_ci" in cm and "recall_ci" in cm
+    assert cm["precision_ci"][0] <= cm["precision"] <= cm["precision_ci"][1]
+    assert cm["recall_ci"][0] <= cm["recall"] <= cm["recall_ci"][1]
+
+
+def test_report_states_uncertainty_provenance():
+    """A single-run report must not imply its intervals are Monte Carlo."""
+    cfg = RunConfig.test(jurisdictions=("EU",))
+    result = Simulation(cfg).run()
+    md = render(summarize_run(result), result.manifest)
+    low = md.lower()
+    assert "provenance" in low or "not monte carlo" in low or "single-run" in low

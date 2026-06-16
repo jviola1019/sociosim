@@ -22,9 +22,14 @@ SocioSim must **not** be used to:
 
 ## Epistemic status of outputs
 
-Outputs are **counterfactual projections under stated assumptions**. Every
-metric carries a 95% interval; single runs are never presented as "the truth"
-(Monte Carlo replication is built in). The behavioural rules are calibrated to
+Outputs are **counterfactual projections under stated assumptions**. Headline
+metrics carry a 95% interval whose *provenance is labelled* — within-run
+bootstrap, analytic Wilson/Beta credible, or Monte Carlo percentile. A single
+(Preview) run reports **within-run sampling uncertainty only**; it is not Monte
+Carlo across replicates. Monte Carlo replication is available via the
+multi-replicate research run (`validation.montecarlo.run_replicates` and the
+experiment runner) — use it before treating an interval as simulation
+uncertainty. The behavioural rules are calibrated to
 aggregate published statistics, not fitted to any specific platform; absolute
 levels are less trustworthy than *directional, paired comparisons* under
 common random numbers.

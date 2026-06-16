@@ -96,7 +96,7 @@ result = Simulation(cfg).run(write=True)   # writes events.jsonl + manifest.json
 
 Key config knobs (all validated eagerly): `jurisdictions` (any of US/EU/CN),
 `ftc_enabled`, `feed_strategy` (`personalized|chronological|random`),
-`eu_optout_rate`, `content_mode` (`template|claude`), `classifier_targets`
+`eu_optout_rate`, `content_mode` (`template|claude|ollama|openai_compatible`), `classifier_targets`
 (per-category precision/recall), `category_base_rates`, `ads_enabled`,
 `holdout_fraction`, `ad_frequency_cap_per_day`, `graph_kind` (`ba|ws|sbm`),
 `red_team` (adversary names).
@@ -107,7 +107,7 @@ Key config knobs (all validated eagerly): `jurisdictions` (any of US/EU/CN),
 from socio_sim.analytics.metrics import summarize_run
 from socio_sim.analytics.report import render
 
-summary = summarize_run(result)            # every aggregate has a 95% CI
+summary = summarize_run(result)            # key aggregates carry a provenance-labelled 95% interval
 markdown = render(summary, result.manifest)
 ```
 

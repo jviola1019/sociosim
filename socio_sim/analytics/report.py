@@ -28,6 +28,14 @@ def render(summary: dict, manifest: Manifest) -> str:
         f"- Policy packs: {manifest.pack_versions}",
         f"- Event-stream hash: `{manifest.stream_hash}`",
         "",
+        "## Uncertainty provenance",
+        "- Intervals below are **single-run**: within-run bootstrap (harmful "
+        "exposure, welfare), analytic Wilson score (moderation precision/recall, "
+        "appeal-grant rate), and Beta-Binomial credible (ad CTR/CVR). They "
+        "quantify within-run sampling noise, **not** Monte Carlo variation "
+        "across replicates. Run the research (multi-replicate) mode for "
+        "mc-replicated intervals.",
+        "",
         "## Volume",
         f"- Posts: {summary['n_posts']} | Impressions: {summary['n_impressions']}"
         f" | Engagements: {summary['n_engagements']}",
@@ -37,13 +45,14 @@ def render(summary: dict, manifest: Manifest) -> str:
         f"per-agent CI {_ci(summary['harmful_exposure']['ci'])}",
         "",
         "## Moderation quality",
-        f"- Precision {mod['precision']:.3f} | Recall {mod['recall']:.3f} | "
-        f"FPR {mod['fpr']:.4f} | FNR {mod['fnr']:.3f} "
+        f"- Precision {mod['precision']:.3f} CI {_ci(mod['precision_ci'])} | "
+        f"Recall {mod['recall']:.3f} CI {_ci(mod['recall_ci'])}",
+        f"- FPR {mod['fpr']:.4f} | FNR {mod['fnr']:.3f} "
         f"(TP {mod['tp']}, FP {mod['fp']}, FN {mod['fn']}, TN {mod['tn']})",
         "",
         "## Appeals & process",
         f"- Filed {app['filed']} | resolved {app['resolved']} | "
-        f"granted rate {app['granted_rate']:.3f} | "
+        f"granted rate {app['granted_rate']:.3f} CI {_ci(app['granted_rate_ci'])} | "
         f"mean resolution {app['mean_resolution_ticks']:.1f} ticks",
         f"- Human reviews {app['human_reviews']} | "
         f"deadline-miss rate {app['deadline_miss_rate']:.3f}",
