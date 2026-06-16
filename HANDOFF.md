@@ -4,9 +4,11 @@
 Resuming? Read this, then `AUDIT_LOG.md`, then `CHANGELOG.md`. Branch: `feat/audit-p0-p1`.
 
 ## Status snapshot
-- Suite green (~119 tests). Determinism baselines locked & unchanged (test_determinism_regression.py).
+- Suite green (~122 tests). Determinism baselines RE-LOCKED after P2 (test_determinism_regression.py).
 - Confirmed scope: Preview+Research MC modes; organic-baseline incrementality; full multi-route UI.
-- Commits so far: P1a/P1b/P5a; P1c.
+- Commits so far: P1a/P1b/P5a; P1c; P2 (incrementality).
+- DONE so far: Q-HILL, Q-CI(partial), Q-DOC(partial), Q-TRAV, Q-LIFT. Two P0s closed (Q-LIFT done; Q-MC pending P1e).
+- NEXT: P1e Monte Carlo modes (last remaining P0), then P3 policy citations, P1d/P4, P5b, P6.
 
 ## Order of execution (value x completability)
 1. [x] P1a determinism regression guard
@@ -14,8 +16,8 @@ Resuming? Read this, then `AUDIT_LOG.md`, then `CHANGELOG.md`. Branch: `feat/aud
 3. [x] P5a path-traversal fix
 4. [x] P1c Wilson intervals + provenance banner + doc-overclaim fixes
 5. [ ] P1d BehaviorParams extraction (regression-protected; MUST keep locked hashes)
-6. [ ] P1e Monte Carlo wiring (Preview + Research) into pipeline/CLI/web + n_replicates UI (S4)
-7. [ ] P2 organic-baseline incrementality — DESIGN BELOW
+6. [ ] P1e Monte Carlo wiring (Preview + Research) into pipeline/CLI/web + n_replicates UI (S4)  <-- LAST P0
+7. [x] P2 organic-baseline incrementality (done; latent baseline + Newcombe/Beta CI). DESIGN BELOW kept for reference.
 8. [ ] P3 policy-as-code citations + schema fields + transparency exporter
 9. [ ] P4 calibration + sensitivity over BehaviorParams + VALIDATION_REPORT.md
 10. [ ] P5b SBM blocks (S2), hot-loop perf, follow/unfollow or remove dead kinds, LLM accounting

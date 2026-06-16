@@ -17,6 +17,7 @@ from socio_sim.config import RunConfig
 from socio_sim.content.items import ContentItem
 from socio_sim.logs.events import EventLog
 from socio_sim.policy.engine import PolicyEngine
+from socio_sim.rng import SeedTree
 
 RESERVE_PRICE = 0.005  # per impression
 
@@ -24,7 +25,8 @@ RESERVE_PRICE = 0.005  # per impression
 class AdSystem:
     def __init__(self, cfg: RunConfig, campaigns: list[Campaign],
                  personas: Personas, state: AgentState, engine: PolicyEngine,
-                 log: EventLog, rng: np.random.Generator):
+                 log: EventLog, rng: np.random.Generator,
+                 baseline_rng: np.random.Generator | None = None):
         self.cfg = cfg
         self.campaigns = campaigns
         self.personas = personas
@@ -32,6 +34,13 @@ class AdSystem:
         self.engine = engine
         self.log = log
         self.rng = rng
+        # Organic-conversion draws use a DEDICATED stream, never `rng` (the
+        # auction stream): baseline outcomes must not depend on how many auction
+        # draws were consumed, or the holdout stops being a clean counterfactual
+        # and replays break. Default keeps standalone construction reproducible.
+        self.baseline_rng = (baseline_rng if baseline_rng is not None
+                             else SeedTree(cfg.root_seed).generator(
+                                 "conversion", cfg.replicate_id))
         # Proto-creatives for policy checks (one per campaign, FTC-compliant
         # per config so disclosure rules behave like production creatives).
         self._protos = {c.id: c.make_creative(0, self._compliance(c))
@@ -147,3 +156,27 @@ class AdSystem:
                                 actor_id=agent_id, content_id=creative.id,
                                 data={"campaign_id": campaign.id,
                                       "value": campaign.conversion_value})
+
+    # -- organic baseline -------------------------------------------------
+    def simulate_baseline(self, agent_id: int, tick: int):
+        """Organic (non-ad) conversion opportunity, run for EVERY agent —
+        exposed and holdout alike — so the holdout is a valid counterfactual.
+
+        Conversion probability is the agent's latent `base_conversion`, drawn
+        only from `baseline_rng` and independent of any ad exposure. Targeting
+        is applied symmetrically so both arms represent the same target
+        population. One draw per (agent, matched campaign), fixed campaign
+        order -> deterministic and replay-stable. Lift = exposed_rate -
+        holdout_rate then isolates the incremental ad effect.
+        """
+        if not self.cfg.ads_enabled:
+            return
+        b = float(self.personas.base_conversion[agent_id])
+        for c in self.campaigns:
+            if not self._targeting_match(c, agent_id):
+                continue
+            if self.baseline_rng.random() < b:
+                self.log.append(tick=tick, kind="organic_conversion",
+                                actor_id=agent_id, content_id=None,
+                                data={"campaign_id": c.id,
+                                      "value": c.conversion_value})

@@ -7,11 +7,11 @@ interval. Every metric ships with its interval — no point estimates alone.
 
 from __future__ import annotations
 
-import numpy as np
 from scipy import stats
 
 from socio_sim.ads.campaigns import Campaign
 from socio_sim.logs.events import EventLog
+from socio_sim.stats import newcombe_diff_ci, prob_diff_positive
 
 #: Beta prior ≈ 1% CTR with effective sample size 200 (benchmark-aligned).
 DEFAULT_CTR_PRIOR = (2.0, 198.0)
@@ -35,6 +35,8 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
               if e["data"].get("campaign_id") == cid]
     convs = [e for e in log.by_kind("ad_conversion")
              if e["data"].get("campaign_id") == cid]
+    org_convs = [e for e in log.by_kind("organic_conversion")
+                 if e["data"].get("campaign_id") == cid]
 
     impressions = len(auctions)
     spend = float(sum(e["data"]["price"] for e in auctions))
@@ -44,22 +46,32 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
     cvr = n_convs / n_clicks if n_clicks else 0.0
     revenue = float(sum(e["data"]["value"] for e in convs))
 
-    # Incremental lift: exposed vs holdout conversion rate per agent.
+    # Incremental lift via clean-holdout RCT. An agent "converts" if it
+    # converted through EITHER channel (ad OR organic baseline); holdout agents
+    # can only convert organically, so exposed_rate - holdout_rate isolates the
+    # ad's incremental effect. Both arms are restricted to the targeted
+    # population so the comparison is apples-to-apples. CI: Newcombe
+    # (Wilson-hybrid) difference of two proportions; P(lift>0) from independent
+    # Jeffreys-Beta posteriors. Provenance: analytic / Bayesian, NOT Monte Carlo
+    # across replicates (run multiple replicates for that).
     exposed = {e["actor_id"] for e in auctions}
-    converted = {e["actor_id"] for e in convs}
-    holdout = {a for a in range(n_agents) if ads.in_holdout(cid, a)}
-    exposed_rate = (len(exposed & converted) / len(exposed)) if exposed else 0.0
-    holdout_rate = (len(holdout & converted) / len(holdout)) if holdout else 0.0
+    holdout = {a for a in range(n_agents)
+               if ads.in_holdout(cid, a) and ads._targeting_match(campaign, a)}
+    converted = ({e["actor_id"] for e in convs}
+                 | {e["actor_id"] for e in org_convs})
+    n_exposed, n_holdout = len(exposed), len(holdout)
+    x_exposed = len(exposed & converted)
+    x_holdout = len(holdout & converted)
+    exposed_rate = (x_exposed / n_exposed) if n_exposed else 0.0
+    holdout_rate = (x_holdout / n_holdout) if n_holdout else 0.0
     lift = exposed_rate - holdout_rate
-    se = float(np.sqrt(
-        (exposed_rate * (1 - exposed_rate) / max(len(exposed), 1))
-        + (holdout_rate * (1 - holdout_rate) / max(len(holdout), 1))))
 
     return {
         "campaign_id": cid,
         "impressions": impressions,
         "clicks": n_clicks,
         "conversions": n_convs,
+        "organic_conversions": len(org_convs),
         "spend": spend,
         "ctr": ctr,
         "ctr_ci": beta_interval(n_clicks, impressions),
@@ -69,7 +81,11 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
         "cpc": (spend / n_clicks) if n_clicks else float("nan"),
         "roi": ((revenue - spend) / spend) if spend else float("nan"),
         "lift": lift,
-        "lift_ci": (lift - 1.96 * se, lift + 1.96 * se),
-        "n_exposed": len(exposed),
-        "n_holdout": len(holdout),
+        "lift_ci": newcombe_diff_ci(x_exposed, n_exposed, x_holdout, n_holdout),
+        "exposed_rate": exposed_rate,
+        "holdout_rate": holdout_rate,
+        "prob_lift_positive": prob_diff_positive(x_exposed, n_exposed,
+                                                 x_holdout, n_holdout),
+        "n_exposed": n_exposed,
+        "n_holdout": n_holdout,
     }

@@ -12,6 +12,7 @@ import numpy as np
 from socio_sim.ads.measure import measure_campaign
 from socio_sim.logs.events import EventLog
 from socio_sim.rng import SeedTree
+from socio_sim.stats import wilson_interval  # re-exported for callers/tests
 
 HARMFUL = {"hate", "harassment", "fraud", "misinfo", "adult",
            "illegal_goods", "self_harm"}
@@ -37,23 +38,6 @@ def bootstrap_ci(values, stat=np.mean, n_resamples: int = 1000,
     idx = rng.integers(0, len(values), size=(n_resamples, len(values)))
     stats = stat(values[idx], axis=1)
     return (float(np.percentile(stats, 2.5)), float(np.percentile(stats, 97.5)))
-
-
-def wilson_interval(successes: int, n: int, z: float = 1.96) -> tuple:
-    """Wilson score interval for a binomial proportion (default 95%).
-
-    Robust at small n and extreme p, where the Wald interval under-covers.
-    Empty sample -> (nan, nan) rather than a fabricated [0, 0].
-    Provenance: analytic-credible (closed-form), not Monte Carlo.
-    """
-    if n <= 0:
-        return (float("nan"), float("nan"))
-    p = successes / n
-    z2 = z * z
-    denom = 1.0 + z2 / n
-    center = (p + z2 / (2 * n)) / denom
-    half = (z * np.sqrt(p * (1 - p) / n + z2 / (4 * n * n))) / denom
-    return (float(max(0.0, center - half)), float(min(1.0, center + half)))
 
 
 def moderation_confusion(log: EventLog) -> dict:

@@ -27,6 +27,7 @@ EVENT_KINDS = {
     "ad_auction",
     "ad_click",
     "ad_conversion",
+    "organic_conversion",
     "llm_call",
     "policy_gap",
     "degradation",

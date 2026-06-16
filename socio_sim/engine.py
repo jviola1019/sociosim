@@ -84,7 +84,7 @@ class Simulation:
         # pairing intact when an intervention changes one subsystem only.
         self.rngs = {name: tree.generator(name, rep) for name in (
             "graph", "agents", "content", "classifier", "moderation", "ads",
-            "feed", "activity", "posting", "engagement", "optout")}
+            "feed", "activity", "posting", "engagement", "optout", "conversion")}
 
         # Graph + personas
         graph = make_graph(cfg.graph_kind, cfg.n_agents, self.rngs["graph"],
@@ -135,7 +135,8 @@ class Simulation:
                                            self.log, self.rngs["moderation"])
         self.campaigns = campaigns if campaigns is not None else default_campaigns(cfg)
         self.ads = AdSystem(cfg, self.campaigns, self.personas, self.state,
-                            self.policy, self.log, self.rngs["ads"])
+                            self.policy, self.log, self.rngs["ads"],
+                            baseline_rng=self.rngs["conversion"])
         self.feed = FeedRanker(cfg, self.personas, self.state, self.log,
                                self.rngs["feed"])
 
@@ -187,6 +188,11 @@ class Simulation:
             hour = (tick * cfg.tick_hours) % 24
             if hour == 0:
                 self.state.reset_daily_counters()
+                # Organic (non-ad) conversion opportunity for every agent, so
+                # the holdout has a measurable baseline rate (valid lift).
+                if cfg.ads_enabled:
+                    for aid in range(cfg.n_agents):
+                        self.ads.simulate_baseline(aid, tick)
             self.state.decay_fatigue(FATIGUE_DECAY_PER_TICK)
 
             active = np.flatnonzero(

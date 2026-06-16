@@ -13,13 +13,13 @@ Status: OPEN / IN-PROGRESS / DONE (with commit) / DEFERRED (-> HANDOFF.md).
 | ID | Sev | File:line | Issue | Fix | Test | Status |
 |----|-----|-----------|-------|-----|------|--------|
 | Q-MC | P0 | pipeline.py:48-52; run.py:55-91; web/app.py:256 | Default surfaces run 1 replicate; within-run bootstrap CIs mislabeled as "95% CI"; `run_replicates` never called outside tests | Wire MC; Preview+Research modes; provenance labels | MC-CI convergence; provenance presence | OPEN |
-| Q-LIFT | P0 | ads/measure.py:47-56 | Holdout never converts -> lift = exposed_rate (tautology) | Organic baseline conversion channel | lift->0 under null; lift>0 only if exposed>baseline | OPEN |
-| Q-HILL | P1 | validation/targets.py:34-54 | degree_tail_exponent target never computed | Compute Hill exponent into observed | all-targets-in-observed | OPEN |
-| Q-CI | P1 | analytics/report.py | "every aggregate has a 95% CI" false; precision/recall/appeal bare | Wilson intervals + relabel docs | CI presence per rate | OPEN |
+| Q-LIFT | P0 | ads/measure.py:47-56 | Holdout never converts -> lift = exposed_rate (tautology) | Organic baseline conversion channel | lift->0 under null; lift>0 only if exposed>baseline | **DONE** (P2) |
+| Q-HILL | P1 | validation/targets.py:34-54 | degree_tail_exponent target never computed | Compute Hill exponent into observed | all-targets-in-observed | **DONE** (P1b) |
+| Q-CI | P1 | analytics/report.py | "every aggregate has a 95% CI" false; precision/recall/appeal bare | Wilson intervals + relabel docs | CI presence per rate | **DONE** (P1c) |
 | Q-PACK | P1 | policy/engine.py:26-29; packs/*.yaml | Schema lacks source_citation/legal_uncertainty/transparency_field/user_rights/human_review_required; no statute refs; EU 24h overstated | Extend schema; add citations; correct deadline framing; transparency exporter | pack-schema; transparency coverage | OPEN |
 | Q-PARAM | P1 | engine.py:35-44,312-317 | ~15 undocumented magic constants drive all outputs; never sensitivity-tested | Extract cited BehaviorParams; sensitivity sweep | determinism regression; sensitivity-rank | OPEN |
 | Q-PERF | P1 | engine.py:267-349; graph/metrics.py:23 | Per-agent Python loops + exact clustering -> standard profile impractical | Index recent posts by author; approx clustering n>2k; benchmark | perf budget | OPEN |
-| Q-TRAV | P1 | web/app.py:355-356 | Static-file path traversal (no containment) | resolve()+is_relative_to() | traversal returns 404 | OPEN |
+| Q-TRAV | P1 | web/app.py:355-356 | Static-file path traversal (no containment) | resolve()+is_relative_to() | traversal returns 404 | **DONE** (P5a) |
 | Q-CLAUDE | P2 | content/claude_adapter.py:54-91 | Prompt hardcodes TOPICS[0]/casual; cache key ignores topic/tick | Key by topic/stance/ideology; build prompt from item | cache-key uniqueness | OPEN |
 | Q-KINDS | P2 | logs/events.py:16-33 | policy_gap/follow/unfollow declared, never emitted; graph static (no churn) | Implement follow/unfollow+churn OR remove kinds + spec claim | follow-event or kind-coverage | OPEN |
 | Q-REVIEW | P2 | moderation/workflow.py:106-157 | Reviewer ground-truth heuristic + uncited appeal magic | Document/expose params | reviewer convergence | OPEN |

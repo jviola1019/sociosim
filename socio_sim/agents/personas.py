@@ -35,6 +35,7 @@ class Personas:
     influencer: np.ndarray       # bool, top ~1% by degree
     vulnerable: np.ndarray       # bool flag for fairness diagnostics
     interests: np.ndarray        # (n, n_topics) preference weights, rows sum to 1
+    base_conversion: np.ndarray  # [0,1] latent organic (non-ad) conversion propensity
 
     @property
     def n(self) -> int:
@@ -56,9 +57,14 @@ class Personas:
         influencer = degrees >= cutoff
         vulnerable = is_minor | (rng.random(n) < 0.05)
         interests = rng.dirichlet(np.ones(n_topics) * 0.7, size=n)
+        # Latent organic-conversion propensity: fixed per agent, drawn LAST so
+        # all prior persona draws (and thus determinism) are unchanged. Beta(2,50)
+        # -> mean ~3.8%, a realistic baseline organic conversion rate. This is the
+        # ad-independent counterfactual that makes holdout lift a real estimate.
+        base_conversion = rng.beta(2.0, 50.0, size=n)
         return cls(age_group, is_minor, ideology, trust, activity,
                    ad_responsiveness, moderation_attitude, influencer,
-                   vulnerable, interests)
+                   vulnerable, interests, base_conversion)
 
     def active_mask(self, hour: int, rng: np.random.Generator) -> np.ndarray:
         """Vectorized Bernoulli draw: P(active) = activity × diurnal[hour]."""
