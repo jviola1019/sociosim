@@ -80,3 +80,29 @@ def test_monte_carlo_replicates_summary():
     assert set(mc["posts"].keys()) >= {"median", "ci", "values"}
     assert len(mc["posts"]["values"]) == 3
     assert len(set(mc["posts"]["values"])) > 1  # replicates differ
+
+
+def test_observed_includes_degree_tail_exponent():
+    """The degree-tail exponent is a published calibration target; it must be
+    computed into `observed` so implausibility actually compares against it."""
+    from socio_sim.analytics.metrics import summarize_run
+    from socio_sim.engine import Simulation
+    from socio_sim.validation.targets import compute_observed
+    res = Simulation(RunConfig.test(jurisdictions=("EU",))).run()
+    obs = compute_observed(res, summarize_run(res))
+    assert "degree_tail_exponent" in obs
+    assert np.isfinite(obs["degree_tail_exponent"])
+    # Scale-free graphs sit ~2-3; allow a loose finite-sample band.
+    assert 1.5 < obs["degree_tail_exponent"] < 6.0
+
+
+def test_all_targets_are_compared_in_implausibility():
+    """Every published target should be present in observed (none silently
+    dropped from the implausibility computation)."""
+    from socio_sim.analytics.metrics import summarize_run
+    from socio_sim.engine import Simulation
+    from socio_sim.validation.targets import compute_observed
+    res = Simulation(RunConfig.test(jurisdictions=("EU",))).run()
+    obs = compute_observed(res, summarize_run(res))
+    for name in load_targets():
+        assert name in obs, f"target {name!r} never computed into observed"

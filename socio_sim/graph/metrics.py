@@ -5,6 +5,8 @@ from __future__ import annotations
 import networkx as nx
 import numpy as np
 
+from socio_sim.validation.targets import hill_exponent
+
 
 def summary(g: nx.Graph) -> dict:
     degrees = np.array([d for _, d in g.degree()], dtype=float)
@@ -26,6 +28,8 @@ def summary(g: nx.Graph) -> dict:
         "degree_median": float(np.median(degrees)),
         "degree_max": float(degrees.max()),
         "assortativity": assortativity,
+        "degree_tail_exponent": (float(hill_exponent(degrees))
+                                 if len(degrees) >= 20 else float("nan")),
         "degree_hist": degree_hist,
     }
 

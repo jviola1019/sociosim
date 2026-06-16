@@ -35,6 +35,23 @@ _CONTENT_TYPES = {".html": "text/html; charset=utf-8",
                   ".js": "text/javascript; charset=utf-8",
                   ".svg": "image/svg+xml"}
 
+
+def safe_static_path(suffix: str):
+    """Resolve a ``/static/<suffix>`` request, contained within STATIC_DIR.
+
+    Returns the resolved Path, or None for traversal attempts (``..`` / absolute
+    paths) that would escape the static directory. Localhost-only binding does
+    not make traversal safe: a page in the browser can still fetch 127.0.0.1.
+    """
+    base = STATIC_DIR.resolve()
+    try:
+        target = (base / suffix).resolve()
+    except (OSError, ValueError):
+        return None
+    if target == base or target.is_relative_to(base):
+        return target
+    return None
+
 HARMFUL_CATS = ("hate", "harassment", "fraud", "misinfo", "adult",
                 "illegal_goods", "self_harm")
 
@@ -353,7 +370,11 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     self._send_json({"result": payload, "meta": _STORE.meta(run_id)})
         elif route.startswith("/static/"):
-            self._send_file(STATIC_DIR / route[len("/static/"):])
+            target = safe_static_path(route[len("/static/"):])
+            if target is None:
+                self.send_error(404, "not found")
+            else:
+                self._send_file(target)
         else:
             self.send_error(404, "not found")
 

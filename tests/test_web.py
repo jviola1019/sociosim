@@ -135,6 +135,17 @@ def test_live_server_runs_simulation_end_to_end():
         server.shutdown()
 
 
+def test_safe_static_path_blocks_traversal():
+    """Static serving must contain requests within the static dir."""
+    assert app.safe_static_path("app.js") is not None
+    assert str(app.safe_static_path("app.js")).endswith("app.js")
+    assert app.safe_static_path("style.css") is not None
+    # Traversal attempts escape the static dir -> rejected.
+    assert app.safe_static_path("../app.py") is None
+    assert app.safe_static_path("../../config.py") is None
+    assert app.safe_static_path("../store.py") is None
+
+
 def test_bad_job_id_404():
     from http.server import ThreadingHTTPServer
     import threading

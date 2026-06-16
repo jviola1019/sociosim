@@ -45,6 +45,8 @@ def compute_observed(result, summary: dict) -> dict:
 
     observed = {
         "clustering": summary["graph"]["clustering"],
+        "degree_tail_exponent": summary["graph"].get(
+            "degree_tail_exponent", float("nan")),
         "posts_per_agent_day": len(posts) / (cfg.n_agents * days),
         "diurnal_peak_hour": float(np.argmax(hour_counts)),
         "diurnal_trough_hour": float(np.argmin(hour_counts)),
