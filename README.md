@@ -1,0 +1,100 @@
+# SocioSim
+
+A research-grade social-interaction simulator: synthetic social networks, content
+generation, feed ranking, policy-as-code moderation (US §230 / EU DSA / CN
+AI-labelling / FTC endorsement packs), advertising with holdout measurement,
+append-only audit logs with deterministic replay, and uncertainty-quantified
+analytics.
+
+> ## ⚠️ Research use only
+>
+> SocioSim produces **counterfactual projections under stated assumptions**, not
+> predictions of real-world behaviour. Every output carries confidence intervals
+> and must be interpreted as a stress test, never as truth.
+>
+> **Prohibited uses:** targeting or ranking real individuals; predicting real
+> protests or events; generating enforcement decisions; optimising real-world
+> manipulation. Personas are synthetic; no real-person data is ingested at the
+> individual level; no personally identifiable information and no model
+> chain-of-thought is ever stored.
+
+## Install
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+pip install -e .[dev]
+```
+
+## Quick start (one command)
+
+```bash
+python run.py --web      # browser dashboard (recommended) — opens automatically
+python run.py            # CLI run, template mode — no LLM, nothing to install
+python run.py --llm      # CLI run with a free local LLM (auto Ollama)
+```
+
+### Web console
+
+`python run.py --web` starts a local **research studio** (Python stdlib server,
+no extra install) at `http://127.0.0.1:8765` and opens your browser — a clean,
+light, editorial interface with soft motion (blur-in reveals, perspective-tilt
+cards, cursor spotlight, count-up metrics). Settings are organised **by concept
+across tabs** — Scenario, Network, Content, Moderation, Feed & Ads, Red Team —
+with scenario **presets** (EU DSA, US §230, CN labelling, marketing experiment,
+misinformation stress test, fairness audit…) that populate everything as a
+starting point. Tune the run, click **Run Simulation** (it runs only on click),
+watch the live progress meter, then explore the tabbed results:
+
+- **Overview** — metric cards with 95% confidence-interval bars.
+- **Feed** — a sampled slice of generated content as cards, each with a **unique,
+  deterministically generated cover image and avatar** (seeded SVG art, offline),
+  persona, category tags, and moderation outcome.
+- **Charts** — diurnal posting, degree distribution, activity timeline, cascade
+  sizes (hand-built SVG that draws in).
+- **Fairness**, **Ads** (each campaign rendered with a **unique generated ad
+  creative**), **Calibration** (benchmark whisker plot), **Log**.
+
+Every run is saved to a local SQLite **run database** — open **History** to
+reopen, export (Markdown / JSON), or delete past runs; history persists across
+restarts. Selecting the local LLM content mode auto-starts Ollama on demand —
+no separate setup. Generated imagery is procedural SVG seeded by content id, so
+it is unique per item, fully offline, and reproducible.
+
+### CLI
+
+The `run.py` CLI does the same pipeline headless: builds the world, runs the
+tick loop, writes an append-only event log + manifest under `out/run/`, renders
+a markdown report with 95% intervals, scores the run against published
+benchmarks, and verifies bit-identical replay.
+
+With `--llm` it bootstraps a **free, keyless** local model (Ollama): it locates
+the binary, starts the server if needed, pulls the model the first time, then
+generates post text locally — no API key, no account, no cost. If Ollama isn't
+installed it prints the one-line install command and falls back to template
+mode. Common options:
+
+```bash
+python run.py --llm --profile quick              # 1,000 agents × 7 days
+python run.py --llm --model qwen2.5:3b           # nicer text, bigger model
+python run.py --profile standard --jurisdictions US,EU,CN
+python run.py --agents 300 --ticks 72 --seed 7   # custom scale/seed
+```
+
+## Documentation
+
+- `docs/usage.md` — configuration, profiles, experiments
+- `docs/ethics_and_limitations.md` — appropriate use, limitations, residual risks
+- `docs/legal_compliance.md` — how policy packs map to DSA, §230, CN labelling, FTC
+- `docs/nist_ai_rmf_map.md` — NIST AI RMF alignment
+- `docs/superpowers/specs/` — design spec; `docs/superpowers/plans/` — build plan
+
+## Default run profiles (evidence-based)
+
+| Profile  | Agents | Horizon | Ticks  | Replicates |
+|----------|--------|---------|--------|------------|
+| standard | 10,000 | 28 days | hourly | 100        |
+| quick    | 1,000  | 7 days  | hourly | 20         |
+
+Scale defaults are grounded in published ABM/LLM-simulation literature and ad
+experimentation practice; see the design spec for citations.
