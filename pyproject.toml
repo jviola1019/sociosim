@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "socio-sim"
+version = "0.1.0"
+description = "SocioSim: a reproducible, uncertainty-quantified, policy-as-code social-interaction simulator (research use only)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.26",
+    "networkx>=3.2",
+    "scipy>=1.11",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+viz = ["matplotlib>=3.8"]
+llm = ["anthropic>=0.40"]
+
+[tool.setuptools.packages.find]
+include = ["socio_sim*"]
+
+[tool.setuptools.package-data]
+"socio_sim.policy" = ["packs/*.yaml"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+markers = [
+    "slow: statistical/calibration tests that take longer",
+]

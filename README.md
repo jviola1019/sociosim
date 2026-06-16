@@ -38,8 +38,9 @@ python run.py --llm      # CLI run with a free local LLM (auto Ollama)
 
 `python run.py --web` starts a local **research studio** (Python stdlib server,
 no extra install) at `http://127.0.0.1:8765` and opens your browser — a clean,
-light, editorial interface with soft motion (blur-in reveals, perspective-tilt
-cards, cursor spotlight, count-up metrics). Settings are organised **by concept
+light, editorial interface (Swiss-inspired restraint: generous whitespace,
+hairline rules, a single accent) with subtle motion (blur-in reveals, count-up
+metrics, sliding tab indicators). Settings are organised **by concept
 across tabs** — Scenario, Network, Content, Moderation, Feed & Ads, Red Team —
 with scenario **presets** (EU DSA, US §230, CN labelling, marketing experiment,
 misinformation stress test, fairness audit…) that populate everything as a

@@ -1,0 +1,149 @@
+"""Second-price ad auction with policy constraints (Spec §3.7).
+
+Holdout membership is a stable hash of (campaign, agent, root seed) so RCT
+assignment is reproducible and independent of call order.
+"""
+
+from __future__ import annotations
+
+import hashlib
+
+import numpy as np
+
+from socio_sim.ads.campaigns import Campaign
+from socio_sim.agents.personas import Personas
+from socio_sim.agents.state import AgentState
+from socio_sim.config import RunConfig
+from socio_sim.content.items import ContentItem
+from socio_sim.logs.events import EventLog
+from socio_sim.policy.engine import PolicyEngine
+
+RESERVE_PRICE = 0.005  # per impression
+
+
+class AdSystem:
+    def __init__(self, cfg: RunConfig, campaigns: list[Campaign],
+                 personas: Personas, state: AgentState, engine: PolicyEngine,
+                 log: EventLog, rng: np.random.Generator):
+        self.cfg = cfg
+        self.campaigns = campaigns
+        self.personas = personas
+        self.state = state
+        self.engine = engine
+        self.log = log
+        self.rng = rng
+        # Proto-creatives for policy checks (one per campaign, FTC-compliant
+        # per config so disclosure rules behave like production creatives).
+        self._protos = {c.id: c.make_creative(0, self._compliance(c))
+                        for c in campaigns}
+
+    def _compliance(self, campaign: Campaign) -> bool:
+        return (campaign.ftc_override if campaign.ftc_override is not None
+                else self.cfg.ftc_compliance)
+
+    # -- RCT holdout ------------------------------------------------------
+    def in_holdout(self, campaign_id: str, agent_id: int) -> bool:
+        campaign = next(c for c in self.campaigns if c.id == campaign_id)
+        fraction = (campaign.holdout_fraction
+                    if campaign.holdout_fraction is not None
+                    else self.cfg.holdout_fraction)
+        digest = hashlib.blake2s(
+            f"{campaign_id}|{agent_id}|{self.cfg.root_seed}".encode(),
+            digest_size=8).digest()
+        return int.from_bytes(digest, "big") / 2**64 < fraction
+
+    # -- eligibility ------------------------------------------------------
+    def _policy_block(self, campaign: Campaign, agent_id: int) -> str | None:
+        """Returns blocking rule_id, or None. Sensitive targeting is stripped
+        (handled in _targeting_match), not blocking."""
+        context = {
+            "is_ad": True,
+            "targets_minor": bool(self.personas.is_minor[agent_id]),
+            "sensitive_targeting": campaign.has_sensitive_targeting(),
+        }
+        decisions = self.engine.evaluate(self._protos[campaign.id], {}, context)
+        for d in decisions:
+            if d.action == "block_ad":
+                return d.rule_id
+        return None
+
+    def _targeting_strip_sensitive(self) -> bool:
+        return "EU" in self.cfg.jurisdictions
+
+    def _targeting_match(self, campaign: Campaign, agent_id: int) -> bool:
+        t = campaign.targeting
+        if not t:
+            return True
+        if "age_groups" in t and self.personas.age_group[agent_id] not in t["age_groups"]:
+            return False
+        if "topics" in t:
+            top_interest = int(np.argmax(self.personas.interests[agent_id]))
+            if top_interest not in t["topics"]:
+                return False
+        if "ideology" in t and not self._targeting_strip_sensitive():
+            side = "left" if self.personas.ideology[agent_id, 0] < 0 else "right"
+            if side != t["ideology"]:
+                return False
+        # In EU mode sensitive keys are stripped: they never narrow the audience.
+        return True
+
+    # -- auction ----------------------------------------------------------
+    def run_auction(self, agent_id: int, tick: int) -> ContentItem | None:
+        if not self.cfg.ads_enabled:
+            return None
+        if self.state.ad_exposures_today[agent_id] >= self.cfg.ad_frequency_cap_per_day:
+            return None
+
+        bidders = []
+        for c in self.campaigns:
+            if c.budget < RESERVE_PRICE or c.bid < RESERVE_PRICE:
+                continue
+            if self.in_holdout(c.id, agent_id):
+                continue
+            if not self._targeting_match(c, agent_id):
+                continue
+            block_rule = self._policy_block(c, agent_id)
+            if block_rule:
+                self.log.append(tick=tick, kind="ad_auction", actor_id=agent_id,
+                                content_id=None, data={
+                                    "campaign_id": c.id,
+                                    "blocked_rule": block_rule,
+                                })
+                continue
+            bidders.append(c)
+
+        if not bidders:
+            return None
+        bidders.sort(key=lambda c: (-c.bid, c.id))
+        winner = bidders[0]
+        price = max(bidders[1].bid, RESERVE_PRICE) if len(bidders) > 1 else RESERVE_PRICE
+        price = min(price, winner.bid)
+        winner.budget -= price
+
+        creative = winner.make_creative(tick, self._compliance(winner))
+        self.state.ad_exposures_today[agent_id] += 1
+        self.log.append(tick=tick, kind="ad_auction", actor_id=agent_id,
+                        content_id=creative.id, data={
+                            "campaign_id": winner.id,
+                            "price": price,
+                            "n_bidders": len(bidders),
+                        })
+        return creative
+
+    # -- response model ---------------------------------------------------
+    def simulate_response(self, agent_id: int, creative: ContentItem, tick: int):
+        campaign = next(c for c in self.campaigns if c.id == creative.campaign_id)
+        fatigue_mult = 1.0 / (1.0 + float(self.state.fatigue[agent_id]))
+        p_click = np.clip(
+            campaign.base_ctr
+            * (0.5 + float(self.personas.ad_responsiveness[agent_id]))
+            * fatigue_mult, 0, 1)
+        if self.rng.random() < p_click:
+            self.log.append(tick=tick, kind="ad_click", actor_id=agent_id,
+                            content_id=creative.id,
+                            data={"campaign_id": campaign.id})
+            if self.rng.random() < campaign.base_cvr:
+                self.log.append(tick=tick, kind="ad_conversion",
+                                actor_id=agent_id, content_id=creative.id,
+                                data={"campaign_id": campaign.id,
+                                      "value": campaign.conversion_value})

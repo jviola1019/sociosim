@@ -1,0 +1,15 @@
+# FTC Endorsement Guides — material-connection disclosure on sponsored and
+# influencer content; missing disclosure is inserted and flagged as violation.
+pack: ftc
+version: "1.0"
+jurisdiction: US-FTC
+rules:
+  - rule_id: FTC-DISC-1
+    trigger: { conditions: [sponsored_without_disclosure] }
+    action: insert_disclosure
+    notice_required: false
+    appeal_allowed: false
+    deadline_hours: 0
+    evidence_threshold: 0.0
+    log_required: true
+    priority: 30

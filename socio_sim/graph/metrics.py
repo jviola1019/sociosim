@@ -1,0 +1,43 @@
+"""Network statistics used as calibration targets (Spec §3.2, §3.9)."""
+
+from __future__ import annotations
+
+import networkx as nx
+import numpy as np
+
+
+def summary(g: nx.Graph) -> dict:
+    degrees = np.array([d for _, d in g.degree()], dtype=float)
+    try:
+        assortativity = float(nx.degree_assortativity_coefficient(g))
+    except (ValueError, ZeroDivisionError):
+        assortativity = float("nan")
+    # Degree histogram (<=24 bins) for dashboards; small + JSON-friendly.
+    dmax = int(degrees.max()) if len(degrees) else 0
+    nbins = min(24, max(dmax, 1))
+    counts, edges = np.histogram(degrees, bins=nbins)
+    degree_hist = [[float((edges[i] + edges[i + 1]) / 2), int(counts[i])]
+                   for i in range(len(counts))]
+    return {
+        "n": g.number_of_nodes(),
+        "m": g.number_of_edges(),
+        "clustering": float(nx.average_clustering(g)),
+        "degree_mean": float(degrees.mean()),
+        "degree_median": float(np.median(degrees)),
+        "degree_max": float(degrees.max()),
+        "assortativity": assortativity,
+        "degree_hist": degree_hist,
+    }
+
+
+def homophily_index(g: nx.Graph, attributes: dict) -> float:
+    """Observed same-attribute edge fraction minus the expectation under
+    random mixing (Newman-style). Positive = homophilous."""
+    if g.number_of_edges() == 0:
+        return 0.0
+    same = sum(1 for u, v in g.edges if attributes[u] == attributes[v])
+    observed = same / g.number_of_edges()
+    values, counts = np.unique(list(attributes.values()), return_counts=True)
+    fractions = counts / counts.sum()
+    expected = float((fractions**2).sum())
+    return observed - expected

@@ -1,0 +1,162 @@
+"""SocioSim one-command launcher.
+
+Runs a full simulation end-to-end: builds the world, runs the tick loop, writes
+audit logs + manifest, renders a report, scores it against benchmark targets,
+and verifies deterministic replay. With --llm it also bootstraps a FREE, keyless
+local LLM (Ollama): it locates the binary, starts the server if needed, pulls the
+model if missing, then generates post text locally — no API key, no account.
+
+Examples
+--------
+    python run.py                         # template mode (no LLM, fastest)
+    python run.py --llm                   # auto Ollama: start + pull + run
+    python run.py --llm --profile quick   # 1,000 agents x 7 days
+    python run.py --llm --model qwen2.5:3b --agents 300 --ticks 72
+
+Everything is reproducible: outputs land in out/<run-name>/ with an
+events.jsonl audit log and a manifest.json that replays bit-identically.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+
+from socio_sim import RESEARCH_USE_NOTICE  # noqa: E402
+from socio_sim.config import RunConfig  # noqa: E402
+from socio_sim.llm_bootstrap import (DEFAULT_HOST, ensure_model,  # noqa: E402
+                                     ensure_server, find_ollama, server_up)
+from socio_sim.pipeline import run_and_analyze  # noqa: E402
+
+
+def bootstrap_ollama(model: str, host: str):
+    """Start a local Ollama server + ensure the model, for CLI runs."""
+    print("Bootstrapping free local LLM (Ollama):")
+    if not find_ollama():
+        print("  Ollama is not installed. Install it (one time) with:\n"
+              "    winget install Ollama.Ollama        # Windows\n"
+              "    brew install ollama                 # macOS\n"
+              "    curl -fsSL https://ollama.com/install.sh | sh   # Linux\n"
+              "  Then re-run this command. Falling back to template mode now.")
+        return None
+    proc = ensure_server(host, log=lambda m: print("  " + m))
+    ensure_model(model, host, log=lambda m: print("  " + m))
+    print("  LLM ready.")
+    return proc
+
+
+# --------------------------------------------------------------------------
+# Simulation run
+# --------------------------------------------------------------------------
+def run_sim(cfg: RunConfig):
+    print(f"\nRunning {cfg.n_agents} agents x {cfg.n_ticks} hourly ticks "
+          f"(jurisdictions={cfg.jurisdictions}, content={cfg.content_mode})...")
+    # Single source of truth — same pipeline the web app and examples use.
+    a = run_and_analyze(cfg)
+    result = a.result
+    print(f"Done. {len(result.log.events)} events. "
+          f"Stream hash {result.log.stream_hash()[:16]}...")
+
+    if cfg.content_mode != "template":
+        calls = result.log.by_kind("llm_call")
+        degr = result.log.by_kind("degradation")
+        print(f"LLM backend: {cfg.content_mode} | llm_call events: {len(calls)} "
+              f"| degradation (fallback) events: {len(degr)}")
+        if calls:
+            print(f"  sample generated post: "
+                  f"{calls[0]['data']['text_preview']!r}")
+
+    out = Path(cfg.out_dir)
+    (out / "report.md").write_text(a.report_md, encoding="utf-8")
+    print(f"\nReport:   {out / 'report.md'}")
+    print(f"Logs:     {out / 'events.jsonl'}")
+    print(f"Manifest: {out / 'manifest.json'}")
+
+    print(f"\nCalibration vs published benchmarks "
+          f"(implausibility I={a.implausibility:.2f}, cutoff 3.0):")
+    for name, value in a.observed.items():
+        spec = a.targets.get(name)
+        if spec and value == value:  # skip NaN
+            print(f"  {name:22s} observed {value:8.4f}  target "
+                  f"{spec['value']} +/- {spec['tolerance']}")
+
+    if a.replay["checked"]:
+        print(f"\nDeterministic replay: {a.replay['msg']}")
+        return 0 if a.replay["ok"] else 1
+    print(f"\nDeterministic replay: {a.replay['msg']}")
+    return 0
+
+
+# --------------------------------------------------------------------------
+def main():
+    p = argparse.ArgumentParser(
+        description="SocioSim one-command launcher (free local LLM optional).")
+    p.add_argument("--web", action="store_true",
+                   help="launch the browser dashboard instead of a CLI run")
+    p.add_argument("--port", type=int, default=8765, help="web server port")
+    p.add_argument("--no-open", action="store_true",
+                   help="with --web, do not auto-open the browser")
+    p.add_argument("--llm", action="store_true",
+                   help="generate post text with a free local Ollama model "
+                        "(auto starts server + pulls model)")
+    p.add_argument("--profile", default="quick", choices=["quick", "test", "standard"],
+                   help="quick=1k/7d (default), test=200/48t, standard=10k/28d")
+    p.add_argument("--jurisdictions", default="EU",
+                   help="comma list of US,EU,CN (default EU)")
+    p.add_argument("--model", default="qwen2.5:0.5b",
+                   help="Ollama model for --llm (default qwen2.5:0.5b, ~400MB)")
+    p.add_argument("--host", default=DEFAULT_HOST, help="Ollama host:port")
+    p.add_argument("--agents", type=int, help="override agent count")
+    p.add_argument("--ticks", type=int, help="override hourly tick count")
+    p.add_argument("--seed", type=int, default=42, help="root seed")
+    p.add_argument("--out", default="out/run", help="output directory")
+    args = p.parse_args()
+
+    print(f"NOTE: {RESEARCH_USE_NOTICE}\n")
+
+    if args.web:
+        # If --llm is also set, bootstrap Ollama first so the dashboard's
+        # 'ollama' content mode works without separate setup.
+        if args.llm:
+            bootstrap_ollama(args.model, args.host)
+        from socio_sim.web.app import serve
+        serve(port=args.port, open_browser=not args.no_open)
+        return 0
+
+    server_proc = None
+    content_mode = "template"
+    base_url = ""
+    if args.llm:
+        server_proc = bootstrap_ollama(args.model, args.host)
+        if server_proc is not None or server_up(args.host):
+            content_mode = "ollama"
+            base_url = f"http://{args.host}"
+
+    factory = {"quick": RunConfig.quick, "test": RunConfig.test,
+               "standard": RunConfig.standard}[args.profile]
+    overrides = dict(
+        jurisdictions=tuple(j.strip() for j in args.jurisdictions.split(",")),
+        root_seed=args.seed, out_dir=args.out, content_mode=content_mode,
+        llm_model=args.model if content_mode != "template" else "",
+        llm_base_url=base_url,
+    )
+    if args.agents:
+        overrides["n_agents"] = args.agents
+    if args.ticks:
+        overrides["n_ticks"] = args.ticks
+    cfg = factory(**overrides)
+
+    try:
+        return run_sim(cfg)
+    finally:
+        if server_proc is not None:
+            print("\nStopping the Ollama server we started.")
+            server_proc.terminate()
+
+
+if __name__ == "__main__":
+    sys.exit(main())

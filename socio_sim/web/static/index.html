@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SocioSim</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%230a84ff' stroke-width='2.5'/%3E%3Ccircle cx='16' cy='16' r='4' fill='%230a84ff'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="nav">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <span class="brand-name">SocioSim</span>
+    <span class="brand-div">/</span>
+    <span class="brand-sub">Research Studio</span>
+  </div>
+  <div class="nav-right">
+    <span class="status" id="llmLabel">LLM</span>
+    <span class="status" id="engLabel">Engine</span>
+    <span class="status ver" id="version"></span>
+    <button type="button" id="histBtn" class="pill" title="Browse, reopen and export saved runs">
+      History<b id="histCount" class="count">0</b>
+    </button>
+  </div>
+</header>
+<p class="notice" id="ticker"></p>
+
+<main class="studio">
+  <!-- ============ CONFIG ============ -->
+  <aside class="panel config">
+    <nav class="seg-tabs" id="cfgTabs" role="tablist">
+      <button type="button" role="tab" data-tab="scenario" class="on">Scenario</button>
+      <button type="button" role="tab" data-tab="network">Network</button>
+      <button type="button" role="tab" data-tab="content">Content</button>
+      <button type="button" role="tab" data-tab="moderation">Moderation</button>
+      <button type="button" role="tab" data-tab="feedads">Feed &amp; Ads</button>
+      <button type="button" role="tab" data-tab="adversaries">Red Team</button>
+    </nav>
+
+    <form id="cfgForm" class="cfg-body">
+      <!-- SCENARIO -->
+      <section data-panel="scenario" class="tabpanel on">
+        <label class="field"><span class="lbl">Preset Scenario</span><select id="preset"></select></label>
+        <p class="hint" id="presetDesc"></p>
+        <label class="field"><span class="lbl">Run Label <i>optional · for history</i></span><input type="text" id="label" placeholder="EU baseline — Q3" maxlength="60"></label>
+        <hr>
+        <span class="lbl" title="Number of agents and simulated hours. Larger = richer dynamics, slower runs.">Scale Profile</span>
+        <div class="seg" id="profile">
+          <label><input type="radio" name="profile" value="test"><b>Test</b><i>200 · 48h</i></label>
+          <label><input type="radio" name="profile" value="quick" checked><b>Quick</b><i>1K · 7d</i></label>
+          <label><input type="radio" name="profile" value="standard"><b>Standard</b><i>10K · 28d</i></label>
+        </div>
+        <div class="duo">
+          <label class="field"><span class="lbl">Random Seed</span><input type="number" id="root_seed" value="42"></label>
+          <label class="field"><span class="lbl">Tick (hours)</span><input type="number" id="tick_hours" value="1" min="1" max="24"></label>
+        </div>
+        <label class="switch"><input type="checkbox" id="verify_replay" checked><span class="track"></span><span class="switch-txt">Verify Deterministic Replay</span></label>
+        <p class="hint">Re-runs from the manifest and confirms an identical event-stream hash. Auto-skipped above 2,000 agents.</p>
+      </section>
+
+      <!-- NETWORK -->
+      <section data-panel="network" class="tabpanel">
+        <span class="lbl">Population <i>blank = use profile</i></span>
+        <div class="duo">
+          <label class="field"><span class="lbl">Agents</span><input type="number" id="n_agents" placeholder="profile" min="10"></label>
+          <label class="field"><span class="lbl">Ticks (h)</span><input type="number" id="n_ticks" placeholder="profile" min="1"></label>
+        </div>
+        <label class="field"><span class="lbl">Topics in Circulation</span><input type="number" id="n_topics" value="8" min="1" max="32"></label>
+        <hr>
+        <label class="field"><span class="lbl">Network Model</span>
+          <select id="graph_kind">
+            <option value="ba" selected>Barabási–Albert · scale-free hubs</option>
+            <option value="ws">Watts–Strogatz · small-world</option>
+            <option value="sbm">Stochastic block · communities</option>
+          </select></label>
+        <div data-graph="ba" class="duo gp"><label class="field"><span class="lbl">Attachments m</span><input type="number" id="graph_m" value="5" min="1"></label></div>
+        <div data-graph="ws" class="duo gp" hidden>
+          <label class="field"><span class="lbl">Neighbours k</span><input type="number" id="graph_k" value="10" min="2"></label>
+          <label class="field"><span class="lbl">Rewire p</span><input type="number" id="graph_p" value="0.05" step="0.01" min="0" max="1"></label>
+        </div>
+        <label class="field" title="Fraction of cross-group ties rewired toward similar agents — higher = more echo-chamber clustering.">
+          <span class="lbl">Homophily Rewiring <b id="homoVal" class="val">0.15</b></span>
+          <input type="range" id="homophily_rewire_fraction" min="0" max="0.8" step="0.05" value="0.15"></label>
+        <p class="hint">How strongly agents prefer connecting to similar others.</p>
+      </section>
+
+      <!-- CONTENT -->
+      <section data-panel="content" class="tabpanel">
+        <label class="field"><span class="lbl">Content Generator</span>
+          <select id="content_mode">
+            <option value="template" selected>Template · deterministic, instant</option>
+            <option value="ollama">Ollama · free local LLM</option>
+            <option value="openai_compatible">OpenAI-compatible · local server</option>
+          </select></label>
+        <label class="field llm" data-llm hidden><span class="lbl">Model</span><input type="text" id="llm_model" value="qwen2.5:0.5b" spellcheck="false"></label>
+        <label class="field llm" data-llm hidden><span class="lbl">Server URL <i>blank = default</i></span><input type="text" id="llm_base_url" placeholder="http://localhost:11434" spellcheck="false"></label>
+        <hr>
+        <span class="lbl">Content Prevalence <i>share of all content</i></span>
+        <div id="rates" class="rates"></div>
+      </section>
+
+      <!-- MODERATION -->
+      <section data-panel="moderation" class="tabpanel">
+        <span class="lbl">Jurisdiction Packs</span>
+        <div class="chips" id="jurisdictions">
+          <label class="chip"><input type="checkbox" value="US"><b>US · §230</b></label>
+          <label class="chip"><input type="checkbox" value="EU" checked><b>EU · DSA</b></label>
+          <label class="chip"><input type="checkbox" value="CN"><b>CN · AI-label</b></label>
+        </div>
+        <label class="switch"><input type="checkbox" id="ftc_enabled" checked><span class="track"></span><span class="switch-txt">FTC Disclosure Pack</span></label>
+        <hr>
+        <span class="lbl">Classifier Operating Point</span>
+        <label class="field"><span class="lbl">Precision <b id="precVal" class="val">0.90</b></span><input type="range" id="classifier_precision" min="0.5" max="0.99" step="0.01" value="0.90"></label>
+        <label class="field"><span class="lbl">Recall <b id="recVal" class="val">0.85</b></span><input type="range" id="classifier_recall" min="0.5" max="0.99" step="0.01" value="0.85"></label>
+        <hr>
+        <span class="lbl">Human Review &amp; Appeals</span>
+        <label class="field"><span class="lbl">Reviewer Accuracy <b id="hraVal" class="val">0.92</b></span><input type="range" id="human_review_accuracy" min="0.5" max="1" step="0.01" value="0.92"></label>
+        <div class="duo">
+          <label class="field"><span class="lbl">Review Delay (ticks)</span><input type="number" id="human_review_delay_ticks" value="6" min="0"></label>
+          <label class="field"><span class="lbl">Appeal Grant (FP)</span><input type="number" id="appeal_grant_fp_rate" value="0.70" step="0.05" min="0" max="1"></label>
+        </div>
+      </section>
+
+      <!-- FEED & ADS -->
+      <section data-panel="feedads" class="tabpanel">
+        <label class="field"><span class="lbl">Feed Ranking</span>
+          <select id="feed_strategy">
+            <option value="personalized" selected>Personalized · weighted</option>
+            <option value="chronological">Chronological</option>
+            <option value="random">Random baseline</option>
+          </select></label>
+        <div class="duo">
+          <label class="field" title="Share of EU users who opt out of personalization (DSA right)."><span class="lbl">EU Opt-out</span><input type="number" id="eu_optout_rate" value="0.20" step="0.05" min="0" max="1"></label>
+          <label class="field" title="Exploration rate — chance of injecting an unseen author into the feed."><span class="lbl">Exploration ε</span><input type="number" id="exploration_epsilon" value="0.10" step="0.05" min="0" max="1"></label>
+        </div>
+        <label class="field"><span class="lbl">Feed Size</span><input type="number" id="feed_size" value="20" min="1"></label>
+        <hr>
+        <label class="switch"><input type="checkbox" id="ads_enabled" checked><span class="track"></span><span class="switch-txt">Advertising Enabled</span></label>
+        <label class="switch"><input type="checkbox" id="ftc_compliance" checked><span class="track"></span><span class="switch-txt">FTC Disclosures on Creatives</span></label>
+        <div class="duo">
+          <label class="field" title="Randomized-control holdout share for measuring incremental ad lift."><span class="lbl">RCT Holdout</span><input type="number" id="holdout_fraction" value="0.10" step="0.05" min="0" max="0.9"></label>
+          <label class="field"><span class="lbl">Freq Cap / Day</span><input type="number" id="ad_frequency_cap_per_day" value="4" min="1"></label>
+        </div>
+        <label class="field"><span class="lbl">Ad Slot Interval</span><input type="number" id="ad_slot_interval" value="5" min="1"></label>
+      </section>
+
+      <!-- ADVERSARIES -->
+      <section data-panel="adversaries" class="tabpanel">
+        <span class="lbl">Red-Team Adversaries <i>Spec §3.10</i></span>
+        <div class="chips col" id="redteam"></div>
+        <p class="hint">Each adds ~1% of agents running an adversarial behaviour — coordinated flagging, misinformation amplification, spam, auction gaming, or disclosure evasion.</p>
+      </section>
+    </form>
+
+    <div class="exec">
+      <button type="submit" form="cfgForm" id="runBtn" class="run" aria-label="Execute simulation">
+        <span>Run Simulation</span><i>writes audit log · quantifies uncertainty</i>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ============ OUTPUT ============ -->
+  <section class="panel output">
+    <div class="stage" id="idle">
+      <span class="eyebrow reveal">Counterfactual social simulation</span>
+      <h2 class="reveal">Design the world.<br>Watch it unfold.</h2>
+      <p class="reveal">Tune the run across the tabs, then run it. Results, charts, a generated feed and an audit trail appear here.</p>
+    </div>
+
+    <div class="stage" id="running" hidden>
+      <div class="spinner" aria-hidden="true"></div>
+      <h3 id="runPhase">Simulating</h3>
+      <div class="meter"><div id="meterFill"></div></div>
+      <p class="mono dim" id="runDetail">tick 0</p>
+    </div>
+
+    <div class="stage" id="errstage" hidden>
+      <h3 class="err">Run failed</h3>
+      <pre class="mono" id="errText"></pre>
+    </div>
+
+    <div class="results" id="results" hidden>
+      <div class="rhead">
+        <div>
+          <h2 class="reveal">Run Report</h2>
+          <p class="mono dim small" id="runMeta"></p>
+        </div>
+        <div class="rhead-actions">
+          <div class="seal" id="seal"><b class="dot"></b><span id="sealTxt">—</span></div>
+          <div class="export">
+            <button type="button" id="exportBtn" class="pill">Export</button>
+            <div class="export-menu" id="exportMenu" hidden>
+              <a id="expReport" href="#" download>Report · Markdown</a>
+              <a id="expJson" href="#" download>Full result · JSON</a>
+              <a id="expEvents" href="#" target="_blank">Event log</a>
+            </div>
+          </div>
+        </div>
+      </div>
+      <nav class="seg-tabs out" id="outTabs" role="tablist">
+        <button type="button" role="tab" data-otab="overview" class="on">Overview</button>
+        <button type="button" role="tab" data-otab="feed">Feed</button>
+        <button type="button" role="tab" data-otab="charts">Charts</button>
+        <button type="button" role="tab" data-otab="fairness">Fairness</button>
+        <button type="button" role="tab" data-otab="ads">Ads</button>
+        <button type="button" role="tab" data-otab="calib">Calibration</button>
+        <button type="button" role="tab" data-otab="log">Log</button>
+      </nav>
+      <div class="ostage">
+        <section data-opanel="overview" class="opanel on"><div class="cards" id="cards"></div></section>
+        <section data-opanel="feed" class="opanel"><div class="feed" id="feedWrap"></div></section>
+        <section data-opanel="charts" class="opanel"><div class="charts" id="charts"></div></section>
+        <section data-opanel="fairness" class="opanel">
+          <h4>Moderation Confusion</h4><div id="confusion" class="confusion"></div>
+          <h4>False-Positive / False-Negative Rate by Group</h4><div id="fairness"></div>
+        </section>
+        <section data-opanel="ads" class="opanel"><div id="ads"></div></section>
+        <section data-opanel="calib" class="opanel"><p class="dim small" id="implaus"></p><div id="calib" class="calib"></div></section>
+        <section data-opanel="log" class="opanel"><pre class="mono report" id="rawReport"></pre></section>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="drawer-scrim" id="histScrim" hidden></div>
+<aside class="drawer" id="histDrawer" hidden aria-label="Run history">
+  <div class="drawer-head"><h3>Run History</h3><button type="button" id="histClose" class="pill" aria-label="Close">Close</button></div>
+  <p class="hint">Every completed run is saved to a local SQLite database — reopen, export, or remove past runs.</p>
+  <div class="hist-list" id="histList"></div>
+</aside>
+
+<footer class="foot">
+  <span>Counterfactual projections under stated assumptions — not predictions.</span>
+  <span class="mono dim" id="footHash"></span>
+</footer>
+<script src="/static/app.js"></script>
+</body>
+</html>

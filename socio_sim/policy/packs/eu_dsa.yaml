@@ -1,0 +1,68 @@
+# EU pack — Digital Services Act semantics: notices and appeals on removals,
+# easy flagging of illegal content, ad restrictions (no targeting of minors,
+# no sensitive-data targeting), non-personalised feed option (feed module).
+pack: eu_dsa
+version: "1.0"
+jurisdiction: EU
+rules:
+  - rule_id: EU-ILLEGAL-1
+    trigger: { categories: [hate, illegal_goods, fraud, self_harm] }
+    action: remove
+    notice_required: true
+    appeal_allowed: true
+    deadline_hours: 24
+    evidence_threshold: 0.90
+    log_required: true
+    priority: 100
+
+  - rule_id: EU-ADS-MINOR-1
+    trigger: { conditions: [is_ad, targets_minor] }
+    action: block_ad
+    notice_required: false
+    appeal_allowed: false
+    deadline_hours: 0
+    evidence_threshold: 0.0
+    log_required: true
+    priority: 95
+
+  - rule_id: EU-ADS-SENS-1
+    trigger: { conditions: [is_ad, sensitive_targeting] }
+    action: strip_targeting
+    notice_required: false
+    appeal_allowed: false
+    deadline_hours: 0
+    evidence_threshold: 0.0
+    log_required: true
+    priority: 94
+
+  - rule_id: EU-FLAG-1
+    trigger:
+      conditions: [user_flagged]
+      categories: [hate, harassment, misinfo, fraud, illegal_goods, adult, self_harm]
+    action: escalate
+    notice_required: true
+    appeal_allowed: true
+    deadline_hours: 48
+    evidence_threshold: 0.50
+    log_required: true
+    priority: 70
+
+  - rule_id: EU-MISINFO-1
+    trigger: { categories: [misinfo] }
+    action: downrank
+    notice_required: true
+    appeal_allowed: true
+    deadline_hours: 0
+    evidence_threshold: 0.60
+    log_required: true
+    priority: 60
+
+  - rule_id: EU-MISINFO-2
+    trigger: { categories: [misinfo] }
+    action: label
+    notice_required: false
+    appeal_allowed: true
+    deadline_hours: 0
+    evidence_threshold: 0.60
+    log_required: true
+    priority: 40

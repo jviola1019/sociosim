@@ -1,0 +1,29 @@
+# CN pack — 2025 AI-content labelling measures: explicit labels + implicit
+# metadata watermarks on synthetic content; platforms must detect and add
+# conspicuous notices when labels are missing; logs retained >= 6 months.
+pack: cn_ai_label
+version: "1.0"
+jurisdiction: CN
+rules:
+  - rule_id: CN-ILLEGAL-1
+    trigger: { categories: [hate, illegal_goods, fraud] }
+    action: remove
+    notice_required: true
+    appeal_allowed: false
+    deadline_hours: 24
+    evidence_threshold: 0.90
+    log_required: true
+    priority: 100
+
+  - rule_id: CN-AI-LABEL-1
+    trigger:
+      categories: [ai_generated]
+      conditions: [ai_generated_unlabeled]
+    action: add_platform_label
+    notice_required: true
+    appeal_allowed: false
+    deadline_hours: 0
+    evidence_threshold: 0.50
+    log_required: true
+    retention_months: 6
+    priority: 50

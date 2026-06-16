@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+out/
+.pytest_cache/
+.ipynb_checkpoints/
+.playwright-mcp/
+*.png

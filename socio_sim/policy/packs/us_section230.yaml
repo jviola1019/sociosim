@@ -1,0 +1,47 @@
+# US pack — Section 230 CDA semantics.
+# Good-Samaritan removals of objectionable content are immune; federal
+# criminal / IP / privacy matters are carved out (no immunity, escalate).
+pack: us_section230
+version: "1.0"
+jurisdiction: US
+rules:
+  - rule_id: US-230-CRIM-1
+    trigger: { categories: [illegal_goods, fraud] }
+    action: remove
+    notice_required: false
+    appeal_allowed: false
+    deadline_hours: 24
+    evidence_threshold: 0.80
+    log_required: true
+    priority: 100
+
+  - rule_id: US-230-CRIM-2
+    trigger: { categories: [illegal_goods, fraud] }
+    action: escalate
+    notice_required: false
+    appeal_allowed: false
+    deadline_hours: 24
+    evidence_threshold: 0.80
+    log_required: true
+    priority: 95
+
+  - rule_id: US-230-GS-1
+    trigger: { categories: [hate, harassment, adult, misinfo, self_harm] }
+    action: remove
+    immunity: good_samaritan
+    notice_required: false
+    appeal_allowed: false
+    deadline_hours: 0
+    evidence_threshold: 0.85
+    log_required: true
+    priority: 90
+
+  - rule_id: US-SH-1
+    trigger: { categories: [self_harm] }
+    action: escalate
+    notice_required: false
+    appeal_allowed: false
+    deadline_hours: 6
+    evidence_threshold: 0.70
+    log_required: true
+    priority: 80
