@@ -166,6 +166,41 @@ def test_safe_static_path_blocks_traversal():
     assert app.safe_static_path("../store.py") is None
 
 
+def test_live_server_research_mode_returns_mc_and_transparency():
+    """Research mode (n_replicates>1) over HTTP returns an mc bundle + a
+    transparency report; preview-only payloads carry mode/transparency too."""
+    from http.server import ThreadingHTTPServer
+    import threading
+    port = _free_port()
+    server = ThreadingHTTPServer(("127.0.0.1", port), app.Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{port}"
+    try:
+        body = json.dumps({"profile": "test", "n_agents": 50, "n_ticks": 12,
+                           "jurisdictions": ["EU"], "verify_replay": False,
+                           "n_replicates": 2}).encode()
+        req = urllib.request.Request(f"{base}/api/run", data=body,
+                                     headers={"Content-Type": "application/json"})
+        job_id = json.loads(urllib.request.urlopen(req).read())["job_id"]
+        result = None
+        for _ in range(150):
+            job = json.loads(
+                urllib.request.urlopen(f"{base}/api/job/{job_id}").read())
+            if job["status"] == "done":
+                result = job["result"]
+                break
+            if job["status"] == "error":
+                raise AssertionError(job.get("error"))
+            time.sleep(0.2)
+        assert result is not None, "research job did not finish"
+        assert result["mode"] == "research" and result["n_replicates"] == 2
+        assert result["mc"] and "harmful_exposure_rate" in result["mc"]
+        assert result["transparency"]["pack_versions"]
+        assert "NaN" not in json.dumps(result)
+    finally:
+        server.shutdown()
+
+
 def test_bad_job_id_404():
     from http.server import ThreadingHTTPServer
     import threading

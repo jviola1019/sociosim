@@ -5,6 +5,13 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
 ## [Unreleased] — audit P0/P1 remediation
 
 ### Added
+- **P6 UI (partial):** preset selection now resets to documented defaults before
+  applying overrides (S1, no stale carryover); a Monte Carlo Replicates control
+  reaches Research mode (S4) and the run header shows preview/research provenance;
+  MC intervals + transparency report surface in the Log tab; `tick_hours` is a
+  divisor-of-24 select (S5); charts get role=img/aria-label; the CSS header
+  comment now matches what's implemented (Q-CSS). Multi-route studio + force-graph
+  + campaign editor (S3) deferred (HANDOFF.md).
 - **P4 validation study (closes Q-PARAM sweep):** `validation/study.py` runs a
   first-order (Sobol-style) sensitivity sweep of headline outputs over
   BehaviorParams (LHS) and a calibration/implausibility check vs the published

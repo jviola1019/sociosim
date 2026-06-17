@@ -27,7 +27,12 @@ Resuming? Read this, then `AUDIT_LOG.md`, then `CHANGELOG.md`. Branch: `feat/aud
        safest as an order-preserving refactor, else accept a one-time hash regen. (b) LLM token/cost accounting —
        wall-clock latency must NOT enter the hashed event stream; accumulate on the adapter (deterministic token
        estimate ok in event, latency/cost in a separate adapter aggregate surfaced in the result).
-11. [ ] P6 multi-route studio + force-graph + a11y + preset reset (S1) + campaign editor (S3)
+11. [~] P6: DONE = S1 (preset reset-then-apply), S4 (n_replicates control + MC/transparency in Log + mode tag),
+       S5 (tick_hours divisor select), Q-CSS (corrected header comment), chart a11y (role=img/aria-label).
+       DEFERRED (next sprint, large): multi-route studio (Setup/Run/Compare/Validate/Audit/Transparency),
+       2D force-graph + cascade replay, S3 campaign editor (budget/bid/targeting/variants), full a11y
+       (slider aria-valuetext, focus order, data tables), provenance badges on cards. Optional SPA over the
+       JSON API; keep stdlib server canonical. Browser-verify after building (chrome-devtools/playwright MCP).
 12. [ ] Final: full pytest + ruff, scorecard, KNOWN_LIMITATIONS.md, finish branch
 
 ## P2 incrementality — agreed design (both research agents done)

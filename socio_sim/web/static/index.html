@@ -53,10 +53,12 @@
         </div>
         <div class="duo">
           <label class="field"><span class="lbl">Random Seed</span><input type="number" id="root_seed" value="42"></label>
-          <label class="field"><span class="lbl">Tick (hours)</span><input type="number" id="tick_hours" value="1" min="1" max="24"></label>
+          <label class="field"><span class="lbl">Tick (hours)</span><select id="tick_hours"><option value="1" selected>1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="6">6</option><option value="8">8</option><option value="12">12</option><option value="24">24</option></select></label>
         </div>
         <label class="switch"><input type="checkbox" id="verify_replay" checked><span class="track"></span><span class="switch-txt">Verify Deterministic Replay</span></label>
         <p class="hint">Re-runs from the manifest and confirms an identical event-stream hash. Auto-skipped above 2,000 agents.</p>
+        <label class="field"><span class="lbl">Monte Carlo Replicates <i>1 = preview · &gt;1 = research</i></span><input type="number" id="n_replicates" value="1" min="1" max="200"></label>
+        <p class="hint">Research mode runs N seeded replicates and reports <b>mc-replicated</b> 95% intervals (Log tab); Preview (1) reports within-run intervals only.</p>
       </section>
 
       <!-- NETWORK -->

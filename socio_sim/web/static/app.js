@@ -76,8 +76,29 @@ async function loadMeta() {
 
 /* ---------- presets / form ---------- */
 function setVal(id, v) { const el = $("#" + id); if (!el) return; if (el.type === "checkbox") el.checked = !!v; else el.value = v; const lab = $("#" + ({ homophily_rewire_fraction: "homoVal", classifier_precision: "precVal", classifier_recall: "recVal", human_review_accuracy: "hraVal" }[id])); if (lab) lab.textContent = (+v).toFixed(2); }
+// Documented defaults for every control a preset may touch, so selecting a
+// preset yields a CLEAN known state instead of inheriting stale values from a
+// previously selected preset (audit S1).
+const FIELD_DEFAULTS = {
+  ftc_enabled: true, feed_strategy: "personalized", eu_optout_rate: 0.20,
+  exploration_epsilon: 0.10, human_review_accuracy: 0.92,
+  human_review_delay_ticks: 6, appeal_grant_fp_rate: 0.70, ftc_compliance: true,
+  ads_enabled: true, holdout_fraction: 0.10, ad_frequency_cap_per_day: 4,
+  ad_slot_interval: 5, classifier_precision: 0.90, classifier_recall: 0.85,
+  homophily_rewire_fraction: 0.15, n_replicates: 1,
+};
+function resetDefaults() {
+  $$("#jurisdictions input").forEach(i => i.checked = i.value === "EU");
+  $$("#redteam input").forEach(i => i.checked = false);
+  Object.entries(FIELD_DEFAULTS).forEach(([k, v]) => setVal(k, v));
+  (META.harmful_categories.concat(["ai_generated"])).forEach(c => {
+    const v = META.defaults[c] ?? 0.02; setVal("rate_" + c, v);
+    const b = $("#rl_" + c); if (b) b.textContent = (+v).toFixed(3);
+  });
+}
 function applyPreset(name) {
   const p = META.presets[name]; if (!p) return; $("#presetDesc").textContent = p.desc; const f = p.fields;
+  resetDefaults();  // clean slate, then apply this preset's overrides (S1)
   if (f.jurisdictions) $$("#jurisdictions input").forEach(i => i.checked = f.jurisdictions.includes(i.value));
   if (f.red_team) $$("#redteam input").forEach(i => i.checked = f.red_team.includes(i.value));
   Object.entries(f).forEach(([k, v]) => { if (k === "jurisdictions" || k === "red_team") return; if (k.startsWith("rate_")) { setVal(k, v); const b = $("#rl_" + k.slice(5)); if (b) b.textContent = (+v).toFixed(3); } else setVal(k, v); });
@@ -90,7 +111,7 @@ function collect() {
   const v = id => { const e = $("#" + id); return e && e.value !== "" ? e.value : null; };
   const num = id => { const x = v(id); return x == null ? null : +x; }, chk = id => $("#" + id).checked, checked = sel => $$(sel + " input:checked").map(i => i.value);
   const body = {
-    label: v("label") || "", profile: $("input[name=profile]:checked").value, root_seed: num("root_seed"), tick_hours: num("tick_hours"), verify_replay: chk("verify_replay"),
+    label: v("label") || "", profile: $("input[name=profile]:checked").value, root_seed: num("root_seed"), tick_hours: num("tick_hours"), verify_replay: chk("verify_replay"), n_replicates: num("n_replicates"),
     n_agents: num("n_agents"), n_ticks: num("n_ticks"), n_topics: num("n_topics"), graph_kind: v("graph_kind"), graph_m: num("graph_m"), graph_k: num("graph_k"), graph_p: num("graph_p"), homophily_rewire_fraction: num("homophily_rewire_fraction"),
     content_mode: v("content_mode"), llm_model: v("llm_model"), llm_base_url: v("llm_base_url"), jurisdictions: checked("#jurisdictions"), ftc_enabled: chk("ftc_enabled"),
     classifier_precision: num("classifier_precision"), classifier_recall: num("classifier_recall"), human_review_accuracy: num("human_review_accuracy"), human_review_delay_ticks: num("human_review_delay_ticks"), appeal_grant_fp_rate: num("appeal_grant_fp_rate"),
@@ -147,7 +168,7 @@ let _charts = null;
 function renderCharts(ch) {
   _charts = ch; const host = $("#charts"); host.innerHTML = "";
   const hours = [...Array(24)].map((_, i) => (i % 6 === 0 ? i : ""));
-  const cc = (title, sub, node) => { const d = document.createElement("div"); d.className = "chart"; d.innerHTML = `<div class="ct">${title}</div><div class="cs">${sub}</div>`; d.appendChild(node); return d; };
+  const cc = (title, sub, node) => { const d = document.createElement("div"); d.className = "chart"; d.innerHTML = `<div class="ct">${title}</div><div class="cs">${sub}</div>`; node.setAttribute("role", "img"); node.setAttribute("aria-label", `${title} — ${sub}`); d.appendChild(node); return d; };
   host.appendChild(cc("Diurnal Posting", "posts by hour of day", areaChart(ch.diurnal, { color: "#30c0b4", xlabels: hours })));
   host.appendChild(cc("Degree Distribution", "agents by follower count", barChart(ch.degree_hist.map(d => [Math.round(d[0]), d[1]]), { color: "#0a84ff", labelEvery: 4 })));
   host.appendChild(cc("Activity Timeline", "posts (teal) vs moderation actions (blue)", dualLine(ch.timeline_posts, ch.timeline_removed)));
@@ -171,7 +192,8 @@ function metric(k, count, { dec = 0, suf = "", pre = "", ci = "" } = {}) {
 function render(r) {
   stage("results");
   const s = r.summary, m = r.manifest, mod = s.moderation, ap = s.appeals, he = s.harmful_exposure, w = s.welfare;
-  $("#runMeta").innerHTML = `cfg ${m.config_hash.slice(0, 10)} · seed ${m.root_seed} · ${r.n_events} events · ${r.elapsed_s}s · packs ${Object.keys(m.pack_versions).join(",")}` + (r.content_mode !== "template" ? ` · ${r.content_mode}: ${r.n_llm_calls} calls / ${r.n_degradations} degraded` : "");
+  const modeTag = r.mode === "research" ? ` · research ×${r.n_replicates} (mc-replicated CIs)` : " · preview (within-run CIs)";
+  $("#runMeta").innerHTML = `cfg ${m.config_hash.slice(0, 10)} · seed ${m.root_seed} · ${r.n_events} events · ${r.elapsed_s}s · packs ${Object.keys(m.pack_versions).join(",")}` + modeTag + (r.content_mode !== "template" ? ` · ${r.content_mode}: ${r.n_llm_calls} calls / ${r.n_degradations} degraded` : "");
   $("#footHash").textContent = "stream " + m.stream_hash.slice(0, 16);
   const seal = $("#seal"); seal.className = "seal";
   if (!r.replay.checked) $("#sealTxt").textContent = "replay skipped";
@@ -208,7 +230,18 @@ function render(r) {
     const lo0 = spec.value - 3 * spec.tolerance, hi0 = spec.value + 3 * spec.tolerance, sp = Math.max(hi0 - lo0, 1e-9), L = v => Math.max(0, Math.min(100, 100 * (v - lo0) / sp)), inb = Math.abs(obs - spec.value) <= spec.tolerance;
     return `<div class="calib-row"><span class="nm">${esc(name.replace(/_/g, " "))}</span><div class="ctrack"><span class="tol" style="left:${L(spec.value - spec.tolerance)}%;width:${L(spec.value + spec.tolerance) - L(spec.value - spec.tolerance)}%"></span><span class="ctr" style="left:${L(spec.value)}%"></span><span class="obs ${inb ? "in" : "out"}" style="left:${L(obs)}%"></span></div><span class="vl">${fmt(obs, 3)} <span class="dim">/ ${spec.value}</span></span></div>`;
   }).join("");
-  $("#rawReport").textContent = r.report_md || JSON.stringify(r.manifest, null, 2);
+  let prefix = "";
+  if (r.mc) {
+    prefix += `MONTE CARLO (provenance: mc-replicated, ${r.n_replicates} replicates)\n`;
+    for (const [k, d] of Object.entries(r.mc))
+      prefix += `  ${k}: median ${(+d.median).toFixed(4)}  95% [${(+d.ci[0]).toFixed(4)}, ${(+d.ci[1]).toFixed(4)}]\n`;
+    prefix += "\n";
+  }
+  if (r.transparency) {
+    const t = r.transparency;
+    prefix += `TRANSPARENCY REPORT: notices ${t.notices_sent} · appeals ${t.appeals.filed} filed / ${t.appeals.granted} granted · human reviews ${t.human_reviews} · deadline misses ${t.deadline_misses} · max retention ${t.max_retention_months}mo\n\n`;
+  }
+  $("#rawReport").textContent = prefix + (r.report_md || JSON.stringify(r.manifest, null, 2));
   $$("#outTabs button").forEach((b, i) => b.classList.toggle("on", i === 0));
   $$("[data-opanel]").forEach(p => p.classList.toggle("on", p.dataset.opanel === "overview"));
   moveInk($("#outTabs"));

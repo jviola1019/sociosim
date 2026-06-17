@@ -1,7 +1,8 @@
 /* SocioSim — editorial research studio.
    Light, Apple-grade aesthetic: SF-style type, an 8pt spatial system, soft
-   depth, an aurora-mesh field, and restrained motion (blur-in reveals,
-   perspective tilt, cursor spotlight, magnetic buttons, count-up). Offline. */
+   depth, and restrained motion that communicates state — blur-in reveals,
+   count-up metrics, sliding tab indicator, draw-in SVG charts, interval bars.
+   Fully offline; honors prefers-reduced-motion. */
 
 :root {
   --bg:        #f5f5f7;
