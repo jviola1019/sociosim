@@ -160,6 +160,33 @@ def _build_config(body: dict) -> RunConfig:
     return factory(**overrides).validate()
 
 
+def _campaigns_fn(body: dict):
+    """Build a campaigns factory from a web `campaigns` spec list, or None to
+    use the default campaigns. The factory returns FRESH Campaign objects each
+    call (budgets mutate during a run; Monte Carlo needs independent copies)."""
+    specs = body.get("campaigns")
+    if not specs:
+        return None
+    clean = []
+    for s in specs:
+        try:
+            clean.append(dict(
+                id=str(s.get("id") or f"camp{len(clean) + 1}"),
+                advertiser=str(s.get("advertiser") or "Advertiser"),
+                bid=float(s.get("bid", 2.0)),
+                budget=float(s.get("budget", 100.0)),
+                base_ctr=float(s.get("base_ctr", 0.012)),
+                base_cvr=float(s.get("base_cvr", 0.05)),
+                conversion_value=float(s.get("conversion_value", 1.0)),
+            ))
+        except (TypeError, ValueError):
+            continue
+    if not clean:
+        return None
+    from socio_sim.ads.campaigns import Campaign
+    return lambda cfg: [Campaign(**c) for c in clean]
+
+
 def _chart_data(result, summary) -> dict:
     """Compact, JSON-safe series for the dashboard charts."""
     cfg = result.config
@@ -279,7 +306,7 @@ def _run_job(job_id: str, body: dict):
         verify_replay = bool(body.get("verify_replay", cfg.n_agents <= 2000))
         a = run_and_analyze(
             cfg, verify_replay=verify_replay, n_replicates=n_replicates,
-            progress_callback=on_progress,
+            campaigns_fn=_campaigns_fn(body), progress_callback=on_progress,
             on_phase=lambda p: job.__setitem__("phase", p))
         result = a.result
 

@@ -154,6 +154,22 @@ def test_sbm_config_runs_end_to_end():
     Simulation(cfg).run()  # raises if block sizes disagree with n_agents
 
 
+def test_campaigns_fn_builds_factory_from_specs():
+    fn = app._campaigns_fn({"campaigns": [
+        {"id": "a", "advertiser": "A", "bid": 4.0, "budget": 500,
+         "base_ctr": 0.02, "base_cvr": 0.06},
+        {"id": "b", "advertiser": "B", "bid": 2.0, "budget": 200}]})
+    assert fn is not None
+    cfg = app._build_config({"profile": "test", "jurisdictions": ["EU"]})
+    camps = fn(cfg)
+    assert [c.id for c in camps] == ["a", "b"]
+    assert camps[0].bid == 4.0 and camps[0].base_ctr == 0.02
+    # fresh objects each call (independent budgets for Monte Carlo)
+    assert fn(cfg)[0] is not camps[0]
+    # no/empty spec -> default campaigns
+    assert app._campaigns_fn({}) is None and app._campaigns_fn({"campaigns": []}) is None
+
+
 def test_safe_static_path_blocks_traversal():
     """Static serving must contain requests within the static dir."""
     assert app.safe_static_path("app.js") is not None

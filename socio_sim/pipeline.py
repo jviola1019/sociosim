@@ -39,14 +39,15 @@ def _headline_metrics(result) -> dict:
     }
 
 
-def mc_bundle(cfg: RunConfig, n_replicates: int) -> dict:
+def mc_bundle(cfg: RunConfig, n_replicates: int, campaigns_fn=None) -> dict:
     """Run N replicates and return per-metric Monte Carlo percentile intervals.
 
     Provenance is explicitly 'mc-replicated' to distinguish these from the
     single-run within-run/analytic intervals on the report. NaN per-replicate
     values (e.g. recall with no harmful content) are dropped before aggregating.
     """
-    raw = run_replicates(cfg, n_replicates, _headline_metrics)
+    raw = run_replicates(cfg, n_replicates, _headline_metrics,
+                         campaigns_fn=campaigns_fn)
     out = {}
     for name, d in raw.items():
         vals = np.array([v for v in d["values"] if v == v], dtype=float)
@@ -77,7 +78,8 @@ class Analysis:
 
 def run_and_analyze(cfg: RunConfig, *, write: bool = True,
                     verify_replay: bool | None = None, n_replicates: int = 1,
-                    progress_callback=None, on_phase=None) -> Analysis:
+                    campaigns_fn=None, progress_callback=None,
+                    on_phase=None) -> Analysis:
     """Run a simulation and produce the full analytic bundle.
 
     n_replicates: 1 = Preview (single run; within-run/analytic intervals only).
@@ -95,7 +97,8 @@ def run_and_analyze(cfg: RunConfig, *, write: bool = True,
         verify_replay = cfg.n_agents <= REPLAY_AGENT_LIMIT
 
     phase("simulating")
-    result = Simulation(cfg).run(write=write, progress_callback=progress_callback)
+    result = Simulation(cfg, campaigns=campaigns_fn(cfg) if campaigns_fn else None
+                        ).run(write=write, progress_callback=progress_callback)
     summary = summarize_run(result)
     observed = compute_observed(result, summary)
     targets = load_targets()
@@ -103,15 +106,21 @@ def run_and_analyze(cfg: RunConfig, *, write: bool = True,
     replay = {"checked": False, "ok": None, "msg": "skipped (large run)"}
     if verify_replay:
         phase("verifying replay")
-        ok, msg = verify(
-            result.manifest, result.log.stream_hash(),
-            lambda cd: Simulation(RunConfig.from_dict(cd)).run().log)
+        # campaigns_fn is reconstructed deterministically on the replay path too,
+        # so custom-campaign runs still verify (in-process). NOTE: campaigns are
+        # not persisted in the manifest, so cross-process replay from a saved
+        # manifest uses default campaigns (see KNOWN_LIMITATIONS.md).
+        def _replay_run(cd):
+            rc = RunConfig.from_dict(cd)
+            return Simulation(rc, campaigns=campaigns_fn(rc) if campaigns_fn
+                              else None).run().log
+        ok, msg = verify(result.manifest, result.log.stream_hash(), _replay_run)
         replay = {"checked": True, "ok": bool(ok), "msg": msg}
 
     mc = None
     if n_replicates and n_replicates > 1:
         phase("monte carlo")
-        mc = mc_bundle(cfg, n_replicates)
+        mc = mc_bundle(cfg, n_replicates, campaigns_fn)
 
     transparency = transparency_report(
         result.log, PolicyEngine(cfg.jurisdictions, cfg.ftc_enabled))
