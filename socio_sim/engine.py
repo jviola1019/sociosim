@@ -32,13 +32,9 @@ from socio_sim.logs.manifest import Manifest
 from socio_sim.moderation.workflow import ModerationSystem
 from socio_sim.policy.engine import PolicyEngine
 
-P_POST_GIVEN_ACTIVE = 0.30
-P_SHARE_GIVEN_ENGAGED = 0.10
-P_FLAG_SCALE = 0.30
-IMPRESSION_FATIGUE = 0.005
-FATIGUE_DECAY_PER_TICK = 0.05
-RECENT_WINDOW_TICKS = 48
-EXPLORATION_POOL_SIZE = 10
+# Behaviour constants now live in socio_sim.behavior.BehaviorParams (cfg.behavior),
+# so they are documented, sensitivity-testable, and calibratable. Defaults there
+# reproduce the prior hardcoded values exactly (determinism guard locks this).
 
 HARMFUL_CATEGORIES = {"hate", "harassment", "fraud", "misinfo", "adult",
                       "illegal_goods", "self_harm"}
@@ -77,6 +73,7 @@ class Simulation:
     def __init__(self, cfg: RunConfig, campaigns: list | None = None):
         cfg.validate()
         self.cfg = cfg
+        self.bp = cfg.behavior  # documented behaviour knobs (was module constants)
         from socio_sim.rng import SeedTree
         tree = SeedTree(cfg.root_seed)
         rep = cfg.replicate_id
@@ -193,7 +190,7 @@ class Simulation:
                 if cfg.ads_enabled:
                     for aid in range(cfg.n_agents):
                         self.ads.simulate_baseline(aid, tick)
-            self.state.decay_fatigue(FATIGUE_DECAY_PER_TICK)
+            self.state.decay_fatigue(self.bp.fatigue_decay_per_tick)
 
             active = np.flatnonzero(
                 self.personas.active_mask(hour, self.rngs["activity"]))
@@ -202,7 +199,7 @@ class Simulation:
             self.moderation.process_queues(tick)
             self._do_feeds(active, tick)
 
-            cutoff = tick - RECENT_WINDOW_TICKS
+            cutoff = tick - self.bp.recent_window_ticks
             self.recent_posts = [p for p in self.recent_posts if p.tick > cutoff]
 
             if progress_callback is not None:
@@ -232,7 +229,8 @@ class Simulation:
         posting_rng = self.rngs["posting"]
         for agent_id in active:
             is_spammer = int(agent_id) in self.spammers
-            p_post = 1.0 if is_spammer else P_POST_GIVEN_ACTIVE
+            p_post = (self.bp.spammer_post_prob if is_spammer
+                      else self.bp.p_post_given_active)
             if posting_rng.random() >= p_post:
                 continue
             item = self.generator.generate(int(agent_id), self.personas, tick)
@@ -241,9 +239,10 @@ class Simulation:
                 if self._rt_rng.random() < 0.5:
                     item.true_categories.add("fraud")
             if int(agent_id) in self.amplifiers \
-                    and self._rt_rng.random() < 0.6:
+                    and self._rt_rng.random() < self.bp.amplifier_misinfo_prob:
                 item.true_categories.add("misinfo")
-                item.stance = float(np.clip(item.stance * 1.5, -1, 1))
+                item.stance = float(np.clip(
+                    item.stance * self.bp.amplifier_stance_gain, -1, 1))
             if self.cfg.content_mode in LLM_CONTENT_MODES:
                 self.log.append(tick=tick, kind="llm_call", actor_id=int(agent_id),
                                 content_id=item.id, data={
@@ -287,8 +286,8 @@ class Simulation:
                           if p.author_id in neigh_set and p.author_id != aid]
             pool = [p for p in self.recent_posts
                     if p.author_id not in neigh_set and p.author_id != aid]
-            if len(pool) > EXPLORATION_POOL_SIZE:
-                idx = feed_rng.choice(len(pool), EXPLORATION_POOL_SIZE,
+            if len(pool) > self.bp.exploration_pool_size:
+                idx = feed_rng.choice(len(pool), self.bp.exploration_pool_size,
                                       replace=False)
                 pool = [pool[i] for i in sorted(idx)]
 
@@ -308,7 +307,7 @@ class Simulation:
                 continue
 
             self.state.add_fatigue(np.bincount(
-                [aid], weights=[IMPRESSION_FATIGUE * len(feed)],
+                [aid], weights=[self.bp.impression_fatigue * len(feed)],
                 minlength=self.cfg.n_agents))
 
             for item in feed:
@@ -319,7 +318,8 @@ class Simulation:
                 belief = float(self.state.beliefs[aid, item.topic])
                 match = 1.0 - abs(item.stance - belief) / 2.0
                 p_engage = np.clip(
-                    0.3 * interest * match / (1.0 + float(self.state.fatigue[aid])),
+                    self.bp.engagement_base * interest * match
+                    / (1.0 + float(self.state.fatigue[aid])),
                     0, 1)
                 if eng.random() < p_engage:
                     item.likes += 1
@@ -329,14 +329,14 @@ class Simulation:
                                     data={"type": "like", "topic": item.topic})
                     exposure[aid, item.topic] += item.stance
                     exposure_count[aid, item.topic] += 1
-                    if eng.random() < P_SHARE_GIVEN_ENGAGED:
+                    if eng.random() < self.bp.p_share_given_engaged:
                         self._do_share(aid, item, tick)
 
                 # Brigading ring: coordinated bad-faith flags on influencers.
                 if aid in self.brigaders \
                         and 0 <= item.author_id < self.personas.n \
                         and self.personas.influencer[item.author_id] \
-                        and eng.random() < 0.8:
+                        and eng.random() < self.bp.brigade_flag_prob:
                     self.log.append(tick=tick, kind="flag", actor_id=aid,
                                     content_id=item.id,
                                     data={"brigade": True})
@@ -347,7 +347,7 @@ class Simulation:
                 # Flagging of perceived-harmful content (user easy-flag path)
                 if item.true_categories & HARMFUL_CATEGORIES:
                     attitude = float(self.personas.moderation_attitude[aid])
-                    if eng.random() < P_FLAG_SCALE * attitude:
+                    if eng.random() < self.bp.p_flag_scale * attitude:
                         self.log.append(tick=tick, kind="flag", actor_id=aid,
                                         content_id=item.id, data={})
                         scores = self.scores_by_item.get(item.id, {})

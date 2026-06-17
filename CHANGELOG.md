@@ -5,6 +5,13 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
 ## [Unreleased] — audit P0/P1 remediation
 
 ### Added
+- **P1d BehaviorParams (Q-PARAM extract):** the engine's ~12 hardcoded
+  behaviour constants (posting/share/flag probabilities, fatigue, recency
+  window, exploration pool, engagement base, red-team intensities) are now a
+  cited, frozen `socio_sim/behavior.py::BehaviorParams` on `RunConfig.behavior`,
+  serialized in the manifest and reproduced on replay. Defaults are byte-for-
+  byte behaviour-preserving (determinism guard unchanged). Sensitivity sweep
+  over them lands in P4.
 - **P3 policy-as-code hardening (closes Q-PACK):** every rule now carries
   `source_citation` (required) plus `legal_uncertainty`, `user_rights`,
   `transparency_category`, `human_review_required`; packs cite DSA Arts

@@ -10,6 +10,8 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 
+from socio_sim.behavior import BehaviorParams
+
 VALID_JURISDICTIONS = {"US", "EU", "CN"}
 VALID_FEED_STRATEGIES = {"personalized", "chronological", "random"}
 #: template = deterministic (default); claude = Anthropic API (needs key);
@@ -110,6 +112,9 @@ class RunConfig:
     # Red-team adversaries (subset of experiments.scenarios.ADVERSARIES)
     red_team: tuple = ()
 
+    # Behaviour parameters (extracted, documented, sensitivity-testable knobs)
+    behavior: BehaviorParams = field(default_factory=BehaviorParams)
+
     # Output
     out_dir: str = "out"
 
@@ -132,7 +137,7 @@ class RunConfig:
 
     # -- serialization ----------------------------------------------------
     def to_dict(self) -> dict:
-        d = asdict(self)
+        d = asdict(self)  # asdict recurses into the nested BehaviorParams
         d["jurisdictions"] = list(self.jurisdictions)
         d["red_team"] = list(self.red_team)
         return d
@@ -142,6 +147,9 @@ class RunConfig:
         d = dict(d)
         d["jurisdictions"] = tuple(d.get("jurisdictions", ("US",)))
         d["red_team"] = tuple(d.get("red_team", ()))
+        beh = d.get("behavior")
+        if isinstance(beh, dict):       # rebuild nested dataclass from manifest
+            d["behavior"] = BehaviorParams(**beh)
         return cls(**d)
 
     def config_hash(self) -> str:
