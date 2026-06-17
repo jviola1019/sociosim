@@ -56,3 +56,26 @@ def test_summary_keys():
     s = summary(g)
     for key in ("n", "m", "clustering", "degree_mean", "degree_max", "assortativity"):
         assert key in s
+
+
+def test_sample_subgraph_caps_membership_and_determinism():
+    import networkx as nx
+
+    from socio_sim.graph.metrics import sample_subgraph
+    g = nx.barabasi_albert_graph(300, 4, seed=1)
+    groups = {i: ("L" if i % 2 == 0 else "R") for i in g.nodes()}
+    s = sample_subgraph(g, groups, max_nodes=50, max_edges=120)
+    assert len(s["nodes"]) <= 50 and len(s["edges"]) <= 120
+    ids = {n["id"] for n in s["nodes"]}
+    for u, v in s["edges"]:
+        assert u in ids and v in ids          # edges only among sampled nodes
+    assert all("group" in n and "deg" in n for n in s["nodes"])
+    assert sample_subgraph(g, groups, 50, 120) == s   # deterministic
+
+
+def test_run_exposes_graph_sample():
+    from socio_sim.config import RunConfig
+    from socio_sim.engine import Simulation
+    res = Simulation(RunConfig.test(jurisdictions=("EU",))).run()
+    gs = res.graph_stats.get("graph_sample")
+    assert gs and gs["nodes"] and gs["edges"]

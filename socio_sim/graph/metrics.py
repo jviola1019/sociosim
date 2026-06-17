@@ -34,6 +34,27 @@ def summary(g: nx.Graph) -> dict:
     }
 
 
+def sample_subgraph(g: nx.Graph, groups: dict | None = None,
+                    max_nodes: int = 150, max_edges: int = 500) -> dict:
+    """A small, deterministic subgraph for visualization: the top-degree nodes
+    (hubs) plus the edges among them, capped. Each node carries its degree and
+    a group label (e.g. ideology bucket) for colouring. JSON-friendly.
+    """
+    deg = dict(g.degree())
+    nodes = sorted(deg, key=lambda n: (-deg[n], n))[:max_nodes]
+    nodeset = set(nodes)
+    edges = []
+    for u, v in g.edges():
+        if u in nodeset and v in nodeset:
+            edges.append([int(u), int(v)])
+            if len(edges) >= max_edges:
+                break
+    node_objs = [{"id": int(n), "deg": int(deg[n]),
+                  "group": (groups.get(n, "?") if groups else "?")}
+                 for n in nodes]
+    return {"nodes": node_objs, "edges": edges}
+
+
 def homophily_index(g: nx.Graph, attributes: dict) -> float:
     """Observed same-attribute edge fraction minus the expectation under
     random mixing (Newman-style). Positive = homophilous."""

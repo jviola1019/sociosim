@@ -26,6 +26,7 @@ from socio_sim.content.classify import NoisyClassifier
 from socio_sim.content.generate import TemplateGenerator
 from socio_sim.feed.ranking import FeedRanker
 from socio_sim.graph.generators import make_graph, mix_homophily
+from socio_sim.graph.metrics import sample_subgraph
 from socio_sim.graph.metrics import summary as graph_summary
 from socio_sim.logs.events import EventLog
 from socio_sim.logs.manifest import Manifest
@@ -95,6 +96,11 @@ class Simulation:
             graph = mix_homophily(graph, attrs, cfg.homophily_rewire_fraction,
                                   self.rngs["graph"])
         self.graph_stats = graph_summary(graph)
+        # Sampled subgraph for the topology view (hubs + their edges, coloured
+        # by ideology bucket). Not in the event stream -> determinism unaffected.
+        _groups = {i: ("L" if self.personas.ideology[i, 0] < 0 else "R")
+                   for i in range(cfg.n_agents)}
+        self.graph_stats["graph_sample"] = sample_subgraph(graph, _groups)
         self.neighbors = {i: np.array(sorted(graph.neighbors(i)), dtype=int)
                           for i in range(cfg.n_agents)}
 

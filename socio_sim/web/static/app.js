@@ -177,6 +177,38 @@ function renderCharts(ch) {
 }
 function redrawCharts() { if (_charts) renderCharts(_charts); }
 
+/* ---------- network topology (deterministic force layout) ---------- */
+function renderNetwork(gs) {
+  const host = $("#network"); if (!host) return;
+  if (!gs || !gs.nodes || !gs.nodes.length) { host.innerHTML = `<p class="dim small">No graph sample for this run.</p>`; return; }
+  const W = 640, H = 400, nodes = gs.nodes.map(n => ({ ...n })), idx = {};
+  nodes.forEach((n, i) => idx[n.id] = i);
+  const rnd = mulberry32(seedFrom("net" + nodes.length));
+  nodes.forEach(n => { n.x = 80 + rnd() * (W - 160); n.y = 60 + rnd() * (H - 120); n.vx = 0; n.vy = 0; });
+  const links = gs.edges.filter(([u, v]) => idx[u] != null && idx[v] != null).map(([u, v]) => [idx[u], idx[v]]);
+  for (let it = 0; it < 120; it++) {
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+      const dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y, d2 = dx * dx + dy * dy + 0.01, f = 200 / d2;
+      const fx = dx * f, fy = dy * f; nodes[i].vx += fx; nodes[i].vy += fy; nodes[j].vx -= fx; nodes[j].vy -= fy;
+    }
+    for (const [a, b] of links) {
+      const dx = nodes[b].x - nodes[a].x, dy = nodes[b].y - nodes[a].y, d = Math.hypot(dx, dy) || 1, f = (d - 42) * 0.02;
+      const fx = dx / d * f, fy = dy / d * f; nodes[a].vx += fx; nodes[a].vy += fy; nodes[b].vx -= fx; nodes[b].vy -= fy;
+    }
+    for (const n of nodes) {
+      n.vx += (W / 2 - n.x) * 0.002; n.vy += (H / 2 - n.y) * 0.002;
+      n.x += Math.max(-6, Math.min(6, n.vx)); n.y += Math.max(-6, Math.min(6, n.vy));
+      n.vx *= 0.85; n.vy *= 0.85;
+      n.x = Math.max(10, Math.min(W - 10, n.x)); n.y = Math.max(10, Math.min(H - 10, n.y));
+    }
+  }
+  const maxDeg = Math.max(...nodes.map(n => n.deg), 1);
+  const col = g => g === "L" ? "#0a84ff" : g === "R" ? "#ff9500" : "#86868b";
+  const e = links.map(([a, b]) => `<line x1="${nodes[a].x.toFixed(1)}" y1="${nodes[a].y.toFixed(1)}" x2="${nodes[b].x.toFixed(1)}" y2="${nodes[b].y.toFixed(1)}" stroke="#d2d2d7" stroke-width="0.6" opacity="0.55"/>`).join("");
+  const c = nodes.map(n => `<circle cx="${n.x.toFixed(1)}" cy="${n.y.toFixed(1)}" r="${(2.5 + 5.5 * Math.sqrt(n.deg / maxDeg)).toFixed(1)}" fill="${col(n.group)}" opacity="0.9"><title>agent ${n.id} · degree ${n.deg} · ${esc(n.group)}</title></circle>`).join("");
+  host.innerHTML = `<div class="chart"><div class="ct">Social Graph — top ${nodes.length} hubs</div><div class="cs">node size = degree · colour = ideology (blue = left, orange = right) · sampled subgraph, deterministic layout</div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Sampled social-network topology: the ${nodes.length} highest-degree agents and ${links.length} edges among them, coloured by ideology bucket">${e}${c}</svg></div>`;
+}
+
 /* ---------- interval bar ---------- */
 function ibar(lo, hi, pt, lo0, hi0, cls = "") {
   if (lo == null) return `<div class="bar"><span class="axis"></span></div>`;
@@ -218,6 +250,7 @@ function render(r) {
 
   renderFeed(r.feed || []);
   renderCharts(r.charts);
+  renderNetwork(r.summary.graph && r.summary.graph.graph_sample);
 
   $("#confusion").innerHTML = `<div class="cell tp"><div class="cl">true positive</div><div class="cv">${mod.tp}</div></div><div class="cell fp"><div class="cl">false positive</div><div class="cv">${mod.fp}</div></div><div class="cell fn"><div class="cl">false negative</div><div class="cv">${mod.fn}</div></div><div class="cell tn"><div class="cl">true negative</div><div class="cv">${mod.tn}</div></div>`;
   $("#fairness").innerHTML = Object.entries(s.fairness).map(([dim, gs]) => `<div class="fgrp">${esc(dim.replace(/_/g, " "))}</div><table class="read"><thead><tr><th>group</th><th>FPR</th><th>FNR</th><th>n posts</th></tr></thead><tbody>${Object.entries(gs).map(([g, d]) => `<tr><td>${esc(g)}</td><td class="num">${fmt(d.fpr, 4)}</td><td class="num">${fmt(d.fnr, 3)}</td><td class="num">${d.n_posts}</td></tr>`).join("")}</tbody></table>`).join("");
