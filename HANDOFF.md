@@ -21,7 +21,12 @@ Resuming? Read this, then `AUDIT_LOG.md`, then `CHANGELOG.md`. Branch: `feat/aud
 7. [x] P2 organic-baseline incrementality (done; latent baseline + Newcombe/Beta CI). DESIGN BELOW kept for reference.
 8. [x] P3 policy-as-code citations + schema fields + transparency exporter (done)
 9. [x] P4 calibration + sensitivity over BehaviorParams + VALIDATION_REPORT.md (done; `run.py --validate`)
-10. [ ] P5b SBM blocks (S2), hot-loop perf, follow/unfollow or remove dead kinds, LLM accounting
+10. [~] P5b: DONE = S2 (SBM blocks from n_agents), Q-KINDS (removed dead follow/unfollow/policy_gap, corrected spec).
+       DEFERRED with rationale: (a) hot-loop perf — index recent_posts by author + approx clustering n>2k;
+       MUST preserve feed candidate/pool ORDER or it changes exploration sampling -> different events;
+       safest as an order-preserving refactor, else accept a one-time hash regen. (b) LLM token/cost accounting —
+       wall-clock latency must NOT enter the hashed event stream; accumulate on the adapter (deterministic token
+       estimate ok in event, latency/cost in a separate adapter aggregate surfaced in the result).
 11. [ ] P6 multi-route studio + force-graph + a11y + preset reset (S1) + campaign editor (S3)
 12. [ ] Final: full pytest + ruff, scorecard, KNOWN_LIMITATIONS.md, finish branch
 

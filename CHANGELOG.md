@@ -48,6 +48,11 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
   `tests/test_determinism_regression.py` (locked EU/US/CN stream-hash guard).
 
 ### Fixed
+- **P5b S2:** web SBM graph now sizes its blocks to the agent count (was a
+  hardcoded [500,500] that crashed at any n_agents != 1000). Q-KINDS: removed
+  declared-but-never-emitted `follow`/`unfollow`/`policy_gap` event kinds and
+  corrected the spec (static graph in v1). Hot-loop perf + LLM token/cost
+  accounting deferred (determinism constraints — see HANDOFF.md).
 - **P2 (P0):** the incremental-lift / holdout metric was a tautology — holdout
   agents never converted, so `lift == exposed conversion rate`. Now
   `lift = exposed_rate - holdout_rate` over the targeted population, with a

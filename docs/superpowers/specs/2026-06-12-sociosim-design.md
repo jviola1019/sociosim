@@ -70,7 +70,7 @@ docs/              # Usage, limitations, ethics, legal-compliance notes, NIST AI
 
 ### Data flow per tick
 1. `agents` computes active agents (diurnal curve × activity propensity, vectorised).
-2. Active agents act: post (via `content` generator), react, share, follow/unfollow.
+2. Active agents act: post (via `content` generator), react, share. (Dynamic follow/unfollow and graph churn are NOT implemented in v1 — the social graph is static; see KNOWN_LIMITATIONS.md.)
 3. `content` classifies new items (noisy classifier → category scores).
 4. `policy` + `moderation` evaluate flagged/classified items → actions (label, downrank, remove, escalate, notify; appeals enqueued where allowed), all logged with rule_id and rationale.
 5. `ads` runs auctions for eligible impression slots (respecting jurisdiction constraints + holdouts).

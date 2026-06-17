@@ -11,14 +11,15 @@ import hashlib
 import json
 from pathlib import Path
 
-#: Allowed event kinds. `policy_gap` = fail-closed escalation for unmatched
-#: severe categories; `degradation` = LLM-adapter fallback to templates.
+#: Allowed event kinds. `degradation` = LLM-adapter fallback to templates.
+#: Fail-closed POLICY-GAP escalations are logged as `moderation` events
+#: (rule_id "POLICY-GAP"), not a separate kind. follow/unfollow are not emitted
+#: in v1 (the social graph is static — see KNOWN_LIMITATIONS.md), so they are
+#: intentionally absent here rather than declared-but-unused.
 EVENT_KINDS = {
     "post",
     "impression",
     "engagement",
-    "follow",
-    "unfollow",
     "flag",
     "classify",
     "moderation",
@@ -29,7 +30,6 @@ EVENT_KINDS = {
     "ad_conversion",
     "organic_conversion",
     "llm_call",
-    "policy_gap",
     "degradation",
 }
 

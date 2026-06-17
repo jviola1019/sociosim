@@ -13,6 +13,14 @@ def make_log(events):
     return log
 
 
+def test_dead_event_kinds_removed():
+    """follow/unfollow/policy_gap were declared but never emitted; the whitelist
+    must not advertise capabilities the engine doesn't have."""
+    from socio_sim.logs.events import EVENT_KINDS
+    for dead in ("follow", "unfollow", "policy_gap"):
+        assert dead not in EVENT_KINDS
+
+
 EVENTS = [
     dict(tick=0, kind="post", actor_id=1, content_id="c1", data={"topic": 2}),
     dict(tick=1, kind="moderation", actor_id=-1, content_id="c1",

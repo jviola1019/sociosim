@@ -112,9 +112,14 @@ def _build_config(body: dict) -> RunConfig:
             base_rates[cat] = float(body[f"rate_{cat}"])
 
     graph_kind = body.get("graph_kind", "ba")
+    # SBM blocks must sum to the agent count (else the graph has a different node
+    # count than n_agents -> engine indexing error). Derive from the effective n.
+    _prof_n = {"quick": 1000, "test": 200, "standard": 10000}.get(profile, 1000)
+    _n = int(body["n_agents"]) if body.get("n_agents") else _prof_n
+    _half = _n // 2
     graph_params = {"m": int(_f(body, "graph_m", 5))} if graph_kind == "ba" else \
         ({"k": int(_f(body, "graph_k", 10)), "p": _f(body, "graph_p", 0.05)}
-         if graph_kind == "ws" else {"block_sizes": [500, 500],
+         if graph_kind == "ws" else {"block_sizes": [_half, _n - _half],
                                      "p_matrix": [[0.02, 0.002], [0.002, 0.02]]})
 
     overrides = dict(

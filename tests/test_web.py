@@ -135,6 +135,26 @@ def test_live_server_runs_simulation_end_to_end():
         server.shutdown()
 
 
+def test_sbm_block_sizes_match_n_agents():
+    """SBM must size its blocks to the agent count, not a hardcoded 1000."""
+    cfg = app._build_config({"profile": "test", "graph_kind": "sbm",
+                             "n_agents": 300, "jurisdictions": ["EU"]})
+    assert cfg.graph_kind == "sbm"
+    assert sum(cfg.graph_params["block_sizes"]) == 300
+    # falls back to the profile's agent count when not overridden
+    cfg2 = app._build_config({"profile": "test", "graph_kind": "sbm",
+                              "jurisdictions": ["EU"]})
+    assert sum(cfg2.graph_params["block_sizes"]) == cfg2.n_agents
+
+
+def test_sbm_config_runs_end_to_end():
+    """An SBM config must actually build (graph node count == n_agents)."""
+    from socio_sim.engine import Simulation
+    cfg = app._build_config({"profile": "test", "graph_kind": "sbm",
+                             "n_agents": 120, "n_ticks": 6, "jurisdictions": ["EU"]})
+    Simulation(cfg).run()  # raises if block sizes disagree with n_agents
+
+
 def test_safe_static_path_blocks_traversal():
     """Static serving must contain requests within the static dir."""
     assert app.safe_static_path("app.js") is not None
