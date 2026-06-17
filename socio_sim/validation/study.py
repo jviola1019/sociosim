@@ -14,10 +14,13 @@ from dataclasses import replace
 
 import numpy as np
 
+from socio_sim.agents.personas import DIURNAL_CURVE
 from socio_sim.analytics.metrics import summarize_run
 from socio_sim.config import RunConfig
 from socio_sim.engine import Simulation
-from socio_sim.validation.calibrate import implausibility, lhs_samples
+from socio_sim.stats import discrete_ks
+from socio_sim.validation.calibrate import (abc_posterior, history_match,
+                                            implausibility, lhs_samples)
 from socio_sim.validation.sensitivity import first_order_indices
 from socio_sim.validation.targets import compute_observed, load_targets
 
@@ -65,8 +68,50 @@ def calibration_implausibility(cfg: RunConfig) -> dict:
     result = Simulation(cfg).run()
     observed = compute_observed(result, summarize_run(result))
     targets = load_targets()
+    # Distributional check (not just means): KS gap between the observed
+    # posting-hour distribution and the expected diurnal curve.
+    hours = [(e["tick"] * cfg.tick_hours) % 24 for e in result.log.by_kind("post")]
+    counts = np.bincount(hours, minlength=24) if hours else np.zeros(24)
     return {"implausibility": implausibility(observed, targets),
-            "observed": observed, "targets": targets}
+            "observed": observed, "targets": targets,
+            "diurnal_ks": discrete_ks(counts, DIURNAL_CURVE)}
+
+
+def posterior_calibrated_mc(profile: str = "test", n_samples: int = 24,
+                            seed: int = 42,
+                            metric: str = "posts_per_agent_day") -> dict:
+    """Chain calibration -> uncertainty: history-match BehaviorParams against a
+    behaviour-controllable target, build an ABC posterior, then propagate that
+    parameter posterior into an interval for `metric`. This is genuine
+    parameter-uncertainty propagation (not single-run noise)."""
+    factory = {"test": RunConfig.test, "quick": RunConfig.quick,
+               "standard": RunConfig.standard}[profile]
+    cfg = factory(jurisdictions=("EU",), root_seed=seed)
+    rng = np.random.default_rng(seed)
+    bounds = {"p_post_given_active": (0.15, 0.45),
+              "engagement_base": (0.15, 0.45)}
+    targets = {k: v for k, v in load_targets().items() if k == metric}
+
+    def run_fn(params, _rng):
+        c = replace(cfg, behavior=replace(cfg.behavior, **params))
+        res = Simulation(c).run()
+        return compute_observed(res, summarize_run(res))
+
+    survivors = history_match(run_fn, bounds, targets, n_samples, rng,
+                              threshold=3.0)
+    if not survivors:
+        return {"n_accepted": 0, "note": "no plausible parameter sets",
+                "provenance": "abc-posterior-propagated"}
+    posterior = abc_posterior(survivors, accept_fraction=0.5)
+    ranked = sorted(survivors, key=lambda s: s["implausibility"])
+    k = max(int(len(ranked) * 0.5), 3)
+    vals = np.array([s["observed"][metric] for s in ranked[:k]
+                     if np.isfinite(s["observed"].get(metric, float("nan")))])
+    ci = ((float(np.percentile(vals, 2.5)), float(np.percentile(vals, 97.5)))
+          if vals.size else (float("nan"), float("nan")))
+    return {"metric": metric, "n_accepted": int(vals.size), "posterior": posterior,
+            "output_median": float(np.median(vals)) if vals.size else float("nan"),
+            "output_ci": ci, "provenance": "abc-posterior-propagated"}
 
 
 def run_validation_study(profile: str = "test", n_samples: int = 24,
@@ -81,11 +126,23 @@ def run_validation_study(profile: str = "test", n_samples: int = 24,
         "sensitivity": behavior_sensitivity(
             cfg, default_behavior_bounds(), n_samples, posts_per_agent, rng),
         "calibration": calibration_implausibility(cfg),
+        "posterior_mc": posterior_calibrated_mc(profile, n_samples, seed),
     }
+
+
+def _pm_line(pm: dict) -> str:
+    if not pm or not pm.get("n_accepted"):
+        return ("ABC posterior propagation: no plausible parameter sets at this "
+                "scale/seed (try more samples).")
+    lo, hi = pm["output_ci"]
+    return (f"Calibrated `{pm['metric']}` over {pm['n_accepted']} accepted "
+            f"parameter sets (provenance: {pm['provenance']}): median "
+            f"{pm['output_median']:.4f}, 95% [{lo:.4f}, {hi:.4f}].")
 
 
 def render_validation_report(study: dict) -> str:
     s, c = study["sensitivity"], study["calibration"]
+    pm = study.get("posterior_mc") or {}
     ranked = sorted(s["indices"].items(), key=lambda kv: kv[1], reverse=True)
     lines = [
         "# SocioSim Validation Report",
@@ -116,6 +173,8 @@ def render_validation_report(study: dict) -> str:
         "## 2. Calibration vs published benchmarks",
         f"Implausibility **I = {c['implausibility']:.2f}** "
         "(history-matching cutoff 3.0; I<3 = not implausible).",
+        f"Diurnal distribution KS gap = {c.get('diurnal_ks', float('nan')):.3f} "
+        "(0 = posting-hour distribution matches the diurnal curve exactly).",
         "",
         "| Target | observed | benchmark | tolerance | within tol? |",
         "|---|---|---|---|---|",
@@ -130,6 +189,9 @@ def render_validation_report(study: dict) -> str:
         lines.append(f"| {name} | {o:.4f} | {spec['value']} | "
                      f"{spec['tolerance']} | {'yes' if ok else 'NO'} |")
     lines += [
+        "",
+        "## 2b. Parameter-uncertainty propagation (ABC posterior -> output)",
+        _pm_line(pm),
         "",
         "## 3. Limitations",
         "- Bounds are +/-50% of defaults, not empirically derived.",

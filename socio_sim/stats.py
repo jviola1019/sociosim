@@ -61,6 +61,32 @@ def two_proportion_p(x1: int, n1: int, x2: int, n2: int) -> float:
     return float(2 * _ss.norm.sf(abs(z)))
 
 
+def min_detectable_effect(n1: int, n2: int, baseline_rate: float,
+                          power: float = 0.8, alpha: float = 0.05) -> float:
+    """Smallest absolute lift detectable for a two-proportion test at the given
+    power/alpha (normal approximation). Lets a run report whether its holdout is
+    even large enough to detect the effect it claims. Empty arm -> nan."""
+    from scipy import stats as _ss
+    if n1 <= 0 or n2 <= 0:
+        return float("nan")
+    p = min(max(baseline_rate, 1e-6), 1 - 1e-6)
+    za = _ss.norm.ppf(1 - alpha / 2)
+    zb = _ss.norm.ppf(power)
+    return float((za + zb) * np.sqrt(p * (1 - p) * (1 / n1 + 1 / n2)))
+
+
+def discrete_ks(observed_counts, expected_weights) -> float:
+    """KS statistic (max CDF gap) between an observed discrete distribution and
+    an expected one — a distributional check, not just a mean comparison."""
+    o = np.asarray(observed_counts, dtype=float)
+    e = np.asarray(expected_weights, dtype=float)
+    if o.sum() <= 0 or e.sum() <= 0:
+        return float("nan")
+    co = np.cumsum(o / o.sum())
+    ce = np.cumsum(e / e.sum())
+    return float(np.max(np.abs(co - ce)))
+
+
 def benjamini_hochberg(pvalues, alpha: float = 0.05) -> list:
     """Benjamini-Hochberg FDR control. Returns a boolean rejected-mask aligned
     to `pvalues` (preferred over Bonferroni for families of campaign tests)."""

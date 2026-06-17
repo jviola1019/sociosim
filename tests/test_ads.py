@@ -227,8 +227,9 @@ def test_marketing_metrics_present_and_consistent():
                 ads.simulate_response(aid, cr, t)
     m = measure_campaign(log, camp[0], ads, n_agents=100)
     for k in ("roas", "iroas", "cac", "ltv", "incremental_ltv",
-              "lift_cuped", "lift_pvalue", "lift_significant"):
+              "lift_cuped", "lift_pvalue", "lift_significant", "mde"):
         assert k in m, f"missing {k}"
+    assert m["mde"] > 0  # holdout sized -> a finite detectable effect
     assert m["lift"] > 0 and m["iroas"] > 0 and m["roas"] > 0
     assert m["lift_pvalue"] < 0.05 and m["lift_significant"] is True
     assert np.isfinite(m["lift_cuped"])

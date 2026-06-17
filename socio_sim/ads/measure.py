@@ -12,8 +12,9 @@ from scipy import stats
 
 from socio_sim.ads.campaigns import Campaign
 from socio_sim.logs.events import EventLog
-from socio_sim.stats import (benjamini_hochberg, newcombe_diff_ci,
-                             prob_diff_positive, two_proportion_p)
+from socio_sim.stats import (benjamini_hochberg, min_detectable_effect,
+                             newcombe_diff_ci, prob_diff_positive,
+                             two_proportion_p)
 
 
 def _cuped_lift(ads, exposed, holdout, converted) -> float:
@@ -138,6 +139,7 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
         "holdout_rate": holdout_rate,
         "prob_lift_positive": prob_diff_positive(x_exposed, n_exposed,
                                                  x_holdout, n_holdout),
+        "mde": min_detectable_effect(n_exposed, n_holdout, holdout_rate),
         "roas": roas,
         "iroas": iroas,
         "cac": cac,

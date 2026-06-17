@@ -19,6 +19,7 @@ Interpretation: parameters with high S1 dominate this output and MUST be calibra
 
 ## 2. Calibration vs published benchmarks
 Implausibility **I = 1.80** (history-matching cutoff 3.0; I<3 = not implausible).
+Diurnal distribution KS gap = 0.056 (0 = posting-hour distribution matches the diurnal curve exactly).
 
 | Target | observed | benchmark | tolerance | within tol? |
 |---|---|---|---|---|
@@ -29,6 +30,9 @@ Implausibility **I = 1.80** (history-matching cutoff 3.0; I<3 = not implausible)
 | posts_per_agent_day | 0.4475 | 0.5 | 0.35 | yes |
 | ad_ctr | 0.0075 | 0.01 | 0.008 | yes |
 | appeal_grant_rate | n/a | 0.25 | 0.15 | — |
+
+## 2b. Parameter-uncertainty propagation (ABC posterior -> output)
+Calibrated `posts_per_agent_day` over 12 accepted parameter sets (provenance: abc-posterior-propagated): median 0.4962, 95% [0.4050, 0.5922].
 
 ## 3. Limitations
 - Bounds are +/-50% of defaults, not empirically derived.

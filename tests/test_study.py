@@ -5,6 +5,7 @@ import numpy as np
 from socio_sim.config import RunConfig
 from socio_sim.validation.study import (behavior_sensitivity,
                                         calibration_implausibility,
+                                        posterior_calibrated_mc,
                                         posts_per_agent,
                                         render_validation_report,
                                         run_validation_study)
@@ -39,3 +40,18 @@ def test_validation_report_renders_sections():
     assert "Sensitivity" in md and "Calibration" in md
     assert "synthetic exploratory" in md.lower()
     assert "Implausibility" in md
+
+
+def test_calibration_includes_diurnal_ks_distributional_check():
+    c = calibration_implausibility(RunConfig.test(jurisdictions=("EU",)))
+    assert "diurnal_ks" in c
+    assert 0.0 <= c["diurnal_ks"] <= 1.0
+
+
+def test_posterior_calibrated_mc_propagates_parameter_uncertainty():
+    pm = posterior_calibrated_mc(profile="test", n_samples=16, seed=4)
+    assert pm["n_accepted"] >= 1
+    assert "posterior" in pm and "p_post_given_active" in pm["posterior"]
+    lo, hi = pm["output_ci"]
+    assert lo <= pm["output_median"] <= hi
+    assert pm["provenance"] == "abc-posterior-propagated"
