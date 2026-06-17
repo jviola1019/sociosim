@@ -1,4 +1,3 @@
-import numpy as np
 
 from socio_sim.config import RunConfig
 from socio_sim.engine import Simulation

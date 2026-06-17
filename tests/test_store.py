@@ -55,8 +55,11 @@ def test_overwrite_same_id(tmp_path):
 
 def _free_port():
     import socket
-    s = socket.socket(); s.bind(("127.0.0.1", 0))
-    port = s.getsockname()[1]; s.close(); return port
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
 
 
 def test_history_endpoints_live(tmp_path, monkeypatch):

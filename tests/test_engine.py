@@ -58,6 +58,6 @@ def test_replay_verifier_passes(result):
 
 def test_run_writes_outputs(tmp_path):
     cfg = RunConfig.test(out_dir=str(tmp_path))
-    res = Simulation(cfg).run(write=True)
+    Simulation(cfg).run(write=True)
     assert (tmp_path / "events.jsonl").exists()
     assert (tmp_path / "manifest.json").exists()

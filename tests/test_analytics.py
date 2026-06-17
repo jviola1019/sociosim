@@ -1,7 +1,6 @@
 import numpy as np
 
 from socio_sim.analytics.metrics import (bootstrap_ci, cascade_sizes,
-                                         fairness_diagnostics,
                                          harmful_exposure,
                                          moderation_confusion, summarize_run)
 from socio_sim.analytics.report import render
