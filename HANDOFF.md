@@ -8,8 +8,8 @@ Resuming? Read this, then `AUDIT_LOG.md`, then `CHANGELOG.md`. Branch: `feat/aud
 - Confirmed scope: Preview+Research MC modes; organic-baseline incrementality; full multi-route UI.
 - Commits so far: P1a/P1b/P5a; P1c; P2 (incrementality).
 - DONE so far: Q-HILL, Q-CI, Q-DOC(most), Q-TRAV, Q-LIFT, Q-MC. **Both P0s CLOSED.**
-- Commits: P1a/P1b/P5a; P1c; P2; P1e.
-- NEXT (all P1/P2): P3 policy citations + transparency exporter; P1d BehaviorParams; P4 calibration/sensitivity; P5b perf/SBM/follow-unfollow/LLM accounting; P6 multi-route UI.
+- Commits: P1a/P1b/P5a; P1c; P2; P1e; P3.
+- NEXT: P1d BehaviorParams (regression-protected); P4 calibration/sensitivity + VALIDATION_REPORT.md; P5b perf/SBM/follow-unfollow/LLM accounting; P6 multi-route UI.
 
 ## Order of execution (value x completability)
 1. [x] P1a determinism regression guard
@@ -19,7 +19,7 @@ Resuming? Read this, then `AUDIT_LOG.md`, then `CHANGELOG.md`. Branch: `feat/aud
 5. [ ] P1d BehaviorParams extraction (regression-protected; MUST keep locked hashes)
 6. [x] P1e Monte Carlo wiring (Preview + Research) into pipeline/CLI/web. NOTE: backend + CLI done; UI n_replicates control (S4) still pending in P6.
 7. [x] P2 organic-baseline incrementality (done; latent baseline + Newcombe/Beta CI). DESIGN BELOW kept for reference.
-8. [ ] P3 policy-as-code citations + schema fields + transparency exporter
+8. [x] P3 policy-as-code citations + schema fields + transparency exporter (done)
 9. [ ] P4 calibration + sensitivity over BehaviorParams + VALIDATION_REPORT.md
 10. [ ] P5b SBM blocks (S2), hot-loop perf, follow/unfollow or remove dead kinds, LLM accounting
 11. [ ] P6 multi-route studio + force-graph + a11y + preset reset (S1) + campaign editor (S3)

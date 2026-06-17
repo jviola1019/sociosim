@@ -16,6 +16,8 @@ from socio_sim.analytics.report import render
 from socio_sim.config import RunConfig
 from socio_sim.engine import Simulation
 from socio_sim.logs.replay import verify
+from socio_sim.policy.engine import PolicyEngine
+from socio_sim.policy.transparency import transparency_report
 from socio_sim.validation.calibrate import implausibility
 from socio_sim.validation.montecarlo import run_replicates
 from socio_sim.validation.targets import compute_observed, load_targets
@@ -70,6 +72,7 @@ class Analysis:
     implausibility: float
     replay: dict          # {checked, ok, msg}
     mc: object = None     # None in Preview; {metric: {median, ci, n_replicates, provenance}} in Research
+    transparency: object = None  # DSA/§230/CN/FTC-style transparency-report tally
 
 
 def run_and_analyze(cfg: RunConfig, *, write: bool = True,
@@ -110,8 +113,12 @@ def run_and_analyze(cfg: RunConfig, *, write: bool = True,
         phase("monte carlo")
         mc = mc_bundle(cfg, n_replicates)
 
+    transparency = transparency_report(
+        result.log, PolicyEngine(cfg.jurisdictions, cfg.ftc_enabled))
+
     return Analysis(
         result=result, summary=summary,
         report_md=render(summary, result.manifest),
         observed=observed, targets=targets,
-        implausibility=implausibility(observed, targets), replay=replay, mc=mc)
+        implausibility=implausibility(observed, targets), replay=replay, mc=mc,
+        transparency=transparency)

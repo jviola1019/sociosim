@@ -1,8 +1,9 @@
 # US pack — Section 230 CDA semantics.
 # Good-Samaritan removals of objectionable content are immune; federal
 # criminal / IP / privacy matters are carved out (no immunity, escalate).
+# Research approximation, NOT legal advice.
 pack: us_section230
-version: "1.0"
+version: "1.1"
 jurisdiction: US
 rules:
   - rule_id: US-230-CRIM-1
@@ -14,6 +15,11 @@ rules:
     evidence_threshold: 0.80
     log_required: true
     priority: 100
+    source_citation: "47 U.S.C. § 230(e)(1) (no effect on federal criminal law); FOSTA-SESTA (Pub. L. 115-164)"
+    legal_uncertainty: "§230 immunity does NOT bar federal criminal liability; the 24h is a modeling assumption, not a statutory takedown clock."
+    user_rights: "None mandated federally (no notice/appeal requirement under §230)"
+    transparency_category: illegal_content_removal
+    human_review_required: false
 
   - rule_id: US-230-CRIM-2
     trigger: { categories: [illegal_goods, fraud] }
@@ -24,6 +30,11 @@ rules:
     evidence_threshold: 0.80
     log_required: true
     priority: 95
+    source_citation: "47 U.S.C. § 230(e)(1)-(e)(2) (federal criminal / IP carve-outs)"
+    legal_uncertainty: "Escalation models referral for potential criminal/IP review; §230 sets no review-deadline."
+    user_rights: "None mandated federally"
+    transparency_category: criminal_escalation
+    human_review_required: true
 
   - rule_id: US-230-GS-1
     trigger: { categories: [hate, harassment, adult, misinfo, self_harm] }
@@ -35,6 +46,11 @@ rules:
     evidence_threshold: 0.85
     log_required: true
     priority: 90
+    source_citation: "47 U.S.C. § 230(c)(2)(A) (Good-Samaritan; voluntary good-faith restriction of objectionable material) and § 230(c)(1)"
+    legal_uncertainty: "Good-faith moderation is immunised, not required; no federal notice/appeal duty (state laws e.g. TX HB20/FL SB7072 are contested and not modelled)."
+    user_rights: "None mandated federally (platform discretion)"
+    transparency_category: harmful_content_removal
+    human_review_required: false
 
   - rule_id: US-SH-1
     trigger: { categories: [self_harm] }
@@ -45,3 +61,8 @@ rules:
     evidence_threshold: 0.70
     log_required: true
     priority: 80
+    source_citation: "Platform safety practice (e.g. NCMEC/988 referral norms); no specific §230 mandate"
+    legal_uncertainty: "Escalation of self-harm content to human/safety review is best-practice, not a §230 obligation; 6h is a modeling assumption."
+    user_rights: "Safety referral (no appeal applicable)"
+    transparency_category: user_flag_escalation
+    human_review_required: true

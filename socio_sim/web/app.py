@@ -293,6 +293,7 @@ def _run_job(job_id: str, body: dict):
             "mc": a.mc,
             "n_replicates": n_replicates,
             "mode": "research" if n_replicates > 1 else "preview",
+            "transparency": a.transparency,
             "elapsed_s": round(time.time() - started, 2),
             "n_events": len(result.log.events),
             "content_mode": cfg.content_mode,
@@ -393,6 +394,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if fmt == "report":
             body, ctype, name = payload.get("report_md", ""), "text/markdown", "report.md"
+        elif fmt == "transparency":
+            body = json.dumps(payload.get("transparency") or {}, indent=2)
+            ctype, name = "application/json", "transparency.json"
         else:  # json
             body, ctype, name = json.dumps(payload, indent=2), "application/json", "result.json"
         data = body.encode("utf-8")

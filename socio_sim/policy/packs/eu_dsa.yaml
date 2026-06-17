@@ -1,8 +1,9 @@
 # EU pack — Digital Services Act semantics: notices and appeals on removals,
 # easy flagging of illegal content, ad restrictions (no targeting of minors,
 # no sensitive-data targeting), non-personalised feed option (feed module).
+# Research approximation of DSA obligations, NOT legal advice.
 pack: eu_dsa
-version: "1.0"
+version: "1.1"
 jurisdiction: EU
 rules:
   - rule_id: EU-ILLEGAL-1
@@ -14,6 +15,11 @@ rules:
     evidence_threshold: 0.90
     log_required: true
     priority: 100
+    source_citation: "DSA (Reg. (EU) 2022/2065) Art. 16 (notice & action), Art. 9 (orders to act against illegal content)"
+    legal_uncertainty: "DSA Art. 16 requires acting in a 'timely' manner; it does NOT set a fixed 24h removal deadline. The 24h here is a configurable modeling assumption, not a statutory mandate."
+    user_rights: "Statement of reasons (Art. 17) + internal complaint / appeal (Art. 20)"
+    transparency_category: illegal_content_removal
+    human_review_required: false
 
   - rule_id: EU-ADS-MINOR-1
     trigger: { conditions: [is_ad, targets_minor] }
@@ -24,6 +30,11 @@ rules:
     evidence_threshold: 0.0
     log_required: true
     priority: 95
+    source_citation: "DSA Art. 28(2) (no advertising based on profiling using minors' data)"
+    legal_uncertainty: "Operationalised as a hard block on ads to minor agents; the statute targets profiling-based ads specifically."
+    user_rights: "Protection of minors (no appeal applicable)"
+    transparency_category: ad_restriction
+    human_review_required: false
 
   - rule_id: EU-ADS-SENS-1
     trigger: { conditions: [is_ad, sensitive_targeting] }
@@ -34,6 +45,11 @@ rules:
     evidence_threshold: 0.0
     log_required: true
     priority: 94
+    source_citation: "DSA Art. 26(3) (no ads based on profiling using special categories of personal data, GDPR Art. 9)"
+    legal_uncertainty: "Sensitive-attribute targeting keys are stripped rather than the ad blocked; mapping of 'special categories' is approximate."
+    user_rights: "Protection from sensitive-data profiling (no appeal applicable)"
+    transparency_category: ad_restriction
+    human_review_required: false
 
   - rule_id: EU-FLAG-1
     trigger:
@@ -46,6 +62,11 @@ rules:
     evidence_threshold: 0.50
     log_required: true
     priority: 70
+    source_citation: "DSA Art. 16 (notice mechanisms) & Art. 22 (trusted flaggers)"
+    legal_uncertainty: "48h is a modeling assumption for review latency; DSA mandates timely, diligent, non-arbitrary handling, not a fixed deadline."
+    user_rights: "Statement of reasons (Art. 17) + appeal (Art. 20)"
+    transparency_category: user_flag_escalation
+    human_review_required: true
 
   - rule_id: EU-MISINFO-1
     trigger: { categories: [misinfo] }
@@ -56,6 +77,11 @@ rules:
     evidence_threshold: 0.60
     log_required: true
     priority: 60
+    source_citation: "DSA Art. 34-35 (systemic-risk mitigation) + 2022 Strengthened Code of Practice on Disinformation"
+    legal_uncertainty: "Downranking lawful-but-harmful misinformation is a risk-mitigation measure, not a removal obligation; highly platform-discretionary and contested."
+    user_rights: "Statement of reasons + appeal (Art. 17/20)"
+    transparency_category: harmful_content_downrank
+    human_review_required: false
 
   - rule_id: EU-MISINFO-2
     trigger: { categories: [misinfo] }
@@ -66,3 +92,8 @@ rules:
     evidence_threshold: 0.60
     log_required: true
     priority: 40
+    source_citation: "DSA Art. 34-35 + Code of Practice on Disinformation (fact-check labelling commitments)"
+    legal_uncertainty: "Labelling is a voluntary Code commitment, not a binding DSA article; included as a softer alternative to downranking."
+    user_rights: "Appeal of label (Art. 20)"
+    transparency_category: content_label
+    human_review_required: false

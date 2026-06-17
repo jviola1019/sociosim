@@ -5,6 +5,14 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
 ## [Unreleased] — audit P0/P1 remediation
 
 ### Added
+- **P3 policy-as-code hardening (closes Q-PACK):** every rule now carries
+  `source_citation` (required) plus `legal_uncertainty`, `user_rights`,
+  `transparency_category`, `human_review_required`; packs cite DSA Arts
+  16/17/20/26/28/34-35, §230(c)(1)/(c)(2)/(e), CN 2025 AI-label Measures +
+  Deep Synthesis Provisions, 16 CFR Part 255. EU "24h" reframed via
+  `legal_uncertainty` as a modeling assumption (DSA requires "timely", not 24h).
+  New `policy/transparency.py` + `Analysis.transparency`; CLI prints it, web
+  returns it and exports `?fmt=transparency`. Pack versions bumped to 1.1.
 - **P1e Monte Carlo modes (closes Q-MC P0):** `run_and_analyze(cfg, n_replicates=N)`.
   `N=1` = Preview (single run, within-run/analytic intervals only); `N>1` =
   Research run, attaching an `mc` bundle of Monte Carlo percentile intervals
@@ -47,6 +55,5 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
 - **Both P0s closed:** Q-LIFT (P2) and Q-MC (P1e). Q-HILL, Q-CI, Q-TRAV, Q-DOC done.
 
 ### Pending (see HANDOFF.md / AUDIT_LOG.md)
-- P1d BehaviorParams extraction · P3 policy-as-code citations + transparency
-  exporter · P4 calibration + sensitivity · P5b perf/SBM/follow-unfollow/LLM
-  accounting · P6 multi-route studio + force-graph + a11y.
+- P1d BehaviorParams extraction · P4 calibration + sensitivity · P5b perf/SBM/
+  follow-unfollow/LLM accounting · P6 multi-route studio + force-graph + a11y.

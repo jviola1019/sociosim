@@ -95,6 +95,15 @@ def run_sim(cfg: RunConfig, n_replicates: int = 1):
             print(f"  {name:24s} median {d['median']:8.4f}  "
                   f"95% [{lo:.4f}, {hi:.4f}]")
 
+    if a.transparency:
+        t = a.transparency
+        print(f"\nTransparency report: notices {t['notices_sent']} | appeals "
+              f"filed {t['appeals']['filed']}/granted {t['appeals']['granted']} "
+              f"| human reviews {t['human_reviews']} | deadline misses "
+              f"{t['deadline_misses']} | max retention {t['max_retention_months']}mo")
+        for cat, v in t["actions_by_category"].items():
+            print(f"  {cat:26s} {v['actions']:4d} actions {v['by_action']}")
+
     if a.replay["checked"]:
         print(f"\nDeterministic replay: {a.replay['msg']}")
         return 0 if a.replay["ok"] else 1
