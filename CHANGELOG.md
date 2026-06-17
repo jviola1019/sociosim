@@ -5,6 +5,12 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
 ## [Unreleased] — audit P0/P1 remediation
 
 ### Added
+- **P4 validation study (closes Q-PARAM sweep):** `validation/study.py` runs a
+  first-order (Sobol-style) sensitivity sweep of headline outputs over
+  BehaviorParams (LHS) and a calibration/implausibility check vs the published
+  targets, rendered to `VALIDATION_REPORT.md` via `run.py --validate`. The
+  generated report honestly flags out-of-tolerance targets (degree-tail,
+  diurnal peak) even at I<3. Adds `KNOWN_LIMITATIONS.md`, `SOURCE_LEDGER.md`.
 - **P1d BehaviorParams (Q-PARAM extract):** the engine's ~12 hardcoded
   behaviour constants (posting/share/flag probabilities, fatigue, recency
   window, exploration pool, engagement base, red-team intensities) are now a
@@ -62,5 +68,5 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
 - **Both P0s closed:** Q-LIFT (P2) and Q-MC (P1e). Q-HILL, Q-CI, Q-TRAV, Q-DOC done.
 
 ### Pending (see HANDOFF.md / AUDIT_LOG.md)
-- P1d BehaviorParams extraction · P4 calibration + sensitivity · P5b perf/SBM/
-  follow-unfollow/LLM accounting · P6 multi-route studio + force-graph + a11y.
+- P5b perf/SBM/follow-unfollow/LLM accounting · P6 multi-route studio +
+  force-graph + a11y. (All P0s + the quant/policy P1s are closed.)

@@ -20,7 +20,7 @@ Resuming? Read this, then `AUDIT_LOG.md`, then `CHANGELOG.md`. Branch: `feat/aud
 6. [x] P1e Monte Carlo wiring (Preview + Research) into pipeline/CLI/web. NOTE: backend + CLI done; UI n_replicates control (S4) still pending in P6.
 7. [x] P2 organic-baseline incrementality (done; latent baseline + Newcombe/Beta CI). DESIGN BELOW kept for reference.
 8. [x] P3 policy-as-code citations + schema fields + transparency exporter (done)
-9. [ ] P4 calibration + sensitivity over BehaviorParams + VALIDATION_REPORT.md
+9. [x] P4 calibration + sensitivity over BehaviorParams + VALIDATION_REPORT.md (done; `run.py --validate`)
 10. [ ] P5b SBM blocks (S2), hot-loop perf, follow/unfollow or remove dead kinds, LLM accounting
 11. [ ] P6 multi-route studio + force-graph + a11y + preset reset (S1) + campaign editor (S3)
 12. [ ] Final: full pytest + ruff, scorecard, KNOWN_LIMITATIONS.md, finish branch

@@ -1,0 +1,142 @@
+"""Validation study: sensitivity of headline outputs to BehaviorParams + a
+calibration (implausibility) check against the published benchmark targets.
+
+This is the FIRST place the model's OWN behaviour parameters are
+sensitivity-tested and checked against empirical targets (audit P4 / Q-PARAM).
+Results are rendered to VALIDATION_REPORT.md. Provenance: synthetic exploratory
+— a parameter with high sensitivity index must be calibrated (or its dependent
+outputs flagged) before being treated as more than a scenario assumption.
+"""
+
+from __future__ import annotations
+
+from dataclasses import replace
+
+import numpy as np
+
+from socio_sim.analytics.metrics import summarize_run
+from socio_sim.config import RunConfig
+from socio_sim.engine import Simulation
+from socio_sim.validation.calibrate import implausibility, lhs_samples
+from socio_sim.validation.sensitivity import first_order_indices
+from socio_sim.validation.targets import compute_observed, load_targets
+
+
+def default_behavior_bounds() -> dict:
+    """+/-50% ranges around documented BehaviorParams defaults for the most
+    influential knobs (the ones that plausibly move headline outputs)."""
+    return {
+        "p_post_given_active": (0.15, 0.45),
+        "p_share_given_engaged": (0.05, 0.20),
+        "engagement_base": (0.15, 0.45),
+        "impression_fatigue": (0.0025, 0.0075),
+        "p_flag_scale": (0.15, 0.45),
+    }
+
+
+def posts_per_agent(result) -> float:
+    return len(result.log.by_kind("post")) / result.config.n_agents
+
+
+def behavior_sensitivity(cfg: RunConfig, bounds: dict, n_samples: int,
+                         metric_fn, rng) -> dict:
+    """First-order (Sobol-style) sensitivity of `metric_fn` to the named
+    BehaviorParams over an LHS design. Common root seed across samples so output
+    variance is attributable to the parameters, not seed noise."""
+    names = sorted(bounds)
+    samples = lhs_samples(bounds, n_samples, rng)
+    X = np.array([[s[n] for n in names] for s in samples], dtype=float)
+    y = []
+    for s in samples:
+        c = replace(cfg, behavior=replace(cfg.behavior, **s))
+        y.append(float(metric_fn(Simulation(c).run())))
+    y = np.array(y, dtype=float)
+    return {
+        "names": names,
+        "indices": first_order_indices(X, y, names),
+        "y_mean": float(y.mean()), "y_std": float(y.std()),
+        "n_samples": n_samples,
+    }
+
+
+def calibration_implausibility(cfg: RunConfig) -> dict:
+    """Implausibility I = max standardized discrepancy of observed vs targets
+    (history-matching cutoff 3.0)."""
+    result = Simulation(cfg).run()
+    observed = compute_observed(result, summarize_run(result))
+    targets = load_targets()
+    return {"implausibility": implausibility(observed, targets),
+            "observed": observed, "targets": targets}
+
+
+def run_validation_study(profile: str = "test", n_samples: int = 24,
+                         seed: int = 42) -> dict:
+    factory = {"test": RunConfig.test, "quick": RunConfig.quick,
+               "standard": RunConfig.standard}[profile]
+    cfg = factory(jurisdictions=("EU",), root_seed=seed)
+    rng = np.random.default_rng(seed)
+    return {
+        "profile": profile, "seed": seed, "n_agents": cfg.n_agents,
+        "n_ticks": cfg.n_ticks,
+        "sensitivity": behavior_sensitivity(
+            cfg, default_behavior_bounds(), n_samples, posts_per_agent, rng),
+        "calibration": calibration_implausibility(cfg),
+    }
+
+
+def render_validation_report(study: dict) -> str:
+    s, c = study["sensitivity"], study["calibration"]
+    ranked = sorted(s["indices"].items(), key=lambda kv: kv[1], reverse=True)
+    lines = [
+        "# SocioSim Validation Report",
+        "",
+        "> Provenance: **synthetic exploratory**. Behaviour parameters are not "
+        "empirically calibrated; this report records their sensitivity and the "
+        "run's distance from published aggregate benchmarks. It is NOT evidence "
+        "that the simulator predicts real behaviour.",
+        "",
+        f"Profile `{study['profile']}` · {study['n_agents']} agents × "
+        f"{study['n_ticks']} ticks · seed {study['seed']}.",
+        "",
+        "## 1. Sensitivity of posts/agent to BehaviorParams",
+        f"First-order variance-based indices (LHS, n={s['n_samples']}; "
+        f"output mean {s['y_mean']:.4f}, sd {s['y_std']:.4f}).",
+        "",
+        "| BehaviorParam | first-order index S1 |",
+        "|---|---|",
+    ]
+    for name, idx in ranked:
+        lines.append(f"| `{name}` | {idx:.3f} |")
+    lines += [
+        "",
+        "Interpretation: parameters with high S1 dominate this output and MUST "
+        "be calibrated (or their dependent claims flagged uncalibrated) before "
+        "use. Low-S1 parameters are safe to leave at documented defaults.",
+        "",
+        "## 2. Calibration vs published benchmarks",
+        f"Implausibility **I = {c['implausibility']:.2f}** "
+        "(history-matching cutoff 3.0; I<3 = not implausible).",
+        "",
+        "| Target | observed | benchmark | tolerance | within tol? |",
+        "|---|---|---|---|---|",
+    ]
+    obs, tgts = c["observed"], c["targets"]
+    for name, spec in tgts.items():
+        o = obs.get(name)
+        if o is None or not np.isfinite(o):
+            lines.append(f"| {name} | n/a | {spec['value']} | {spec['tolerance']} | — |")
+            continue
+        ok = abs(o - spec["value"]) <= spec["tolerance"]
+        lines.append(f"| {name} | {o:.4f} | {spec['value']} | "
+                     f"{spec['tolerance']} | {'yes' if ok else 'NO'} |")
+    lines += [
+        "",
+        "## 3. Limitations",
+        "- Bounds are +/-50% of defaults, not empirically derived.",
+        "- Single output (posts/agent) and a single seed; a full study sweeps "
+        "multiple outputs and many seeds (Monte Carlo).",
+        "- Benchmark targets are coarse published aggregates with wide tolerances.",
+        "- `degree_tail_exponent` / network targets depend on the graph model, "
+        "not BehaviorParams.",
+    ]
+    return "\n".join(lines)

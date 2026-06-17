@@ -136,10 +136,28 @@ def main():
     p.add_argument("--replicates", type=int, default=1,
                    help="Research run: N Monte Carlo replicates for percentile "
                         "intervals (default 1 = Preview, single run)")
+    p.add_argument("--validate", action="store_true",
+                   help="run a BehaviorParams sensitivity + calibration study, "
+                        "write VALIDATION_REPORT.md, and exit")
+    p.add_argument("--sens-samples", type=int, default=24,
+                   help="LHS samples for --validate sensitivity (default 24)")
     p.add_argument("--out", default="out/run", help="output directory")
     args = p.parse_args()
 
     print(f"NOTE: {RESEARCH_USE_NOTICE}\n")
+
+    if args.validate:
+        from socio_sim.validation.study import (render_validation_report,
+                                                run_validation_study)
+        print(f"Validation study: profile={args.profile}, "
+              f"{args.sens_samples} sensitivity samples, seed {args.seed}...")
+        study = run_validation_study(profile=args.profile,
+                                     n_samples=args.sens_samples, seed=args.seed)
+        (ROOT / "VALIDATION_REPORT.md").write_text(
+            render_validation_report(study), encoding="utf-8")
+        print(f"Wrote VALIDATION_REPORT.md  (implausibility I = "
+              f"{study['calibration']['implausibility']:.2f}, cutoff 3.0)")
+        return 0
 
     if args.web:
         # If --llm is also set, bootstrap Ollama first so the dashboard's
