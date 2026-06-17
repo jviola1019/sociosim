@@ -118,6 +118,9 @@ def main():
     p.add_argument("--web", action="store_true",
                    help="launch the browser dashboard instead of a CLI run")
     p.add_argument("--port", type=int, default=8765, help="web server port")
+    p.add_argument("--bind", default="127.0.0.1",
+                   help="web bind host (default 127.0.0.1; use 0.0.0.0 only on a "
+                        "trusted host/container — exposes the local console)")
     p.add_argument("--no-open", action="store_true",
                    help="with --web, do not auto-open the browser")
     p.add_argument("--llm", action="store_true",
@@ -165,7 +168,7 @@ def main():
         if args.llm:
             bootstrap_ollama(args.model, args.host)
         from socio_sim.web.app import serve
-        serve(port=args.port, open_browser=not args.no_open)
+        serve(host=args.bind, port=args.port, open_browser=not args.no_open)
         return 0
 
     server_proc = None
