@@ -52,11 +52,14 @@ def bootstrap_ollama(model: str, host: str):
 # --------------------------------------------------------------------------
 # Simulation run
 # --------------------------------------------------------------------------
-def run_sim(cfg: RunConfig):
+def run_sim(cfg: RunConfig, n_replicates: int = 1):
+    mode = "Research" if n_replicates > 1 else "Preview"
+    extra = f", {n_replicates} replicates" if n_replicates > 1 else ""
     print(f"\nRunning {cfg.n_agents} agents x {cfg.n_ticks} hourly ticks "
-          f"(jurisdictions={cfg.jurisdictions}, content={cfg.content_mode})...")
+          f"(jurisdictions={cfg.jurisdictions}, content={cfg.content_mode}, "
+          f"mode={mode}{extra})...")
     # Single source of truth — same pipeline the web app and examples use.
-    a = run_and_analyze(cfg)
+    a = run_and_analyze(cfg, n_replicates=n_replicates)
     result = a.result
     print(f"Done. {len(result.log.events)} events. "
           f"Stream hash {result.log.stream_hash()[:16]}...")
@@ -83,6 +86,14 @@ def run_sim(cfg: RunConfig):
         if spec and value == value:  # skip NaN
             print(f"  {name:22s} observed {value:8.4f}  target "
                   f"{spec['value']} +/- {spec['tolerance']}")
+
+    if a.mc:
+        print(f"\nMonte Carlo intervals (provenance: mc-replicated, "
+              f"{n_replicates} replicates):")
+        for name, d in a.mc.items():
+            lo, hi = d["ci"]
+            print(f"  {name:24s} median {d['median']:8.4f}  "
+                  f"95% [{lo:.4f}, {hi:.4f}]")
 
     if a.replay["checked"]:
         print(f"\nDeterministic replay: {a.replay['msg']}")
@@ -113,6 +124,9 @@ def main():
     p.add_argument("--agents", type=int, help="override agent count")
     p.add_argument("--ticks", type=int, help="override hourly tick count")
     p.add_argument("--seed", type=int, default=42, help="root seed")
+    p.add_argument("--replicates", type=int, default=1,
+                   help="Research run: N Monte Carlo replicates for percentile "
+                        "intervals (default 1 = Preview, single run)")
     p.add_argument("--out", default="out/run", help="output directory")
     args = p.parse_args()
 
@@ -151,7 +165,7 @@ def main():
     cfg = factory(**overrides)
 
     try:
-        return run_sim(cfg)
+        return run_sim(cfg, n_replicates=args.replicates)
     finally:
         if server_proc is not None:
             print("\nStopping the Ollama server we started.")

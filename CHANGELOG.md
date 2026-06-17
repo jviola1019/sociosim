@@ -5,6 +5,11 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
 ## [Unreleased] — audit P0/P1 remediation
 
 ### Added
+- **P1e Monte Carlo modes (closes Q-MC P0):** `run_and_analyze(cfg, n_replicates=N)`.
+  `N=1` = Preview (single run, within-run/analytic intervals only); `N>1` =
+  Research run, attaching an `mc` bundle of Monte Carlo percentile intervals
+  (provenance `mc-replicated`) for headline metrics via `run_replicates`.
+  CLI `--replicates N`; web accepts `n_replicates` and returns `mc`/`mode`.
 - **P2 incrementality:** organic (non-ad) conversion channel. Agents carry a
   latent `base_conversion` propensity (Personas); a daily `simulate_baseline`
   pass (dedicated `"conversion"` RNG stream) emits `organic_conversion` events
@@ -38,8 +43,10 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
   hashes were regenerated in the same commit (pre-P2 values in git history).
   Replay + same-seed determinism tests still pass.
 
+### Status
+- **Both P0s closed:** Q-LIFT (P2) and Q-MC (P1e). Q-HILL, Q-CI, Q-TRAV, Q-DOC done.
+
 ### Pending (see HANDOFF.md / AUDIT_LOG.md)
-- P1d BehaviorParams extraction · P1e Monte Carlo modes · P3 policy-as-code
-  citations + transparency exporter · P4 calibration + sensitivity ·
-  P5b perf/SBM/follow-unfollow/LLM accounting · P6 multi-route studio +
-  force-graph + a11y.
+- P1d BehaviorParams extraction · P3 policy-as-code citations + transparency
+  exporter · P4 calibration + sensitivity · P5b perf/SBM/follow-unfollow/LLM
+  accounting · P6 multi-route studio + force-graph + a11y.

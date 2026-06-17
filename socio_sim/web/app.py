@@ -253,6 +253,8 @@ def _run_job(job_id: str, body: dict):
     try:
         cfg = _build_config(body)
         job["n_ticks"] = cfg.n_ticks
+        # Preview (1) vs Research (N replicates -> Monte Carlo intervals).
+        n_replicates = max(1, min(int(body.get("n_replicates", 1) or 1), 200))
 
         # On-demand local LLM bootstrap so the dashboard's ollama mode works
         # without separate setup (skip for user-supplied openai_compatible).
@@ -271,7 +273,8 @@ def _run_job(job_id: str, body: dict):
         # Same run → analyze → verify pipeline the CLI and examples use.
         verify_replay = bool(body.get("verify_replay", cfg.n_agents <= 2000))
         a = run_and_analyze(
-            cfg, verify_replay=verify_replay, progress_callback=on_progress,
+            cfg, verify_replay=verify_replay, n_replicates=n_replicates,
+            progress_callback=on_progress,
             on_phase=lambda p: job.__setitem__("phase", p))
         result = a.result
 
@@ -287,6 +290,9 @@ def _run_job(job_id: str, body: dict):
             "targets": a.targets,
             "implausibility": a.implausibility,
             "replay": a.replay,
+            "mc": a.mc,
+            "n_replicates": n_replicates,
+            "mode": "research" if n_replicates > 1 else "preview",
             "elapsed_s": round(time.time() - started, 2),
             "n_events": len(result.log.events),
             "content_mode": cfg.content_mode,

@@ -7,8 +7,9 @@ Resuming? Read this, then `AUDIT_LOG.md`, then `CHANGELOG.md`. Branch: `feat/aud
 - Suite green (~122 tests). Determinism baselines RE-LOCKED after P2 (test_determinism_regression.py).
 - Confirmed scope: Preview+Research MC modes; organic-baseline incrementality; full multi-route UI.
 - Commits so far: P1a/P1b/P5a; P1c; P2 (incrementality).
-- DONE so far: Q-HILL, Q-CI(partial), Q-DOC(partial), Q-TRAV, Q-LIFT. Two P0s closed (Q-LIFT done; Q-MC pending P1e).
-- NEXT: P1e Monte Carlo modes (last remaining P0), then P3 policy citations, P1d/P4, P5b, P6.
+- DONE so far: Q-HILL, Q-CI, Q-DOC(most), Q-TRAV, Q-LIFT, Q-MC. **Both P0s CLOSED.**
+- Commits: P1a/P1b/P5a; P1c; P2; P1e.
+- NEXT (all P1/P2): P3 policy citations + transparency exporter; P1d BehaviorParams; P4 calibration/sensitivity; P5b perf/SBM/follow-unfollow/LLM accounting; P6 multi-route UI.
 
 ## Order of execution (value x completability)
 1. [x] P1a determinism regression guard
@@ -16,7 +17,7 @@ Resuming? Read this, then `AUDIT_LOG.md`, then `CHANGELOG.md`. Branch: `feat/aud
 3. [x] P5a path-traversal fix
 4. [x] P1c Wilson intervals + provenance banner + doc-overclaim fixes
 5. [ ] P1d BehaviorParams extraction (regression-protected; MUST keep locked hashes)
-6. [ ] P1e Monte Carlo wiring (Preview + Research) into pipeline/CLI/web + n_replicates UI (S4)  <-- LAST P0
+6. [x] P1e Monte Carlo wiring (Preview + Research) into pipeline/CLI/web. NOTE: backend + CLI done; UI n_replicates control (S4) still pending in P6.
 7. [x] P2 organic-baseline incrementality (done; latent baseline + Newcombe/Beta CI). DESIGN BELOW kept for reference.
 8. [ ] P3 policy-as-code citations + schema fields + transparency exporter
 9. [ ] P4 calibration + sensitivity over BehaviorParams + VALIDATION_REPORT.md
