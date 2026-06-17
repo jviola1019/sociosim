@@ -65,6 +65,22 @@ BH-FDR (1995), Bayesian A/B (arXiv:2003.02769), Ghost Ads / Measured incremental
 - No "validated/calibrated" claim without evidence in VALIDATION_REPORT.md.
 - numpy Generators only from the module-keyed SeedTree (no global RNG).
 
+## Remaining punch-list to a literal 10/10 (audit-2, prioritised)
+Done since: ruff+CI; CUPED/BH-FDR/ROAS/iROAS/CAC/LTV; **Network topology force-graph**
+(backend `graph_sample` + Network tab, browser-verified 140 nodes/500 edges).
+Remaining, highest-leverage first:
+1. Campaign editor (S3) — Marketing 9->10. Backend: run_and_analyze(campaigns_fn=...)
+   so custom campaigns flow to single + MC runs; web parses a `campaigns` body list;
+   UI add/remove rows (id/advertiser/bid/budget/targeting/base_ctr/base_cvr). Browser-verify.
+2. Cascade-propagation replay over the timeline scrubber — 3D 6->8+ (animate share trees).
+3. Multi-route: Compare (experiments.runner baseline-vs-intervention) + Audit-log explorer
+   + in-UI Transparency export button — UX 7.5->9.5. Provenance badges on metric cards.
+4. Dark control-room theme toggle — Visual. State-communicating motion — Motion.
+5. Engineering: order-preserving hot-loop perf + parallel MC + documented scale ceiling.
+6. Deployment: Dockerfile + coverage gate + Playwright smoke in CI.
+7. Quant: power/MDE, chain ABC posterior -> MC, wire KS distributional gates.
+8. Regulatory/Gov: appeals SLA, trusted-flagger queue, rights-impact metrics, retention setting.
+
 ## Notes for the multi-route UI (P6)
 - Keep the stdlib server canonical; add an OPTIONAL SPA over the JSON API only if needed.
 - Routes: Setup / Run / Compare (experiments.runner) / Validate (sensitivity tornado + calibration)
