@@ -76,12 +76,18 @@ def render(summary: dict, manifest: Manifest) -> str:
     lines.append("")
     lines.append("## Ad campaigns")
     for cid, m in summary["ads"].items():
+        sig = "significant" if m.get("lift_significant") else "n.s."
         lines.append(
             f"- **{cid}**: {m['impressions']} impr | CTR {m['ctr']:.4f} "
             f"CI {_ci(m['ctr_ci'])} | CVR {m['cvr']:.4f} | "
             f"CPM {m['cpm']:.2f} | spend {m['spend']:.2f} | ROI {m['roi']:.2f} | "
             f"lift {m['lift']:.4f} CI {_ci(m['lift_ci'])} "
             f"(exposed {m['n_exposed']}, holdout {m['n_holdout']})")
+        lines.append(
+            f"  - incrementality: CUPED-lift {m['lift_cuped']:.4f} | "
+            f"p={m['lift_pvalue']:.3f} ({sig}, BH-FDR) | ROAS {m['roas']:.2f} | "
+            f"iROAS {m['iroas']:.2f} | CAC {m['cac']:.2f} | LTV {m['ltv']:.2f} "
+            f"_(synthetic: depends on conversion_value/ltv_multiplier)_")
     lines.append("")
     lines.append("## Graph")
     g = summary["graph"]

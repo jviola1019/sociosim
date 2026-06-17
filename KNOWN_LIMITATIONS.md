@@ -27,9 +27,11 @@ list; this file tracks what remains open or newly surfaced.
 - **SBM ignores n_agents** in the web form (S2 open).
 
 ## Marketing
-- Incrementality is now valid (organic baseline + Newcombe/Beta CI), but lift is
-  ITT over the realized frequency mix; no dose-response, LTV/CAC/ROAS, or
-  attribution-window modelling yet. No campaign editor in the UI (S3 open).
+- Incrementality is valid (organic baseline + Newcombe/Beta CI + CUPED + BH-FDR).
+  ROAS/iROAS/CAC/LTV are reported but **synthetic** (depend on conversion_value /
+  ltv_multiplier assumptions). Lift is ITT over the realized frequency mix; no
+  dose-response curve or attribution-window modelling yet. No campaign editor in
+  the UI (S3 open).
 
 ## Regulatory
 - Policy packs are research approximations with statute citations and

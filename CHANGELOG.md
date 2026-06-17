@@ -5,6 +5,15 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
 ## [Unreleased] — audit P0/P1 remediation
 
 ### Added
+- **Audit-2 quant/marketing strengthening:** CUPED-adjusted lift (covariate =
+  each agent's latent baseline propensity; Deng et al. 2013), a two-proportion
+  lift p-value, and Benjamini-Hochberg FDR across campaigns (`lift_significant`)
+  so many-campaign runs don't manufacture false "significant lift". Added
+  synthetic marketing economics on the now-valid incrementality — ROAS, iROAS,
+  CAC, LTV, incremental_ltv (clearly labelled synthetic). New
+  `stats.benjamini_hochberg` / `stats.two_proportion_p`; surfaced in the report.
+- **Tooling:** ruff lint gate (config + dev dep) and a GitHub Actions CI
+  workflow (ruff + pytest); all pre-existing lint findings cleared.
 - **P6 UI (partial):** preset selection now resets to documented defaults before
   applying overrides (S1, no stale carryover); a Monte Carlo Replicates control
   reaches Research mode (S4) and the run header shows preview/research provenance;

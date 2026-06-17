@@ -207,3 +207,29 @@ def test_lift_positive_only_when_ad_adds_conversions():
     assert m["lift"] > 0
     assert m["exposed_rate"] > m["holdout_rate"]
     assert m["lift_ci"][0] > 0                       # significantly positive
+
+
+def test_marketing_metrics_present_and_consistent():
+    """ROAS/iROAS/CAC/LTV + CUPED lift + lift p-value are reported and coherent
+    under a strong (clearly incremental) ad effect."""
+    camp = [Campaign(id="m", advertiser="M", bid=5.0, budget=100_000,
+                     base_ctr=1.0, base_cvr=1.0, conversion_value=2.0)]
+    ads, log, personas, _ = setup(campaigns=camp, holdout_fraction=0.3,
+                                  ad_frequency_cap_per_day=100)
+    personas.base_conversion[:] = 0.05
+    _run_baseline(ads, personas, n=100)
+    for t in range(48):
+        for aid in range(100):
+            if personas.is_minor[aid]:
+                continue
+            cr = ads.run_auction(aid, t)
+            if cr:
+                ads.simulate_response(aid, cr, t)
+    m = measure_campaign(log, camp[0], ads, n_agents=100)
+    for k in ("roas", "iroas", "cac", "ltv", "incremental_ltv",
+              "lift_cuped", "lift_pvalue", "lift_significant"):
+        assert k in m, f"missing {k}"
+    assert m["lift"] > 0 and m["iroas"] > 0 and m["roas"] > 0
+    assert m["lift_pvalue"] < 0.05 and m["lift_significant"] is True
+    assert np.isfinite(m["lift_cuped"])
+    assert m["ltv"] == 2.0 * camp[0].ltv_multiplier

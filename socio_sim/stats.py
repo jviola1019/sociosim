@@ -43,6 +43,44 @@ def newcombe_diff_ci(x1: int, n1: int, x2: int, n2: int, z: float = 1.96) -> tup
     return (lo, hi)
 
 
+def two_proportion_p(x1: int, n1: int, x2: int, n2: int) -> float:
+    """Two-sided p-value for H0: p1 == p2 (pooled-variance z test).
+
+    Used for lift significance; pair with FDR control across campaigns. Empty
+    arm or degenerate pooled variance -> nan / 1.0.
+    """
+    from scipy import stats as _ss
+    if n1 <= 0 or n2 <= 0:
+        return float("nan")
+    p1, p2 = x1 / n1, x2 / n2
+    pp = (x1 + x2) / (n1 + n2)
+    se = float(np.sqrt(pp * (1 - pp) * (1 / n1 + 1 / n2)))
+    if se == 0:
+        return 1.0
+    z = (p1 - p2) / se
+    return float(2 * _ss.norm.sf(abs(z)))
+
+
+def benjamini_hochberg(pvalues, alpha: float = 0.05) -> list:
+    """Benjamini-Hochberg FDR control. Returns a boolean rejected-mask aligned
+    to `pvalues` (preferred over Bonferroni for families of campaign tests)."""
+    p = np.asarray(list(pvalues), dtype=float)
+    n = p.size
+    if n == 0:
+        return []
+    order = np.argsort(p)
+    ranked = p[order]
+    thresh = alpha * (np.arange(1, n + 1) / n)
+    below = ranked <= thresh
+    rejected = np.zeros(n, dtype=bool)
+    if below.any():
+        kmax = int(np.max(np.where(below)[0]))
+        keep = np.zeros(n, dtype=bool)
+        keep[: kmax + 1] = True
+        rejected[order] = keep
+    return [bool(x) for x in rejected]
+
+
 def prob_diff_positive(x1: int, n1: int, x2: int, n2: int,
                        draws: int = 20000) -> float:
     """P(p1 > p2) under independent Jeffreys Beta posteriors, by Monte Carlo.

@@ -24,6 +24,7 @@ class Campaign:
     base_ctr: float = 0.01          # benchmark-calibrated click prior
     base_cvr: float = 0.05
     conversion_value: float = 1.0
+    ltv_multiplier: float = 3.0     # SYNTHETIC assumption: LTV = value x this
     holdout_fraction: float | None = None  # None -> use RunConfig.holdout_fraction
     ftc_override: bool | None = None  # None -> use RunConfig.ftc_compliance
     _creative_counter: int = 0

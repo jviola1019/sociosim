@@ -7,11 +7,49 @@ interval. Every metric ships with its interval — no point estimates alone.
 
 from __future__ import annotations
 
+import numpy as np
 from scipy import stats
 
 from socio_sim.ads.campaigns import Campaign
 from socio_sim.logs.events import EventLog
-from socio_sim.stats import newcombe_diff_ci, prob_diff_positive
+from socio_sim.stats import (benjamini_hochberg, newcombe_diff_ci,
+                             prob_diff_positive, two_proportion_p)
+
+
+def _cuped_lift(ads, exposed, holdout, converted) -> float:
+    """CUPED-adjusted lift using each agent's latent baseline propensity as a
+    pre-treatment covariate (Deng et al. 2013): reduces variance without bias.
+    """
+    personas = ads.personas
+    exp, hld = sorted(exposed), sorted(holdout)
+    if not exp or not hld:
+        return float("nan")
+    ye = np.array([1.0 if a in converted else 0.0 for a in exp])
+    yh = np.array([1.0 if a in converted else 0.0 for a in hld])
+    xe = np.array([float(personas.base_conversion[a]) for a in exp])
+    xh = np.array([float(personas.base_conversion[a]) for a in hld])
+    x_all, y_all = np.concatenate([xe, xh]), np.concatenate([ye, yh])
+    var_x = float(np.var(x_all))
+    if var_x <= 0:
+        return float(ye.mean() - yh.mean())
+    theta = float(np.cov(y_all, x_all)[0, 1] / var_x)
+    xbar = float(x_all.mean())
+    return float((ye - theta * (xe - xbar)).mean()
+                 - (yh - theta * (xh - xbar)).mean())
+
+
+def apply_fdr(measures, alpha: float = 0.05):
+    """Set `lift_significant` on each campaign measure via Benjamini-Hochberg
+    FDR across the family of lift p-values (avoids false 'significant lift'
+    findings when many campaigns are tested). Mutates and returns `measures`."""
+    valid = [(i, m["lift_pvalue"]) for i, m in enumerate(measures)
+             if m.get("lift_pvalue") == m.get("lift_pvalue")]
+    if valid:
+        idxs, pvals = zip(*valid)
+        rejected = benjamini_hochberg(pvals, alpha)
+        for j, i in enumerate(idxs):
+            measures[i]["lift_significant"] = rejected[j]
+    return measures
 
 #: Beta prior ≈ 1% CTR with effective sample size 200 (benchmark-aligned).
 DEFAULT_CTR_PRIOR = (2.0, 198.0)
@@ -65,6 +103,16 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
     exposed_rate = (x_exposed / n_exposed) if n_exposed else 0.0
     holdout_rate = (x_holdout / n_holdout) if n_holdout else 0.0
     lift = exposed_rate - holdout_rate
+    lift_cuped = _cuped_lift(ads, exposed, holdout, converted)
+    lift_pvalue = two_proportion_p(x_exposed, n_exposed, x_holdout, n_holdout)
+
+    # Marketing economics. SYNTHETIC: depend on conversion_value / ltv_multiplier
+    # assumptions, and iROAS/CAC on the (now valid) incremental lift. Not real $.
+    incr_conv = max(lift, 0.0) * n_exposed
+    roas = (revenue / spend) if spend else float("nan")
+    iroas = (incr_conv * campaign.conversion_value / spend) if spend else float("nan")
+    cac = (spend / incr_conv) if incr_conv > 0 else float("nan")
+    ltv = campaign.conversion_value * campaign.ltv_multiplier
 
     return {
         "campaign_id": cid,
@@ -82,10 +130,19 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
         "roi": ((revenue - spend) / spend) if spend else float("nan"),
         "lift": lift,
         "lift_ci": newcombe_diff_ci(x_exposed, n_exposed, x_holdout, n_holdout),
+        "lift_cuped": lift_cuped,
+        "lift_pvalue": lift_pvalue,
+        "lift_significant": bool(lift_pvalue < 0.05) if lift_pvalue == lift_pvalue
+        else False,
         "exposed_rate": exposed_rate,
         "holdout_rate": holdout_rate,
         "prob_lift_positive": prob_diff_positive(x_exposed, n_exposed,
                                                  x_holdout, n_holdout),
+        "roas": roas,
+        "iroas": iroas,
+        "cac": cac,
+        "ltv": ltv,
+        "incremental_ltv": incr_conv * ltv,
         "n_exposed": n_exposed,
         "n_holdout": n_holdout,
     }

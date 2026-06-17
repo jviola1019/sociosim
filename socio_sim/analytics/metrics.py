@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from socio_sim.ads.measure import measure_campaign
+from socio_sim.ads.measure import apply_fdr, measure_campaign
 from socio_sim.logs.events import EventLog
 from socio_sim.rng import SeedTree
 from socio_sim.stats import wilson_interval  # re-exported for callers/tests
@@ -217,8 +217,13 @@ def summarize_run(result, rng: np.random.Generator | None = None) -> dict:
             "ci": bootstrap_ci(welfare["per_agent"], rng=rng),
         },
         "fairness": fairness_diagnostics(log, result.personas),
-        "ads": {c.id: measure_campaign(log, c, result.ads,
-                                       result.config.n_agents)
-                for c in result.campaigns},
+        "ads": _ads_with_fdr(log, result),
         "graph": result.graph_stats,
     }
+
+
+def _ads_with_fdr(log, result) -> dict:
+    measures = {c.id: measure_campaign(log, c, result.ads, result.config.n_agents)
+                for c in result.campaigns}
+    apply_fdr(list(measures.values()))  # BH-FDR across campaigns (mutates in place)
+    return measures
