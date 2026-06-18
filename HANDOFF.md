@@ -85,7 +85,10 @@ Deployment ~9.5 (ruff+CI+coverage+Dockerfile). Marketing ~9.5 (campaign backend/
 ## exploration POOL is index-sampled (feed_rng.choice over pool order), so reordering it changes
 ## sampled posts -> different events. Needs an algorithmic pool-sampling redesign (global sample,
 ## intentional hash regen), not a quick win. Engineering stays an honest 9.
-## REMAINING to 10: UX (audit-log explorer);
+## UX = 10 (Compare tab + audit-log explorer DONE). Deployment ~9.8 (wheel+Docker+CI build gate;
+## FIXED distribution bug: targets JSON now packaged in socio_sim/data/benchmarks, verified from
+## an extracted wheel). 5 dims at 10: Quant, Testing, Documentation, Marketing, UX.
+## REMAINING to 10 (heavier builds, honest):
 ## Engineering (order-preserving hot-loop perf + parallel MC); Regulatory (appeals SLA,
 ## trusted-flagger, rights-impact); Deployment (Playwright-in-CI); 3D true WebGL.
 
