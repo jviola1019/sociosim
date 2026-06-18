@@ -19,3 +19,8 @@ jobs:
         run: ruff check socio_sim tests run.py
       - name: Tests (pytest + coverage gate)
         run: pytest -q --cov=socio_sim --cov-report=term-missing --cov-fail-under=85
+      - name: Build wheel + verify packaged data
+        run: |
+          pip install build
+          python -m build --wheel
+          python -c "import zipfile,glob; n=zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist(); assert any(x.endswith('default_targets.json') for x in n), 'targets data missing from wheel'; assert sum(x.endswith('.yaml') for x in n)==4, 'policy packs missing from wheel'; print('wheel data OK')"

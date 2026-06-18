@@ -64,6 +64,14 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
   `tests/test_determinism_regression.py` (locked EU/US/CN stream-hash guard).
 
 ### Fixed
+- **Distribution bug (would crash every installed/Docker run):** the benchmark
+  targets JSON loaded via a repo-relative path and was not packaged, so an
+  installed wheel / the Docker image would `FileNotFoundError` at `load_targets()`
+  on every run. Moved `default_targets.json` inside the package
+  (`socio_sim/data/benchmarks/`), fixed the loader to a package-relative path,
+  added it to package-data, and a CI build step that asserts the wheel ships the
+  targets JSON + 4 policy packs. Verified by loading from an extracted wheel with
+  the source tree off `sys.path`. Regression test added.
 - **P5b S2:** web SBM graph now sizes its blocks to the agent count (was a
   hardcoded [500,500] that crashed at any n_agents != 1000). Q-KINDS: removed
   declared-but-never-emitted `follow`/`unfollow`/`policy_gap` event kinds and

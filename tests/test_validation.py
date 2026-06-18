@@ -18,6 +18,18 @@ def test_targets_load_with_tolerances():
         assert "source" in spec
 
 
+def test_default_targets_ship_inside_the_package():
+    """Guards a distribution bug: the targets file must live under socio_sim/
+    (not a repo-relative path) so installed wheels / Docker can load it."""
+    from pathlib import Path
+
+    import socio_sim
+    from socio_sim.validation.targets import DEFAULT_TARGETS_PATH
+    pkg = Path(socio_sim.__file__).resolve().parent
+    assert DEFAULT_TARGETS_PATH.exists()
+    assert pkg in DEFAULT_TARGETS_PATH.resolve().parents
+
+
 def test_implausibility_monotone():
     targets = {"x": {"value": 5.0, "tolerance": 1.0}}
     assert implausibility({"x": 5.0}, targets) == 0.0

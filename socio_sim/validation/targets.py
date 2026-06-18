@@ -9,7 +9,9 @@ from pathlib import Path
 import numpy as np
 from scipy import stats
 
-DEFAULT_TARGETS_PATH = (Path(__file__).resolve().parents[2]
+# Packaged inside socio_sim/ so it ships in the wheel and the Docker image
+# (was a repo-relative path that broke any installed/containerised run).
+DEFAULT_TARGETS_PATH = (Path(__file__).resolve().parents[1]
                         / "data" / "benchmarks" / "default_targets.json")
 
 
