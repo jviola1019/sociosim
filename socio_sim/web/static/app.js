@@ -368,6 +368,15 @@ $("#histClose").addEventListener("click", closeDrawer);
 $("#histScrim").addEventListener("click", closeDrawer);
 
 window.addEventListener("resize", () => { moveInk($("#cfgTabs")); if (!$("#results").hidden) moveInk($("#outTabs")); });
+/* ---------- theme (dark control-room / light editorial) ---------- */
+function applyTheme(t) {
+  document.body.dataset.theme = (t === "dark") ? "dark" : "";
+  try { localStorage.setItem("sociosim-theme", t); } catch (e) { /* private mode */ }
+}
+$("#themeBtn")?.addEventListener("click", () =>
+  applyTheme(document.body.dataset.theme === "dark" ? "light" : "dark"));
+try { if (localStorage.getItem("sociosim-theme") === "dark") applyTheme("dark"); } catch (e) { /* ignore */ }
+
 wireTabs("#cfgTabs", "tab", "panel");
 wireTabs("#outTabs", "otab", "opanel");
 loadMeta();

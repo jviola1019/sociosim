@@ -84,7 +84,7 @@ docs/              # Usage, limitations, ethics, legal-compliance notes, NIST AI
 
 ### Error handling
 - Config validated eagerly with explicit errors (no silent defaults beyond documented profile values).
-- Policy engine fails closed: unmatched severe categories escalate to human-review queue and log a `policy_gap` event; never silently pass.
+- Policy engine fails closed: unmatched severe categories escalate to the human-review queue and log a `moderation` event with `rule_id: POLICY-GAP`; never silently pass. (A separate `policy_gap` event kind was considered but not used — the escalation is a `moderation` record.)
 - LLM adapter failure → logged degradation event + fallback to TemplateGenerator for that call; run continues, manifest records the degradation.
 - Logs are append-only; writer flushes per tick; partial-run logs remain readable.
 

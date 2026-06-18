@@ -31,6 +31,18 @@
   --sh-3: 0 24px 60px -24px rgba(0,0,0,.18), 0 8px 24px -12px rgba(0,0,0,.1);
 }
 
+/* Dark control-room theme — overrides the neutral tokens; accents unchanged. */
+body[data-theme="dark"] {
+  --bg:        #0b0e14;
+  --surface:   #141925;
+  --surface-2: #1b2230;
+  --ink:       #e6e8ee;
+  --ink-2:     #b3b9c6;
+  --ink-3:     #7c8493;
+  --line:      #222a39;
+  --line-2:    #2d3748;
+}
+
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }

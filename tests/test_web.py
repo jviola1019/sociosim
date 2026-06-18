@@ -65,6 +65,18 @@ def test_all_presets_build_valid_configs():
         cfg.validate()  # raises on any invalid combination
 
 
+def test_all_presets_run_end_to_end():
+    """Every shipped preset must actually run a simulation (not just validate) —
+    catches non-working presets / field mappings at runtime."""
+    from socio_sim.engine import Simulation
+    from socio_sim.presets import PRESETS
+    for name, p in PRESETS.items():
+        cfg = app._build_config({"profile": "test", **p["fields"],
+                                 "n_agents": 80, "n_ticks": 12})
+        res = Simulation(cfg).run()
+        assert res.log.by_kind("post"), f"preset {name!r} produced no posts"
+
+
 def _free_port():
     import socket
     s = socket.socket()
