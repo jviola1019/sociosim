@@ -312,6 +312,14 @@ def _run_job(job_id: str, body: dict):
         result = a.result
 
         llm_calls = result.log.by_kind("llm_call")
+        # Kind-stratified event sample for the in-UI audit-log explorer (up to
+        # 60 per kind, in order). The full log is on disk at out_dir/events.jsonl.
+        ev_sample, _per_kind = [], {}
+        for e in result.log.events:
+            c = _per_kind.get(e["kind"], 0)
+            if c < 60:
+                ev_sample.append(e)
+                _per_kind[e["kind"]] = c + 1
         job["result"] = _jsonable({
             "summary": a.summary,
             "charts": _chart_data(result, a.summary),
@@ -327,6 +335,8 @@ def _run_job(job_id: str, body: dict):
             "n_replicates": n_replicates,
             "mode": "research" if n_replicates > 1 else "preview",
             "transparency": a.transparency,
+            "event_sample": ev_sample,
+            "event_kinds": sorted(_per_kind),
             "elapsed_s": round(time.time() - started, 2),
             "n_events": len(result.log.events),
             "content_mode": cfg.content_mode,

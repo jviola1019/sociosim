@@ -334,6 +334,7 @@ function render(r) {
   renderCharts(r.charts);
   renderNetwork(r.summary.graph && r.summary.graph.graph_sample);
   renderCascade(r.charts && r.charts.cascade_tree);
+  renderAudit(r.event_sample, r.event_kinds);
 
   $("#confusion").innerHTML = `<div class="cell tp"><div class="cl">true positive</div><div class="cv">${mod.tp}</div></div><div class="cell fp"><div class="cl">false positive</div><div class="cv">${mod.fp}</div></div><div class="cell fn"><div class="cl">false negative</div><div class="cv">${mod.fn}</div></div><div class="cell tn"><div class="cl">true negative</div><div class="cv">${mod.tn}</div></div>`;
   $("#fairness").innerHTML = Object.entries(s.fairness).map(([dim, gs]) => `<div class="fgrp">${esc(dim.replace(/_/g, " "))}</div><table class="read"><thead><tr><th>group</th><th>FPR</th><th>FNR</th><th>n posts</th></tr></thead><tbody>${Object.entries(gs).map(([g, d]) => `<tr><td>${esc(g)}</td><td class="num">${fmt(d.fpr, 4)}</td><td class="num">${fmt(d.fnr, 3)}</td><td class="num">${d.n_posts}</td></tr>`).join("")}</tbody></table>`).join("");
@@ -361,6 +362,21 @@ function render(r) {
   $$("#outTabs button").forEach((b, i) => b.classList.toggle("on", i === 0));
   $$("[data-opanel]").forEach(p => p.classList.toggle("on", p.dataset.opanel === "overview"));
   moveInk($("#outTabs"));
+}
+
+function renderAudit(events, kinds) {
+  const host = $("#audit"); if (!host) return;
+  if (!events || !events.length) { host.innerHTML = `<p class="dim small">No event sample for this run.</p>`; return; }
+  const opts = ['<option value="">all kinds</option>']
+    .concat((kinds || []).map(k => `<option value="${esc(k)}">${esc(k)}</option>`)).join("");
+  host.innerHTML = `<div class="ahead"><select id="auditKind">${opts}</select> <span class="dim small">sampled audit events (up to 60 per kind; full append-only log on disk at the run's out_dir/events.jsonl)</span></div><div id="auditRows"></div>`;
+  const draw = (filter) => {
+    const rows = events.filter(e => !filter || e.kind === filter).map(e =>
+      `<tr><td class="num">${e.tick}</td><td>${esc(e.kind)}</td><td class="num">${e.actor_id}</td><td>${esc(e.content_id || "")}</td><td class="mono small">${esc(JSON.stringify(e.data || {}).slice(0, 90))}</td></tr>`).join("");
+    $("#auditRows").innerHTML = `<table class="read"><thead><tr><th>tick</th><th>kind</th><th>actor</th><th>content</th><th>data</th></tr></thead><tbody>${rows}</tbody></table>`;
+  };
+  $("#auditKind").addEventListener("change", e => draw(e.target.value));
+  draw("");
 }
 
 function renderFeed(feed) {

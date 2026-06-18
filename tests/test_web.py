@@ -142,6 +142,9 @@ def test_live_server_runs_simulation_end_to_end():
         assert ch["degree_hist"] and ch["timeline_posts"]
         # entire payload is valid JSON (no NaN leaked)
         assert "NaN" not in json.dumps(result)
+        # audit-log explorer sample present + stratified by kind
+        assert result["event_sample"] and result["event_kinds"]
+        assert "post" in result["event_kinds"]
     finally:
         server.shutdown()
 
