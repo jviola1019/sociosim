@@ -79,8 +79,13 @@ Deployment ~9.5 (ruff+CI+coverage+Dockerfile). Marketing ~9.5 (campaign backend/
 ## (Marketing now: incrementality + Newcombe/Beta CI + CUPED + p-value + BH-FDR +
 ##  MDE + ROAS/iROAS/CAC/LTV + frequency dose-response + attribution window + editor UI);
 ## Visual/Deployment = 9.5; Engineering 9; UX 8.5; 3D/Motion 7.5; Regulatory 7.5. Overall ~9.2.
-## UX: /api/compare (baseline-vs-intervention CRN-paired) backend DONE + tested; Compare UI tab remaining.
-## REMAINING to 10: UX (in-UI Compare tab + audit-log explorer);
+## UX 9.5: in-UI Compare tab DONE (browser-verified) + /api/compare backend. Regulatory ~8.5:
+## appeal-resolution p95 + transparency rights_impact (appealable/removals-without-notice) DONE.
+## ENGINEERING perf NOTE: hot-loop speedup is NOT a safe behaviour-preserving change — the
+## exploration POOL is index-sampled (feed_rng.choice over pool order), so reordering it changes
+## sampled posts -> different events. Needs an algorithmic pool-sampling redesign (global sample,
+## intentional hash regen), not a quick win. Engineering stays an honest 9.
+## REMAINING to 10: UX (audit-log explorer);
 ## Engineering (order-preserving hot-loop perf + parallel MC); Regulatory (appeals SLA,
 ## trusted-flagger, rights-impact); Deployment (Playwright-in-CI); 3D true WebGL.
 
