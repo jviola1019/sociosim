@@ -14,6 +14,10 @@ def first_order_indices(X: np.ndarray, y: np.ndarray, names: list,
                         n_bins: int = 20) -> dict:
     X = np.asarray(X, dtype=float)
     y = np.asarray(y, dtype=float)
+    # Adapt bin count to sample size: with n_bins >= n the conditional-mean
+    # estimator degenerates (every bin holds ~1 sample -> Var(E[y|x_j]) -> Var(y)
+    # -> every index saturates to 1.0). Keep >= ~2 samples per bin.
+    n_bins = max(2, min(n_bins, len(y) // 2))
     var_y = float(np.var(y))
     if var_y == 0:
         return {name: 0.0 for name in names}

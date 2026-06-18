@@ -284,20 +284,48 @@ class Simulation:
         exposure = np.zeros((self.cfg.n_agents, n_topics))
         exposure_count = np.zeros((self.cfg.n_agents, n_topics))
 
+        # Index posts by author ONCE per tick (was an O(recent_posts) scan per
+        # active agent -> the dominant cost at scale). Candidate order is
+        # irrelevant downstream: FeedRanker.serve sorts by (-score, id), a total
+        # order, and candidates are not sampled — so building them by author
+        # changes nothing in the output. The exploration POOL is sampled, so its
+        # construction did change (oversample indices from recent_posts instead
+        # of materialising the full non-neighbour list); that is an intentional
+        # behaviour change and the locked determinism baselines were regenerated.
+        recent = self.recent_posts
+        n_recent = len(recent)
+        posts_by_author: dict = {}
+        for p in recent:
+            posts_by_author.setdefault(p.author_id, []).append(p)
+        pool_size = self.bp.exploration_pool_size
+
         for agent_id in active:
             aid = int(agent_id)
             neigh = self.neighbors[aid]
-            if len(neigh) == 0 and not self.recent_posts:
+            if len(neigh) == 0 and not recent:
                 continue
             neigh_set = set(neigh.tolist())
-            candidates = [p for p in self.recent_posts
-                          if p.author_id in neigh_set and p.author_id != aid]
-            pool = [p for p in self.recent_posts
-                    if p.author_id not in neigh_set and p.author_id != aid]
-            if len(pool) > self.bp.exploration_pool_size:
-                idx = feed_rng.choice(len(pool), self.bp.exploration_pool_size,
-                                      replace=False)
-                pool = [pool[i] for i in sorted(idx)]
+            candidates = []
+            for n in neigh_set:
+                if n == aid:
+                    continue
+                lst = posts_by_author.get(n)
+                if lst:
+                    candidates.extend(lst)
+            # Exploration pool: a random sample of non-neighbour posts, drawn by
+            # oversampling recent_posts indices (O(k)) then filtering — avoids the
+            # per-agent O(recent_posts) scan.
+            pool = []
+            if n_recent:
+                k = min(n_recent, pool_size * 3)
+                idx = (sorted(feed_rng.choice(n_recent, k, replace=False).tolist())
+                       if n_recent > k else range(n_recent))
+                for i in idx:
+                    p = recent[i]
+                    if p.author_id not in neigh_set and p.author_id != aid:
+                        pool.append(p)
+                        if len(pool) >= pool_size:
+                            break
 
             ads = []
             if self.cfg.ads_enabled:

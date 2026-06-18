@@ -9,14 +9,15 @@ channel) update these constants in the same commit, with a note in CHANGELOG.md.
 from socio_sim.config import RunConfig
 from socio_sim.engine import Simulation
 
-# Baselines re-locked after P2 (organic-baseline conversion channel added).
-# That change was INTENTIONAL: it appends `organic_conversion` events at the
-# start of each day; everything else is bit-identical. Pre-P2 hashes are kept
-# in CHANGELOG / git history.
+# Baselines re-locked after the feed hot-loop perf redesign. That change was
+# INTENTIONAL: the exploration POOL is now sampled by oversampling recent_posts
+# indices (O(k)) instead of materialising the full non-neighbour list, which
+# shifts which exploration posts are drawn. Run-to-run determinism and replay
+# still hold (verified). Earlier baselines (pre-perf, post-P2) are in git history.
 BASELINE_STREAM_HASHES = {
-    "EU": "d80bd689de2632d513de8f84764bbf687275cbfec26dfeecd2a02ff514b23f61",
-    "US": "25618a88624250c1c3fe85fcf640c52d1195ce7d8ad09b2a90fd9014535db724",
-    "CN": "1e25d05e92c3ab2d6331a5443fe0a53053016ae5e2e9579ea7bab9173198b7df",
+    "EU": "b0c0dea275c792984cd291cfd7aab8b8ed0f21368ed80892b567b43337fdf268",
+    "US": "2062cec93857e1bae1573dd67610c4f99c37d9d41fbea19ca0e26e2ec3ffa7fe",
+    "CN": "e9c82551135456d8474f7f267adda987b2cbfe0885a55be2197bb12cfa8b2cae",
 }
 
 
