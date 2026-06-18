@@ -79,7 +79,8 @@ Deployment ~9.5 (ruff+CI+coverage+Dockerfile). Marketing ~9.5 (campaign backend/
 ## (Marketing now: incrementality + Newcombe/Beta CI + CUPED + p-value + BH-FDR +
 ##  MDE + ROAS/iROAS/CAC/LTV + frequency dose-response + attribution window + editor UI);
 ## Visual/Deployment = 9.5; Engineering 9; UX 8.5; 3D/Motion 7.5; Regulatory 7.5. Overall ~9.2.
-## REMAINING to 10: UX (multi-route Compare view + audit-log explorer);
+## UX: /api/compare (baseline-vs-intervention CRN-paired) backend DONE + tested; Compare UI tab remaining.
+## REMAINING to 10: UX (in-UI Compare tab + audit-log explorer);
 ## Engineering (order-preserving hot-loop perf + parallel MC); Regulatory (appeals SLA,
 ## trusted-flagger, rights-impact); Deployment (Playwright-in-CI); 3D true WebGL.
 
