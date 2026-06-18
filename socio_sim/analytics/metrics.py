@@ -131,6 +131,47 @@ def cascade_sizes(log: EventLog) -> list:
     return list(sizes.values())
 
 
+def cascade_tree(log: EventLog, max_nodes: int = 150) -> dict:
+    """The largest share cascade as a tree for replay: nodes carry their posting
+    tick and depth so the UI can reveal them in time order (propagation replay).
+    """
+    posts = log.by_kind("post")
+    parent = {e["content_id"]: e["data"].get("parent_id") for e in posts}
+    tick = {e["content_id"]: e["tick"] for e in posts}
+    children: dict = {}
+    for cid, p in parent.items():
+        if p is not None:
+            children.setdefault(p, []).append(cid)
+
+    def root(cid):
+        seen = set()
+        while parent.get(cid) and cid not in seen:
+            seen.add(cid)
+            cid = parent[cid]
+        return cid
+
+    sizes: dict = {}
+    for cid in parent:
+        sizes[root(cid)] = sizes.get(root(cid), 0) + 1
+    if not sizes:
+        return {"nodes": [], "edges": [], "size": 0}
+    top = max(sizes, key=lambda r: (sizes[r], r))
+    if sizes[top] < 2:
+        return {"nodes": [], "edges": [], "size": sizes[top]}
+
+    nodes, edges, depth, queue, seen = [], [], {top: 0}, [top], {top}
+    while queue and len(nodes) < max_nodes:
+        cid = queue.pop(0)
+        nodes.append({"id": cid, "tick": int(tick.get(cid, 0)), "depth": depth[cid]})
+        for ch in sorted(children.get(cid, [])):
+            if ch not in seen and len(seen) < max_nodes:
+                seen.add(ch)
+                depth[ch] = depth[cid] + 1
+                edges.append([cid, ch])
+                queue.append(ch)
+    return {"nodes": nodes, "edges": edges, "size": sizes[top]}
+
+
 def welfare_proxy(log: EventLog) -> dict:
     """Per-agent session satisfaction: engagements − harm penalty − attention
     cost, normalized by impressions (design §1 definition)."""

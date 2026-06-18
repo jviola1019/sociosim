@@ -59,6 +59,17 @@ def test_cascade_sizes_exact():
     assert sorted(sizes)[-1] == 3
 
 
+def test_cascade_tree_builds_largest_tree_with_depths():
+    from socio_sim.analytics.metrics import cascade_tree
+    t = cascade_tree(fixture_log())
+    ids = {n["id"] for n in t["nodes"]}
+    assert {"ok1", "s1", "s2"} <= ids       # the ok1 -> s1 -> s2 cascade
+    assert t["size"] == 3 and len(t["edges"]) >= 2
+    assert max(n["depth"] for n in t["nodes"]) == 2
+    # nodes carry posting ticks (for time-ordered replay)
+    assert all("tick" in n for n in t["nodes"])
+
+
 def test_bootstrap_ci_contains_mean():
     rng = SeedTree(1).generator("boot", 0)
     values = np.array([1.0, 2.0, 3.0, 4.0, 5.0] * 20)

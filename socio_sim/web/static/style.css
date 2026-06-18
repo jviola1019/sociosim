@@ -244,6 +244,9 @@ input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.12); }
 .post .tag.ai { background: rgba(94,92,230,.12); color: var(--violet); border-color: transparent; }
 .post .tag.act { background: rgba(255,149,0,.12); color: #b35a00; border-color: transparent; }
 
+.casc-node { opacity: 0; animation: cascIn .5s var(--ease) forwards; }
+@keyframes cascIn { to { opacity: 1; } }
+
 .charts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 @media (max-width: 1380px) { .charts { grid-template-columns: 1fr; } }
 .chart { border: 1px solid var(--line); border-radius: var(--r); padding: 20px; background: var(--surface); box-shadow: var(--sh-2); animation: cardin .55s var(--ease) backwards; }

@@ -235,6 +235,26 @@ function renderNetwork(gs) {
   host.innerHTML = `<div class="chart"><div class="ct">Social Graph — top ${nodes.length} hubs</div><div class="cs">node size = degree · colour = ideology (blue = left, orange = right) · sampled subgraph, deterministic layout</div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Sampled social-network topology: the ${nodes.length} highest-degree agents and ${links.length} edges among them, coloured by ideology bucket">${e}${c}</svg></div>`;
 }
 
+/* ---------- cascade propagation replay ---------- */
+function renderCascade(t) {
+  const host = $("#cascade"); if (!host) return;
+  if (!t || !t.nodes || t.nodes.length < 2) { host.innerHTML = `<p class="dim small">No multi-post cascade (share tree) in this run.</p>`; return; }
+  const W = 640, H = 380, nodes = t.nodes.map(n => ({ ...n })), idx = {};
+  nodes.forEach((n, i) => idx[n.id] = i);
+  const maxDepth = Math.max(...nodes.map(n => n.depth), 1);
+  const byDepth = {};
+  nodes.forEach(n => { (byDepth[n.depth] = byDepth[n.depth] || []).push(n); });
+  Object.values(byDepth).forEach(arr => arr.forEach((n, i) => {
+    n.x = 50 + (n.depth / maxDepth) * (W - 100);
+    n.y = 30 + (i + 1) / (arr.length + 1) * (H - 60);
+  }));
+  // reveal in posting-time order -> propagation replay (motion communicates spread)
+  [...nodes].sort((a, b) => a.tick - b.tick).forEach((n, i) => n.delay = i * 45);
+  const e = t.edges.map(([u, v]) => { const a = nodes[idx[u]], b = nodes[idx[v]]; return `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="#e4e4e9" stroke-width="1"/>`; }).join("");
+  const c = nodes.map(n => `<circle class="casc-node" style="animation-delay:${n.delay}ms" cx="${n.x.toFixed(1)}" cy="${n.y.toFixed(1)}" r="${(5 - n.depth * 0.5 < 3 ? 3 : 5 - n.depth * 0.5).toFixed(1)}" fill="#ff9500"><title>${esc(n.id)} · tick ${n.tick} · depth ${n.depth}</title></circle>`).join("");
+  host.innerHTML = `<div class="chart"><div class="ct">Largest cascade — ${t.size} posts</div><div class="cs">share tree, left→right by depth; nodes appear in posting-time order (propagation replay)</div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Largest share cascade: ${nodes.length} posts revealed in posting-time order showing propagation">${e}${c}</svg></div>`;
+}
+
 /* ---------- interval bar ---------- */
 function ibar(lo, hi, pt, lo0, hi0, cls = "") {
   if (lo == null) return `<div class="bar"><span class="axis"></span></div>`;
@@ -277,6 +297,7 @@ function render(r) {
   renderFeed(r.feed || []);
   renderCharts(r.charts);
   renderNetwork(r.summary.graph && r.summary.graph.graph_sample);
+  renderCascade(r.charts && r.charts.cascade_tree);
 
   $("#confusion").innerHTML = `<div class="cell tp"><div class="cl">true positive</div><div class="cv">${mod.tp}</div></div><div class="cell fp"><div class="cl">false positive</div><div class="cv">${mod.fp}</div></div><div class="cell fn"><div class="cl">false negative</div><div class="cv">${mod.fn}</div></div><div class="cell tn"><div class="cl">true negative</div><div class="cv">${mod.tn}</div></div>`;
   $("#fairness").innerHTML = Object.entries(s.fairness).map(([dim, gs]) => `<div class="fgrp">${esc(dim.replace(/_/g, " "))}</div><table class="read"><thead><tr><th>group</th><th>FPR</th><th>FNR</th><th>n posts</th></tr></thead><tbody>${Object.entries(gs).map(([g, d]) => `<tr><td>${esc(g)}</td><td class="num">${fmt(d.fpr, 4)}</td><td class="num">${fmt(d.fnr, 3)}</td><td class="num">${d.n_posts}</td></tr>`).join("")}</tbody></table>`).join("");

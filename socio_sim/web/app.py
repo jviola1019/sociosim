@@ -22,7 +22,7 @@ from pathlib import Path
 import numpy as np
 
 from socio_sim import RESEARCH_USE_NOTICE, __version__
-from socio_sim.analytics.metrics import cascade_sizes
+from socio_sim.analytics.metrics import cascade_sizes, cascade_tree
 from socio_sim.config import ADVERSARIES, CATEGORIES, RunConfig
 from socio_sim.llm_bootstrap import ensure_model, ensure_server, server_up
 from socio_sim.pipeline import run_and_analyze
@@ -223,6 +223,7 @@ def _chart_data(result, summary) -> dict:
         "timeline_posts": posts_t,
         "timeline_removed": removed_t,
         "timeline_buckets": nb,
+        "cascade_tree": cascade_tree(result.log),
     }
 
 
