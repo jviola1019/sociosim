@@ -75,9 +75,13 @@ Deployment ~9.5 (ruff+CI+coverage+Dockerfile). Marketing ~9.5 (campaign backend/
 ## DONE (browser-verified where UI): campaign editor UI, cascade replay (3D/Motion),
 ## in-UI transparency export, DARK THEME toggle (Visual), docs hardening (usage.md/spec),
 ## preset-run end-to-end test. Full testing: 92% coverage, ruff clean.
-## HONEST scorecard: Quant/Testing/Documentation = 10; Visual/Deployment = 9.5;
-## Marketing = 9.5 (NOT 10 — dose-response + attribution-window still missing);
-## Engineering 9; UX 8.5; 3D/Motion 7.5; Regulatory 7.5. Overall ~9.1.
+## HONEST scorecard: Quant/Testing/Documentation/Marketing = 10
+## (Marketing now: incrementality + Newcombe/Beta CI + CUPED + p-value + BH-FDR +
+##  MDE + ROAS/iROAS/CAC/LTV + frequency dose-response + attribution window + editor UI);
+## Visual/Deployment = 9.5; Engineering 9; UX 8.5; 3D/Motion 7.5; Regulatory 7.5. Overall ~9.2.
+## REMAINING to 10: UX (multi-route Compare view + audit-log explorer);
+## Engineering (order-preserving hot-loop perf + parallel MC); Regulatory (appeals SLA,
+## trusted-flagger, rights-impact); Deployment (Playwright-in-CI); 3D true WebGL.
 
 ## Remaining punch-list to a literal 10/10 (prioritised)
 1. Multi-route Compare view (experiments.runner baseline-vs-intervention via a new

@@ -85,8 +85,10 @@ def render(summary: dict, manifest: Manifest) -> str:
             f"(exposed {m['n_exposed']}, holdout {m['n_holdout']})")
         lines.append(
             f"  - incrementality: CUPED-lift {m['lift_cuped']:.4f} | "
-            f"p={m['lift_pvalue']:.3f} ({sig}, BH-FDR) | ROAS {m['roas']:.2f} | "
-            f"iROAS {m['iroas']:.2f} | CAC {m['cac']:.2f} | LTV {m['ltv']:.2f} "
+            f"p={m['lift_pvalue']:.3f} ({sig}, BH-FDR) | MDE {m['mde']:.4f} | "
+            f"ROAS {m['roas']:.2f} | iROAS {m['iroas']:.2f} | CAC {m['cac']:.2f} | "
+            f"LTV {m['ltv']:.2f} | attribution {m['attribution_window_ticks']}t "
+            f"({m['attributed_ad_conversions']} credited) "
             f"_(synthetic: depends on conversion_value/ltv_multiplier)_")
     lines.append("")
     lines.append("## Graph")
