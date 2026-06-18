@@ -39,7 +39,8 @@ def _headline_metrics(result) -> dict:
     }
 
 
-def mc_bundle(cfg: RunConfig, n_replicates: int, campaigns_fn=None) -> dict:
+def mc_bundle(cfg: RunConfig, n_replicates: int, campaigns_fn=None,
+             workers: int = 1) -> dict:
     """Run N replicates and return per-metric Monte Carlo percentile intervals.
 
     Provenance is explicitly 'mc-replicated' to distinguish these from the
@@ -47,7 +48,7 @@ def mc_bundle(cfg: RunConfig, n_replicates: int, campaigns_fn=None) -> dict:
     values (e.g. recall with no harmful content) are dropped before aggregating.
     """
     raw = run_replicates(cfg, n_replicates, _headline_metrics,
-                         campaigns_fn=campaigns_fn)
+                         campaigns_fn=campaigns_fn, workers=workers)
     out = {}
     for name, d in raw.items():
         vals = np.array([v for v in d["values"] if v == v], dtype=float)
@@ -78,7 +79,7 @@ class Analysis:
 
 def run_and_analyze(cfg: RunConfig, *, write: bool = True,
                     verify_replay: bool | None = None, n_replicates: int = 1,
-                    campaigns_fn=None, progress_callback=None,
+                    campaigns_fn=None, workers: int = 1, progress_callback=None,
                     on_phase=None) -> Analysis:
     """Run a simulation and produce the full analytic bundle.
 
@@ -120,7 +121,7 @@ def run_and_analyze(cfg: RunConfig, *, write: bool = True,
     mc = None
     if n_replicates and n_replicates > 1:
         phase("monte carlo")
-        mc = mc_bundle(cfg, n_replicates, campaigns_fn)
+        mc = mc_bundle(cfg, n_replicates, campaigns_fn, workers=workers)
 
     transparency = transparency_report(
         result.log, PolicyEngine(cfg.jurisdictions, cfg.ftc_enabled))

@@ -52,14 +52,14 @@ def bootstrap_ollama(model: str, host: str):
 # --------------------------------------------------------------------------
 # Simulation run
 # --------------------------------------------------------------------------
-def run_sim(cfg: RunConfig, n_replicates: int = 1):
+def run_sim(cfg: RunConfig, n_replicates: int = 1, workers: int = 1):
     mode = "Research" if n_replicates > 1 else "Preview"
     extra = f", {n_replicates} replicates" if n_replicates > 1 else ""
     print(f"\nRunning {cfg.n_agents} agents x {cfg.n_ticks} hourly ticks "
           f"(jurisdictions={cfg.jurisdictions}, content={cfg.content_mode}, "
           f"mode={mode}{extra})...")
     # Single source of truth — same pipeline the web app and examples use.
-    a = run_and_analyze(cfg, n_replicates=n_replicates)
+    a = run_and_analyze(cfg, n_replicates=n_replicates, workers=workers)
     result = a.result
     print(f"Done. {len(result.log.events)} events. "
           f"Stream hash {result.log.stream_hash()[:16]}...")
@@ -143,6 +143,9 @@ def main():
     p.add_argument("--replicates", type=int, default=1,
                    help="Research run: N Monte Carlo replicates for percentile "
                         "intervals (default 1 = Preview, single run)")
+    p.add_argument("--workers", type=int, default=1,
+                   help="parallel processes for Research Monte Carlo replicates "
+                        "(default 1; results are identical to sequential)")
     p.add_argument("--validate", action="store_true",
                    help="run a BehaviorParams sensitivity + calibration study, "
                         "write VALIDATION_REPORT.md, and exit")
@@ -199,7 +202,7 @@ def main():
     cfg = factory(**overrides)
 
     try:
-        return run_sim(cfg, n_replicates=args.replicates)
+        return run_sim(cfg, n_replicates=args.replicates, workers=args.workers)
     finally:
         if server_proc is not None:
             print("\nStopping the Ollama server we started.")

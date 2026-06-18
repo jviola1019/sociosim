@@ -32,3 +32,17 @@ def test_research_mode_intervals_are_reproducible():
     a2 = run_and_analyze(_cfg(), n_replicates=4, verify_replay=False)
     assert a1.mc["harmful_exposure_rate"]["median"] == \
         a2.mc["harmful_exposure_rate"]["median"]
+
+
+def test_parallel_replicates_identical_to_sequential():
+    """Parallel Monte Carlo (process pool) must give bit-identical aggregates to
+    the sequential path — replicates are seeded independently and aggregation is
+    order-independent."""
+    from socio_sim.pipeline import _headline_metrics
+    from socio_sim.validation.montecarlo import run_replicates
+    cfg = RunConfig.test(jurisdictions=("EU",), n_agents=80, n_ticks=12)
+    seq = run_replicates(cfg, 4, _headline_metrics, workers=1)
+    par = run_replicates(cfg, 4, _headline_metrics, workers=2)
+    assert seq["n_posts"]["values"] == par["n_posts"]["values"]
+    assert seq["harmful_exposure_rate"]["median"] == \
+        par["harmful_exposure_rate"]["median"]
