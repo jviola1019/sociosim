@@ -349,6 +349,33 @@ def _run_job(job_id: str, body: dict):
         job["error"] = f"{type(exc).__name__}: {exc}"
 
 
+def _run_compare(job_id: str, body: dict):
+    """Baseline-vs-intervention experiment (common random numbers) over the web.
+    `body` is a normal run config; `body["intervention"]` holds the overrides
+    that define the intervention arm; `compare_replicates` sets N."""
+    job = _JOBS[job_id]
+    try:
+        from socio_sim.experiments.runner import compare
+        from socio_sim.pipeline import _headline_metrics
+        n = max(2, min(int(body.get("compare_replicates", 10) or 10), 100))
+        job["phase"] = "comparing (baseline vs intervention)"
+        base = _build_config(body)
+        interv = _build_config({**body, **(body.get("intervention") or {})})
+        res = compare(base, interv, n, _headline_metrics,
+                      campaigns_fn=_campaigns_fn(body))
+        job["result"] = _jsonable({
+            "compare": res, "n_replicates": n,
+            "baseline_jurisdictions": list(base.jurisdictions),
+            "intervention_jurisdictions": list(interv.jurisdictions),
+            "provenance": "crn-paired-monte-carlo",
+        })
+        job["status"] = "done"
+        job["progress"] = 1.0
+    except Exception as exc:
+        job["status"] = "error"
+        job["error"] = f"{type(exc).__name__}: {exc}"
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
@@ -441,7 +468,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_POST(self):
-        if self.path != "/api/run":
+        route = self.path.split("?")[0]
+        if route not in ("/api/run", "/api/compare"):
             self.send_error(404, "not found")
             return
         length = int(self.headers.get("Content-Length", 0))
@@ -451,7 +479,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": "invalid JSON"}, 400)
             return
         try:
-            _build_config(body)
+            _build_config(body)  # validates the baseline arm
         except Exception as exc:
             self._send_json({"error": f"{type(exc).__name__}: {exc}"}, 400)
             return
@@ -459,8 +487,8 @@ class Handler(BaseHTTPRequestHandler):
         with _LOCK:
             _JOBS[job_id] = {"status": "running", "progress": 0.0,
                              "tick": 0, "phase": "queued"}
-        threading.Thread(target=_run_job, args=(job_id, body),
-                         daemon=True).start()
+        target = _run_compare if route == "/api/compare" else _run_job
+        threading.Thread(target=target, args=(job_id, body), daemon=True).start()
         self._send_json({"job_id": job_id})
 
     def do_DELETE(self):

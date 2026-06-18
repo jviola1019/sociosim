@@ -232,6 +232,46 @@ def test_live_server_research_mode_returns_mc_and_transparency():
         server.shutdown()
 
 
+def test_compare_endpoint_returns_crn_paired_deltas():
+    """/api/compare runs baseline vs intervention (CRN-paired) and returns
+    per-metric deltas with percentile CIs."""
+    from http.server import ThreadingHTTPServer
+    import threading
+    port = _free_port()
+    server = ThreadingHTTPServer(("127.0.0.1", port), app.Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{port}"
+    try:
+        body = json.dumps({"profile": "test", "n_agents": 80, "n_ticks": 12,
+                           "jurisdictions": ["US"],
+                           "intervention": {"jurisdictions": ["EU"]},
+                           "compare_replicates": 2}).encode()
+        req = urllib.request.Request(f"{base}/api/compare", data=body,
+                                     headers={"Content-Type": "application/json"})
+        job_id = json.loads(urllib.request.urlopen(req).read())["job_id"]
+        result = None
+        for _ in range(300):
+            job = json.loads(
+                urllib.request.urlopen(f"{base}/api/job/{job_id}").read())
+            if job["status"] == "done":
+                result = job["result"]
+                break
+            if job["status"] == "error":
+                raise AssertionError(job.get("error"))
+            time.sleep(0.2)
+        assert result is not None, "compare job did not finish"
+        assert result["n_replicates"] == 2
+        assert result["baseline_jurisdictions"] == ["US"]
+        assert result["intervention_jurisdictions"] == ["EU"]
+        c = result["compare"]
+        assert "harmful_exposure_rate" in c
+        m = c["harmful_exposure_rate"]
+        assert "delta_median" in m and "delta_ci" in m
+        assert "NaN" not in json.dumps(result)
+    finally:
+        server.shutdown()
+
+
 def test_bad_job_id_404():
     from http.server import ThreadingHTTPServer
     import threading
