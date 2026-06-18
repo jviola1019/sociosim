@@ -36,6 +36,7 @@ class Personas:
     vulnerable: np.ndarray       # bool flag for fairness diagnostics
     interests: np.ndarray        # (n, n_topics) preference weights, rows sum to 1
     base_conversion: np.ndarray  # [0,1] latent organic (non-ad) conversion propensity
+    trusted_flagger: np.ndarray  # bool, DSA Art. 22 trusted flaggers (priority review)
 
     @property
     def n(self) -> int:
@@ -62,9 +63,12 @@ class Personas:
         # -> mean ~3.8%, a realistic baseline organic conversion rate. This is the
         # ad-independent counterfactual that makes holdout lift a real estimate.
         base_conversion = rng.beta(2.0, 50.0, size=n)
+        # DSA Art. 22 trusted flaggers: a small designated set whose flags get
+        # priority review. Drawn last so all prior persona draws are unchanged.
+        trusted_flagger = rng.random(n) < 0.02
         return cls(age_group, is_minor, ideology, trust, activity,
                    ad_responsiveness, moderation_attitude, influencer,
-                   vulnerable, interests, base_conversion)
+                   vulnerable, interests, base_conversion, trusted_flagger)
 
     def active_mask(self, hour: int, rng: np.random.Generator) -> np.ndarray:
         """Vectorized Bernoulli draw: P(active) = activity × diurnal[hour]."""

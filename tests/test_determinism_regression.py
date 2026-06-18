@@ -9,15 +9,14 @@ channel) update these constants in the same commit, with a note in CHANGELOG.md.
 from socio_sim.config import RunConfig
 from socio_sim.engine import Simulation
 
-# Baselines re-locked after the feed hot-loop perf redesign. That change was
-# INTENTIONAL: the exploration POOL is now sampled by oversampling recent_posts
-# indices (O(k)) instead of materialising the full non-neighbour list, which
-# shifts which exploration posts are drawn. Run-to-run determinism and replay
-# still hold (verified). Earlier baselines (pre-perf, post-P2) are in git history.
+# Baselines re-locked after the DSA Art. 22 trusted-flagger priority review
+# (trusted-flagger escalations get a shorter review deadline, shifting review
+# timing). Earlier intentional regens (feed perf redesign, P2 baseline channel)
+# are in git history. Run-to-run determinism and replay still hold (verified).
 BASELINE_STREAM_HASHES = {
-    "EU": "b0c0dea275c792984cd291cfd7aab8b8ed0f21368ed80892b567b43337fdf268",
-    "US": "2062cec93857e1bae1573dd67610c4f99c37d9d41fbea19ca0e26e2ec3ffa7fe",
-    "CN": "e9c82551135456d8474f7f267adda987b2cbfe0885a55be2197bb12cfa8b2cae",
+    "EU": "b50e70fb0831119e148bbf82d115a39ab8ac8933fbb1584471b5a36d3e4104d0",
+    "US": "c3d3b6894d9e08fca6a62be07d16fec3f4871e5f85d4e3396549bfcd75827585",
+    "CN": "7519aae688c9634d319c8a80ef2c3c532c569b2f7d833b06d3d7afb4f1c4b7b8",
 }
 
 

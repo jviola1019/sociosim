@@ -384,11 +384,14 @@ class Simulation:
                 if item.true_categories & HARMFUL_CATEGORIES:
                     attitude = float(self.personas.moderation_attitude[aid])
                     if eng.random() < self.bp.p_flag_scale * attitude:
+                        trusted = bool(self.personas.trusted_flagger[aid])
                         self.log.append(tick=tick, kind="flag", actor_id=aid,
-                                        content_id=item.id, data={})
+                                        content_id=item.id,
+                                        data={"trusted_flagger": trusted})
                         scores = self.scores_by_item.get(item.id, {})
                         self.moderation.handle(item, scores, tick,
-                                               context={"user_flagged": True})
+                                               context={"user_flagged": True,
+                                                        "trusted_flagger": trusted})
 
         engaged = exposure_count.sum(axis=1) > 0
         if engaged.any():

@@ -44,6 +44,9 @@ def transparency_report(log: EventLog, engine: PolicyEngine) -> dict:
 
     reviews = [e for e in moderation if e["data"].get("stage") == "human_review"]
     misses = [e for e in reviews if e["data"].get("deadline_missed")]
+    escalations = [e for e in moderation if e["data"].get("stage") == "escalated"]
+    trusted_escalations = sum(1 for e in escalations
+                              if e["data"].get("trusted_flagger"))
     filed = [a for a in appeals if a["data"].get("stage") == "filed"]
     resolved = [a for a in appeals if a["data"].get("stage") == "resolved"]
     granted = [a for a in resolved if a["data"].get("granted")]
@@ -71,6 +74,8 @@ def transparency_report(log: EventLog, engine: PolicyEngine) -> dict:
             "grant_rate": (len(granted) / len(resolved)) if resolved else None},
         "human_reviews": len(reviews),
         "deadline_misses": len(misses),
+        "escalations": len(escalations),
+        "trusted_flagger_escalations": trusted_escalations,
         "max_retention_months": max(retention) if retention else 0,
         "rights_impact": {
             "actions_total": len(actioned),

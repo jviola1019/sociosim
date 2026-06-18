@@ -31,6 +31,8 @@ class BehaviorParams:
     exploration_pool_size: int = 10        # max unseen-author exploration candidates
     # Engagement
     engagement_base: float = 0.30          # base engagement propensity scalar
+    # Moderation: priority review latency for trusted-flagger escalations (DSA Art. 22)
+    trusted_review_delay_ticks: int = 1
     # Red-team archetype intensities (Spec 3.10)
     spammer_post_prob: float = 1.0         # spammers post every active tick
     amplifier_misinfo_prob: float = 0.6    # P(amplifier injects misinfo into a post)
