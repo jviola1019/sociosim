@@ -212,6 +212,10 @@ def test_live_server_research_mode_returns_mc_and_transparency():
         assert result["mc"] and "harmful_exposure_rate" in result["mc"]
         assert result["transparency"]["pack_versions"]
         assert "NaN" not in json.dumps(result)
+        # in-UI transparency export endpoint returns the tally as JSON
+        tx = json.loads(urllib.request.urlopen(
+            f"{base}/api/runs/{job_id}/export?fmt=transparency").read())
+        assert tx["pack_versions"] and "actions_by_category" in tx
     finally:
         server.shutdown()
 

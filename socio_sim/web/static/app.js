@@ -277,7 +277,7 @@ function render(r) {
   if (!r.replay.checked) $("#sealTxt").textContent = "replay skipped";
   else if (r.replay.ok) { seal.classList.add("ok"); $("#sealTxt").textContent = "replay verified"; }
   else { seal.classList.add("bad"); $("#sealTxt").textContent = "replay mismatch"; }
-  if (currentRunId) { $("#expReport").href = `/api/runs/${currentRunId}/export?fmt=report`; $("#expJson").href = `/api/runs/${currentRunId}/export?fmt=json`; }
+  if (currentRunId) { $("#expReport").href = `/api/runs/${currentRunId}/export?fmt=report`; $("#expJson").href = `/api/runs/${currentRunId}/export?fmt=json`; $("#expTransparency").href = `/api/runs/${currentRunId}/export?fmt=transparency`; }
   $("#expEvents").hidden = true;
 
   const heB = ibar(he.ci[0], he.ci[1], he.rate, 0, Math.max(he.ci[1] * 1.3, .05));
