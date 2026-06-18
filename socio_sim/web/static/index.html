@@ -145,6 +145,11 @@
           <label class="field"><span class="lbl">Freq Cap / Day</span><input type="number" id="ad_frequency_cap_per_day" value="4" min="1"></label>
         </div>
         <label class="field"><span class="lbl">Ad Slot Interval</span><input type="number" id="ad_slot_interval" value="5" min="1"></label>
+        <hr>
+        <span class="lbl">Campaigns <i>blank = 3 default campaigns</i></span>
+        <div id="campaigns" class="campaigns"></div>
+        <button type="button" id="addCampaign" class="pill" style="margin-top:8px">+ Add campaign</button>
+        <p class="hint">Custom campaigns replace the defaults. Incremental lift uses the organic-baseline holdout (Newcombe CI + MDE).</p>
       </section>
 
       <!-- ADVERSARIES -->

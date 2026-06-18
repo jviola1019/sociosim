@@ -107,6 +107,29 @@ $("#content_mode").addEventListener("change", e => $$("[data-llm]").forEach(el =
 $("#graph_kind").addEventListener("change", e => $$("[data-graph]").forEach(el => el.hidden = el.dataset.graph !== e.target.value));
 ["homophily_rewire_fraction", "classifier_precision", "classifier_recall", "human_review_accuracy"].forEach(id => { const lab = { homophily_rewire_fraction: "homoVal", classifier_precision: "precVal", classifier_recall: "recVal", human_review_accuracy: "hraVal" }[id]; const el = $("#" + id); if (el) el.addEventListener("input", e => $("#" + lab).textContent = (+e.target.value).toFixed(2)); });
 
+/* ---------- campaign editor (S3) ---------- */
+function campaignRow(c = {}) {
+  const d = document.createElement("div"); d.className = "camp-row";
+  d.innerHTML = `<input class="cf-adv" placeholder="Advertiser" value="${esc(c.advertiser || "")}">`
+    + `<input class="cf-bid" type="number" step="0.1" min="0" title="bid" value="${c.bid ?? 2}">`
+    + `<input class="cf-bud" type="number" step="1" min="0" title="budget" value="${c.budget ?? 100}">`
+    + `<input class="cf-ctr" type="number" step="0.001" min="0" max="1" title="base CTR" value="${c.base_ctr ?? 0.012}">`
+    + `<input class="cf-cvr" type="number" step="0.01" min="0" max="1" title="base CVR" value="${c.base_cvr ?? 0.05}">`
+    + `<button type="button" class="cf-del" title="remove" aria-label="remove campaign">×</button>`;
+  d.querySelector(".cf-del").addEventListener("click", () => d.remove());
+  return d;
+}
+$("#addCampaign")?.addEventListener("click", () => $("#campaigns").appendChild(campaignRow()));
+
+function collectCampaigns() {
+  return $$("#campaigns .camp-row").map((r, i) => ({
+    id: "c" + (i + 1),
+    advertiser: r.querySelector(".cf-adv").value || "Advertiser",
+    bid: +r.querySelector(".cf-bid").value, budget: +r.querySelector(".cf-bud").value,
+    base_ctr: +r.querySelector(".cf-ctr").value, base_cvr: +r.querySelector(".cf-cvr").value,
+  }));
+}
+
 function collect() {
   const v = id => { const e = $("#" + id); return e && e.value !== "" ? e.value : null; };
   const num = id => { const x = v(id); return x == null ? null : +x; }, chk = id => $("#" + id).checked, checked = sel => $$(sel + " input:checked").map(i => i.value);
@@ -118,7 +141,10 @@ function collect() {
     feed_strategy: v("feed_strategy"), eu_optout_rate: num("eu_optout_rate"), exploration_epsilon: num("exploration_epsilon"), feed_size: num("feed_size"),
     ads_enabled: chk("ads_enabled"), ftc_compliance: chk("ftc_compliance"), holdout_fraction: num("holdout_fraction"), ad_frequency_cap_per_day: num("ad_frequency_cap_per_day"), ad_slot_interval: num("ad_slot_interval"), red_team: checked("#redteam"),
   };
-  (META.harmful_categories.concat(["ai_generated"])).forEach(c => body["rate_" + c] = num("rate_" + c)); return body;
+  (META.harmful_categories.concat(["ai_generated"])).forEach(c => body["rate_" + c] = num("rate_" + c));
+  const campaigns = collectCampaigns();
+  if (campaigns.length) body.campaigns = campaigns;
+  return body;
 }
 function stage(id) { ["idle", "running", "errstage", "results"].forEach(s => $("#" + s).hidden = s !== id); }
 function fail(msg) { if (polling) clearInterval(polling); polling = null; $("#runBtn").disabled = false; $("#errText").textContent = msg; stage("errstage"); }
