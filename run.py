@@ -101,6 +101,10 @@ def run_sim(cfg: RunConfig, n_replicates: int = 1):
               f"filed {t['appeals']['filed']}/granted {t['appeals']['granted']} "
               f"| human reviews {t['human_reviews']} | deadline misses "
               f"{t['deadline_misses']} | max retention {t['max_retention_months']}mo")
+        ri = t.get("rights_impact", {})
+        print(f"  rights-impact: {ri.get('appealable_actions', 0)}/"
+              f"{ri.get('actions_total', 0)} actions appealable · "
+              f"{ri.get('removals_without_notice', 0)} removals without notice")
         for cat, v in t["actions_by_category"].items():
             print(f"  {cat:26s} {v['actions']:4d} actions {v['by_action']}")
 

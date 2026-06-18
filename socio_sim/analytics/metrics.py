@@ -96,6 +96,9 @@ def appeal_stats(log: EventLog) -> dict:
         "mean_resolution_ticks": (
             float(np.mean([e["data"]["resolution_ticks"] for e in resolved]))
             if resolved else float("nan")),
+        "p95_resolution_ticks": (
+            float(np.percentile([e["data"]["resolution_ticks"] for e in resolved], 95))
+            if resolved else float("nan")),
         "human_reviews": len(reviews),
         "deadline_miss_rate": len(misses) / len(reviews) if reviews else 0.0,
     }

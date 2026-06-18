@@ -47,6 +47,20 @@ def test_moderation_confusion_exact():
     assert cm["recall"] == 0.5 and cm["precision"] == 0.5
 
 
+def test_appeal_stats_includes_resolution_p95():
+    from socio_sim.analytics.metrics import appeal_stats
+    log = EventLog()
+    log.append(1, "appeal", 1, "c1", {"stage": "filed", "rule_id": "R"})
+    log.append(5, "appeal", 1, "c1", {"stage": "resolved", "granted": True,
+                                      "rule_id": "R", "resolution_ticks": 4})
+    log.append(2, "appeal", 2, "c2", {"stage": "filed", "rule_id": "R"})
+    log.append(9, "appeal", 2, "c2", {"stage": "resolved", "granted": False,
+                                      "rule_id": "R", "resolution_ticks": 7})
+    s = appeal_stats(log)
+    assert "p95_resolution_ticks" in s
+    assert s["p95_resolution_ticks"] >= s["mean_resolution_ticks"]
+
+
 def test_harmful_exposure_exact():
     rate, per_agent = harmful_exposure(fixture_log())
     assert rate == 0.5  # 1 harmful of 2 impressions

@@ -49,6 +49,15 @@ def transparency_report(log: EventLog, engine: PolicyEngine) -> dict:
     granted = [a for a in resolved if a["data"].get("granted")]
     retention = [int(r.get("retention_months", 0)) for r in rule_meta.values()]
 
+    # Rights-impact: are enforcement actions appealable? are removals noticed?
+    actioned = [e for e in moderation if "action" in e["data"]]
+    appealable = sum(1 for e in actioned
+                     if rule_meta.get(e["data"].get("rule_id"), {}).get("appeal_allowed"))
+    removals = [e for e in actioned if e["data"].get("action") == "remove"]
+    noticed_ids = {e["content_id"] for e in notices}
+    removals_without_notice = sum(1 for e in removals
+                                  if e["content_id"] not in noticed_ids)
+
     return {
         "pack_versions": engine.pack_versions(),
         "notices_sent": len(notices),
@@ -63,4 +72,11 @@ def transparency_report(log: EventLog, engine: PolicyEngine) -> dict:
         "human_reviews": len(reviews),
         "deadline_misses": len(misses),
         "max_retention_months": max(retention) if retention else 0,
+        "rights_impact": {
+            "actions_total": len(actioned),
+            "appealable_actions": appealable,
+            "non_appealable_actions": len(actioned) - appealable,
+            "removals": len(removals),
+            "removals_without_notice": removals_without_notice,
+        },
     }

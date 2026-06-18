@@ -50,3 +50,7 @@ def test_transparency_report_aggregates_actions_notices_appeals():
     assert rep["pack_versions"]
     cats = rep["actions_by_category"]
     assert any(v["by_action"].get("remove", 0) >= 1 for v in cats.values())
+    # rights-impact: the removal is appealable (EU-ILLEGAL-1) and was noticed
+    ri = rep["rights_impact"]
+    assert ri["actions_total"] >= 1 and ri["appealable_actions"] >= 1
+    assert ri["removals"] >= 1 and ri["removals_without_notice"] == 0
