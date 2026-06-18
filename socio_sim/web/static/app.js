@@ -147,7 +147,43 @@ function collect() {
   return body;
 }
 function stage(id) { ["idle", "running", "errstage", "results"].forEach(s => $("#" + s).hidden = s !== id); }
-function fail(msg) { if (polling) clearInterval(polling); polling = null; $("#runBtn").disabled = false; $("#errText").textContent = msg; stage("errstage"); }
+function fail(msg) { if (polling) clearInterval(polling); polling = null; if (cmpPolling) clearInterval(cmpPolling); cmpPolling = null; $("#runBtn").disabled = false; $("#errText").textContent = msg; stage("errstage"); }
+
+/* ---------- A/B compare (baseline vs intervention) ---------- */
+let cmpPolling = null;
+$("#cmpBtn")?.addEventListener("click", async () => {
+  const body = collect();
+  if (!body.jurisdictions.length) return fail("Select at least one jurisdiction pack (Moderation tab).");
+  try { body.intervention = JSON.parse($("#cmpIntervention").value); }
+  catch (e) { return fail("Invalid intervention."); }
+  body.compare_replicates = +($("#cmpReplicates").value || 5);
+  stage("running"); $("#runPhase").textContent = "comparing";
+  $("#meterFill").style.width = "45%"; $("#runDetail").textContent = "baseline vs intervention (common random numbers)…";
+  let res;
+  try { res = await (await fetch("/api/compare", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json(); }
+  catch (err) { return fail(String(err)); }
+  if (res.error) return fail(res.error);
+  cmpPolling = setInterval(() => pollCompare(res.job_id), 400);
+});
+async function pollCompare(id) {
+  let j; try { j = await (await fetch("/api/job/" + id)).json(); } catch (e) { return; }
+  if (j.status === "running") { $("#runPhase").textContent = j.phase || "comparing"; }
+  else if (j.status === "done") { clearInterval(cmpPolling); cmpPolling = null; renderCompare(j.result); }
+  else if (j.status === "error") fail(j.error || "compare failed");
+}
+function renderCompare(r) {
+  stage("results");
+  $("#runMeta").innerHTML = `A/B compare · baseline ${esc((r.baseline_jurisdictions || []).join("+"))} vs intervention ${esc((r.intervention_jurisdictions || []).join("+"))} · ${r.n_replicates} replicates · ${esc(r.provenance || "")}`;
+  const c = r.compare || {};
+  const rows = Object.entries(c).map(([k, m]) => {
+    const lo = m.delta_ci[0], hi = m.delta_ci[1], sig = (lo > 0 || hi < 0);
+    return `<tr><td>${esc(k.replace(/_/g, " "))}</td><td class="num">${fmt(m.baseline_median, 4)}</td><td class="num">${fmt(m.intervention_median, 4)}</td><td class="num">${fmt(m.delta_median, 4)}</td><td class="num">[${fmt(lo, 4)}, ${fmt(hi, 4)}]</td><td>${sig ? '<b style="color:var(--blue)">sig</b>' : '<span class="dim">n.s.</span>'}</td></tr>`;
+  }).join("");
+  $("#compare").innerHTML = `<table class="read"><thead><tr><th>metric</th><th>baseline</th><th>intervention</th><th>Δ</th><th>Δ 95% CI</th><th></th></tr></thead><tbody>${rows}</tbody></table><p class="hint">Δ = intervention − baseline (common random numbers; mc-replicated). "sig" = the 95% interval excludes 0.</p>`;
+  $$("#outTabs button").forEach(b => b.classList.toggle("on", b.dataset.otab === "compare"));
+  $$("[data-opanel]").forEach(p => p.classList.toggle("on", p.dataset.opanel === "compare"));
+  moveInk($("#outTabs"));
+}
 $("#cfgForm").addEventListener("submit", async e => {
   e.preventDefault(); const body = collect();
   if (!body.jurisdictions.length) return fail("Select at least one jurisdiction pack (Moderation tab).");

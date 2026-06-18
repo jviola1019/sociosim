@@ -60,6 +60,22 @@
         <p class="hint">Re-runs from the manifest and confirms an identical event-stream hash. Auto-skipped above 2,000 agents.</p>
         <label class="field"><span class="lbl">Monte Carlo Replicates <i>1 = preview · &gt;1 = research</i></span><input type="number" id="n_replicates" value="1" min="1" max="200"></label>
         <p class="hint">Research mode runs N seeded replicates and reports <b>mc-replicated</b> 95% intervals (Log tab); Preview (1) reports within-run intervals only.</p>
+        <hr>
+        <span class="lbl">A/B Compare <i>baseline = current config</i></span>
+        <label class="field"><span class="lbl">Intervention</span>
+          <select id="cmpIntervention">
+            <option value='{"jurisdictions":["EU"]}'>Swap to EU · DSA pack</option>
+            <option value='{"jurisdictions":["US"]}'>Swap to US · §230 pack</option>
+            <option value='{"jurisdictions":["CN"]}'>Swap to CN · AI-label pack</option>
+            <option value='{"feed_strategy":"chronological"}'>Chronological feed</option>
+            <option value='{"ads_enabled":false}'>Ads disabled</option>
+            <option value='{"ftc_compliance":false}'>No FTC disclosures</option>
+          </select></label>
+        <div class="duo">
+          <label class="field"><span class="lbl">Replicates</span><input type="number" id="cmpReplicates" value="5" min="2" max="50"></label>
+          <button type="button" id="cmpBtn" class="pill" style="align-self:end">Run A/B Compare</button>
+        </div>
+        <p class="hint">Baseline vs intervention with common random numbers; per-metric deltas with 95% intervals (Compare tab).</p>
       </section>
 
       <!-- NETWORK -->
@@ -216,6 +232,7 @@
         <button type="button" role="tab" data-otab="fairness">Fairness</button>
         <button type="button" role="tab" data-otab="ads">Ads</button>
         <button type="button" role="tab" data-otab="calib">Calibration</button>
+        <button type="button" role="tab" data-otab="compare">Compare</button>
         <button type="button" role="tab" data-otab="log">Log</button>
       </nav>
       <div class="ostage">
@@ -230,6 +247,7 @@
         </section>
         <section data-opanel="ads" class="opanel"><div id="ads"></div></section>
         <section data-opanel="calib" class="opanel"><p class="dim small" id="implaus"></p><div id="calib" class="calib"></div></section>
+        <section data-opanel="compare" class="opanel"><div id="compare"></div></section>
         <section data-opanel="log" class="opanel"><pre class="mono report" id="rawReport"></pre></section>
       </div>
     </div>
