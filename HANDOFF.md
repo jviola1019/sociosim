@@ -72,16 +72,17 @@ Documentation: README matches code; AUDIT_LOG/CHANGELOG/VALIDATION_REPORT/KNOWN_
 Deployment ~9.5 (ruff+CI+coverage+Dockerfile). Marketing ~9.5 (campaign backend/API done; UI editor pending).
 3D ~6 (topology force-graph, browser-verified). UX ~8, Visual ~8.
 
-## Remaining punch-list to a literal 10/10 (prioritised; mostly the UI cluster + perf)
-1. Campaign editor UI (S3) — Marketing ->10. Backend + web `_campaigns_fn` DONE; needs
-   add/remove rows in Feed & Ads + collect() -> body.campaigns. Browser-verify.
-2. Cascade-propagation replay over the timeline scrubber — 3D ->8+ (animate share trees).
-3. Multi-route studio: Compare (experiments.runner) + Audit-log explorer + in-UI
-   Transparency export + provenance badges on cards — UX ->9.5.
-4. Dark control-room theme toggle — Visual; state-communicating motion — Motion.
-5. Engineering ->10: order-preserving hot-loop perf (determinism-guarded) + parallel MC.
-6. Regulatory/Gov ->10: appeals SLA, trusted-flagger queue, rights-impact metrics, retention setting.
-7. Deployment ->10: Playwright UI smoke in CI; publish/release packaging.
+## DONE this session (browser-verified where UI): campaign editor UI (Marketing 10),
+## cascade-propagation replay (3D/Motion), in-UI transparency export (UX).
+
+## Remaining punch-list to a literal 10/10 (prioritised)
+1. Multi-route Compare view (experiments.runner baseline-vs-intervention via a new
+   /api/compare endpoint) + audit-log explorer + provenance badges on cards — UX ->9.5/10.
+2. Dark control-room theme toggle (CSS var swap) — Visual ->9.5.
+3. Engineering ->10: order-preserving hot-loop perf (determinism-guarded) + parallel MC.
+4. Regulatory/Gov ->10: appeals SLA, trusted-flagger priority, rights-impact metrics, retention setting.
+5. Deployment ->10: Playwright UI smoke in CI; publish/release packaging.
+6. 3D ->10 (optional): true WebGL graph; Motion: more state transitions.
 
 ## Notes for the multi-route UI (P6)
 - Keep the stdlib server canonical; add an OPTIONAL SPA over the JSON API only if needed.
