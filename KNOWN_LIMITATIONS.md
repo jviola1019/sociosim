@@ -20,11 +20,16 @@ list; this file tracks what remains open or newly surfaced.
   exist but are not chained into the default Research run).
 
 ## Engine / scale
-- **Standard profile (10k×672) performance unverified** — per-agent Python hot
-  loops + exact clustering remain (Q-PERF open). Documented ceiling pending.
-- **Static social graph:** no follow/unfollow/churn; `follow`/`unfollow`/
-  `policy_gap` event kinds are declared but unused (Q-KINDS open).
-- **SBM ignores n_agents** in the web form (S2 open).
+- **Feed hot loop optimised** (per-tick author index + O(k) exploration-pool
+  sampling, replacing per-agent O(recent_posts) scans). Measured (template mode,
+  single-threaded): ~6.6 s for 1,000 agents × 168 ticks, ~13 s for 2,000
+  (≈linear, ~16k events/s). The standard profile (10k × 672) extrapolates to
+  ~5 min/replicate single-threaded; **parallel Monte Carlo replicates (process
+  pool) is the remaining scale lever** for the 100-replicate standard runs.
+- Exact `nx.average_clustering` is still O(n·⟨k²⟩) on very large graphs; an
+  approximate estimator for very large n is a further option.
+- **Static social graph:** no follow/unfollow/churn in v1 (dead event kinds
+  removed; spec corrected).
 
 ## Marketing
 - Incrementality is valid (organic baseline + Newcombe/Beta CI + CUPED + BH-FDR).
