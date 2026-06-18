@@ -52,10 +52,14 @@ def test_e2e_dashboard_runs_and_renders():
                 out = page.evaluate(_RUN_AND_RENDER)
                 assert out["events"] > 0
                 assert out["cards"] >= 6                  # overview metric cards
-                # the topology view renders nodes
+                # the 3D topology canvas renders (non-blank pixels)
                 page.evaluate("document.querySelector('#outTabs button[data-otab=network]').click()")
-                circles = page.evaluate("document.querySelectorAll('#network svg circle').length")
-                assert circles > 0
+                page.wait_for_timeout(150)
+                drawn = page.evaluate(
+                    "() => { const c=document.querySelector('#net3d'); if(!c) return 0;"
+                    " const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;"
+                    " let n=0; for(let i=3;i<d.length;i+=4) if(d[i]>0) n++; return n; }")
+                assert drawn > 0
                 # the audit-log explorer renders rows
                 page.evaluate("document.querySelector('#outTabs button[data-otab=audit]').click()")
                 rows = page.evaluate("document.querySelectorAll('#audit table tbody tr').length")

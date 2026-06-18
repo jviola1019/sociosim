@@ -240,35 +240,70 @@ function renderCharts(ch) {
 function redrawCharts() { if (_charts) renderCharts(_charts); }
 
 /* ---------- network topology (deterministic force layout) ---------- */
+let _net3dRaf = null;
 function renderNetwork(gs) {
+  if (_net3dRaf) { cancelAnimationFrame(_net3dRaf); _net3dRaf = null; }
   const host = $("#network"); if (!host) return;
   if (!gs || !gs.nodes || !gs.nodes.length) { host.innerHTML = `<p class="dim small">No graph sample for this run.</p>`; return; }
-  const W = 640, H = 400, nodes = gs.nodes.map(n => ({ ...n })), idx = {};
+  const W = 640, H = 440;
+  host.innerHTML = `<div class="chart"><div class="ct">Social Graph — 3D perspective (top ${gs.nodes.length} hubs)</div><div class="cs">depth = front/back · node size = degree · colour = ideology (blue = left, orange = right) · auto-rotating (static with reduced motion)</div><canvas id="net3d" width="${W}" height="${H}" style="width:100%" role="img" aria-label="3D perspective view of the sampled social network: ${gs.nodes.length} highest-degree agents coloured by ideology with edges among them"></canvas></div>`;
+  const cv = $("#net3d"); if (!cv) return;
+  const ctx = cv.getContext("2d");
+  const nodes = gs.nodes.map(n => ({ ...n })), idx = {};
   nodes.forEach((n, i) => idx[n.id] = i);
-  const rnd = mulberry32(seedFrom("net" + nodes.length));
-  nodes.forEach(n => { n.x = 80 + rnd() * (W - 160); n.y = 60 + rnd() * (H - 120); n.vx = 0; n.vy = 0; });
   const links = gs.edges.filter(([u, v]) => idx[u] != null && idx[v] != null).map(([u, v]) => [idx[u], idx[v]]);
-  for (let it = 0; it < 120; it++) {
+  const rnd = mulberry32(seedFrom("net3d" + nodes.length));
+  nodes.forEach(n => { n.x = (rnd() - 0.5) * 240; n.y = (rnd() - 0.5) * 240; n.z = (rnd() - 0.5) * 240; n.vx = n.vy = n.vz = 0; });
+  for (let it = 0; it < 120; it++) {            // deterministic 3D force layout
     for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
-      const dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y, d2 = dx * dx + dy * dy + 0.01, f = 200 / d2;
-      const fx = dx * f, fy = dy * f; nodes[i].vx += fx; nodes[i].vy += fy; nodes[j].vx -= fx; nodes[j].vy -= fy;
+      const a = nodes[i], b = nodes[j];
+      const dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z, d2 = dx * dx + dy * dy + dz * dz + 0.01, f = 900 / d2;
+      a.vx += dx * f; a.vy += dy * f; a.vz += dz * f; b.vx -= dx * f; b.vy -= dy * f; b.vz -= dz * f;
     }
     for (const [a, b] of links) {
-      const dx = nodes[b].x - nodes[a].x, dy = nodes[b].y - nodes[a].y, d = Math.hypot(dx, dy) || 1, f = (d - 42) * 0.02;
-      const fx = dx / d * f, fy = dy / d * f; nodes[a].vx += fx; nodes[a].vy += fy; nodes[b].vx -= fx; nodes[b].vy -= fy;
+      const na = nodes[a], nb = nodes[b];
+      const dx = nb.x - na.x, dy = nb.y - na.y, dz = nb.z - na.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1, f = (d - 50) * 0.02;
+      na.vx += dx / d * f; na.vy += dy / d * f; na.vz += dz / d * f; nb.vx -= dx / d * f; nb.vy -= dy / d * f; nb.vz -= dz / d * f;
     }
     for (const n of nodes) {
-      n.vx += (W / 2 - n.x) * 0.002; n.vy += (H / 2 - n.y) * 0.002;
-      n.x += Math.max(-6, Math.min(6, n.vx)); n.y += Math.max(-6, Math.min(6, n.vy));
-      n.vx *= 0.85; n.vy *= 0.85;
-      n.x = Math.max(10, Math.min(W - 10, n.x)); n.y = Math.max(10, Math.min(H - 10, n.y));
+      n.vx -= n.x * 0.001; n.vy -= n.y * 0.001; n.vz -= n.z * 0.001;
+      n.x += Math.max(-8, Math.min(8, n.vx)); n.y += Math.max(-8, Math.min(8, n.vy)); n.z += Math.max(-8, Math.min(8, n.vz));
+      n.vx *= 0.85; n.vy *= 0.85; n.vz *= 0.85;
     }
   }
   const maxDeg = Math.max(...nodes.map(n => n.deg), 1);
   const col = g => g === "L" ? "#0a84ff" : g === "R" ? "#ff9500" : "#86868b";
-  const e = links.map(([a, b]) => `<line x1="${nodes[a].x.toFixed(1)}" y1="${nodes[a].y.toFixed(1)}" x2="${nodes[b].x.toFixed(1)}" y2="${nodes[b].y.toFixed(1)}" stroke="#d2d2d7" stroke-width="0.6" opacity="0.55"/>`).join("");
-  const c = nodes.map(n => `<circle cx="${n.x.toFixed(1)}" cy="${n.y.toFixed(1)}" r="${(2.5 + 5.5 * Math.sqrt(n.deg / maxDeg)).toFixed(1)}" fill="${col(n.group)}" opacity="0.9"><title>agent ${n.id} · degree ${n.deg} · ${esc(n.group)}</title></circle>`).join("");
-  host.innerHTML = `<div class="chart"><div class="ct">Social Graph — top ${nodes.length} hubs</div><div class="cs">node size = degree · colour = ideology (blue = left, orange = right) · sampled subgraph, deterministic layout</div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Sampled social-network topology: the ${nodes.length} highest-degree agents and ${links.length} edges among them, coloured by ideology bucket">${e}${c}</svg></div>`;
+  const cx = W / 2, cy = H / 2, focal = 520;
+  function draw(angle) {
+    ctx.clearRect(0, 0, W, H);
+    const ca = Math.cos(angle), sa = Math.sin(angle);
+    const proj = nodes.map(n => {
+      const rx = n.x * ca - n.z * sa, rz = n.x * sa + n.z * ca;   // rotate about Y
+      const s = focal / (focal + rz + 280);
+      return { px: cx + rx * s, py: cy + n.y * s, s, rz, n };
+    });
+    ctx.lineWidth = 0.6;
+    for (const [a, b] of links) {
+      ctx.strokeStyle = "rgba(150,150,160,0.32)";
+      ctx.beginPath(); ctx.moveTo(proj[a].px, proj[a].py); ctx.lineTo(proj[b].px, proj[b].py); ctx.stroke();
+    }
+    for (const p of proj.slice().sort((u, v) => u.rz - v.rz)) {   // back-to-front
+      ctx.globalAlpha = Math.max(0.35, Math.min(1, p.s));
+      ctx.fillStyle = col(p.n.group);
+      ctx.beginPath(); ctx.arc(p.px, p.py, Math.max(1, (2 + 6 * Math.sqrt(p.n.deg / maxDeg)) * p.s), 0, 6.2832); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  // Interactive: drag to rotate (works even with reduced motion); otherwise
+  // auto-rotates. Drag pauses the auto-spin.
+  let angle = 0, dragging = false, lastX = 0;
+  cv.style.cursor = "grab";
+  cv.addEventListener("pointerdown", e => { dragging = true; lastX = e.offsetX; cv.style.cursor = "grabbing"; try { cv.setPointerCapture(e.pointerId); } catch (_) {} });
+  cv.addEventListener("pointermove", e => { if (dragging) { angle += (e.offsetX - lastX) * 0.01; lastX = e.offsetX; draw(angle); } });
+  cv.addEventListener("pointerup", () => { dragging = false; cv.style.cursor = "grab"; });
+  const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduce) { draw(0.5); return; }   // static auto-view; drag still rotates
+  (function frame() { if (!dragging) angle += 0.006; draw(angle); _net3dRaf = requestAnimationFrame(frame); })();
 }
 
 /* ---------- cascade propagation replay ---------- */
