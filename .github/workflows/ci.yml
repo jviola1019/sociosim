@@ -19,6 +19,11 @@ jobs:
         run: ruff check socio_sim tests run.py
       - name: Tests (pytest + coverage gate)
         run: pytest -q --cov=socio_sim --cov-report=term-missing --cov-fail-under=85
+      - name: E2E browser smoke (Playwright)
+        run: |
+          pip install -e .[e2e]
+          python -m playwright install --with-deps chromium
+          pytest -q tests/test_e2e_playwright.py
       - name: Build wheel + verify packaged data
         run: |
           pip install build
