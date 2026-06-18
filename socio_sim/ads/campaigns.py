@@ -25,6 +25,7 @@ class Campaign:
     base_cvr: float = 0.05
     conversion_value: float = 1.0
     ltv_multiplier: float = 3.0     # SYNTHETIC assumption: LTV = value x this
+    attribution_window_ticks: int = 168  # credit a conversion only within W ticks of impression
     holdout_fraction: float | None = None  # None -> use RunConfig.holdout_fraction
     ftc_override: bool | None = None  # None -> use RunConfig.ftc_compliance
     _creative_counter: int = 0

@@ -26,7 +26,8 @@ class AdSystem:
     def __init__(self, cfg: RunConfig, campaigns: list[Campaign],
                  personas: Personas, state: AgentState, engine: PolicyEngine,
                  log: EventLog, rng: np.random.Generator,
-                 baseline_rng: np.random.Generator | None = None):
+                 baseline_rng: np.random.Generator | None = None,
+                 latency_rng: np.random.Generator | None = None):
         self.cfg = cfg
         self.campaigns = campaigns
         self.personas = personas
@@ -41,6 +42,11 @@ class AdSystem:
         self.baseline_rng = (baseline_rng if baseline_rng is not None
                              else SeedTree(cfg.root_seed).generator(
                                  "conversion", cfg.replicate_id))
+        # Dedicated stream: conversion latency is metadata only — drawing it does
+        # not perturb auction/response decisions (which use self.rng).
+        self.latency_rng = (latency_rng if latency_rng is not None
+                            else SeedTree(cfg.root_seed).generator(
+                                "ad_latency", cfg.replicate_id))
         # Proto-creatives for policy checks (one per campaign, FTC-compliant
         # per config so disclosure rules behave like production creatives).
         self._protos = {c.id: c.make_creative(0, self._compliance(c))
@@ -152,10 +158,14 @@ class AdSystem:
                             content_id=creative.id,
                             data={"campaign_id": campaign.id})
             if self.rng.random() < campaign.base_cvr:
+                # Conversion latency (ticks after impression) -> attribution
+                # windows become meaningful. Drawn from the dedicated stream.
+                latency = int(self.latency_rng.geometric(0.25)) - 1
                 self.log.append(tick=tick, kind="ad_conversion",
                                 actor_id=agent_id, content_id=creative.id,
                                 data={"campaign_id": campaign.id,
-                                      "value": campaign.conversion_value})
+                                      "value": campaign.conversion_value,
+                                      "latency": latency})
 
     # -- organic baseline -------------------------------------------------
     def simulate_baseline(self, agent_id: int, tick: int):

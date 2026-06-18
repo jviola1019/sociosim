@@ -96,7 +96,12 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
     exposed = {e["actor_id"] for e in auctions}
     holdout = {a for a in range(n_agents)
                if ads.in_holdout(cid, a) and ads._targeting_match(campaign, a)}
-    converted = ({e["actor_id"] for e in convs}
+    # Attribution window: credit an ad conversion only if it lands within W
+    # ticks of the impression (applied symmetrically; organic baseline has no
+    # ad latency). A tighter window credits fewer ad conversions -> lower lift.
+    window = campaign.attribution_window_ticks
+    ad_convs_attr = [e for e in convs if e["data"].get("latency", 0) <= window]
+    converted = ({e["actor_id"] for e in ad_convs_attr}
                  | {e["actor_id"] for e in org_convs})
     n_exposed, n_holdout = len(exposed), len(holdout)
     x_exposed = len(exposed & converted)
@@ -157,6 +162,8 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
         "prob_lift_positive": prob_diff_positive(x_exposed, n_exposed,
                                                  x_holdout, n_holdout),
         "mde": min_detectable_effect(n_exposed, n_holdout, holdout_rate),
+        "attribution_window_ticks": window,
+        "attributed_ad_conversions": len(ad_convs_attr),
         "dose_response": dose_response,
         "roas": roas,
         "iroas": iroas,

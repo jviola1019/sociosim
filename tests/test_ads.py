@@ -209,6 +209,31 @@ def test_lift_positive_only_when_ad_adds_conversions():
     assert m["lift_ci"][0] > 0                       # significantly positive
 
 
+def test_attribution_window_limits_credited_conversions():
+    """A tighter attribution window must credit no more ad conversions (and no
+    more lift) than a wide one — measured on the same run."""
+    camp = [Campaign(id="aw", advertiser="A", bid=5.0, budget=100_000,
+                     base_ctr=1.0, base_cvr=1.0)]
+    ads, log, personas, _ = setup(campaigns=camp, holdout_fraction=0.3,
+                                  ad_frequency_cap_per_day=100)
+    personas.base_conversion[:] = 0.02
+    _run_baseline(ads, personas, n=100)
+    for t in range(48):
+        for aid in range(100):
+            if personas.is_minor[aid]:
+                continue
+            cr = ads.run_auction(aid, t)
+            if cr:
+                ads.simulate_response(aid, cr, t)
+    wide = measure_campaign(log, Campaign(id="aw", advertiser="A", bid=5.0,
+                            budget=100_000, attribution_window_ticks=9999), ads, 100)
+    tight = measure_campaign(log, Campaign(id="aw", advertiser="A", bid=5.0,
+                             budget=100_000, attribution_window_ticks=0), ads, 100)
+    assert wide["attributed_ad_conversions"] >= 1
+    assert tight["attributed_ad_conversions"] <= wide["attributed_ad_conversions"]
+    assert tight["lift"] <= wide["lift"] + 1e-9
+
+
 def test_marketing_metrics_present_and_consistent():
     """ROAS/iROAS/CAC/LTV + CUPED lift + lift p-value are reported and coherent
     under a strong (clearly incremental) ad effect."""

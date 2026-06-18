@@ -82,7 +82,8 @@ class Simulation:
         # pairing intact when an intervention changes one subsystem only.
         self.rngs = {name: tree.generator(name, rep) for name in (
             "graph", "agents", "content", "classifier", "moderation", "ads",
-            "feed", "activity", "posting", "engagement", "optout", "conversion")}
+            "feed", "activity", "posting", "engagement", "optout", "conversion",
+            "ad_latency")}
 
         # Graph + personas
         graph = make_graph(cfg.graph_kind, cfg.n_agents, self.rngs["graph"],
@@ -139,7 +140,8 @@ class Simulation:
         self.campaigns = campaigns if campaigns is not None else default_campaigns(cfg)
         self.ads = AdSystem(cfg, self.campaigns, self.personas, self.state,
                             self.policy, self.log, self.rngs["ads"],
-                            baseline_rng=self.rngs["conversion"])
+                            baseline_rng=self.rngs["conversion"],
+                            latency_rng=self.rngs["ad_latency"])
         self.feed = FeedRanker(cfg, self.personas, self.state, self.log,
                                self.rngs["feed"])
 
