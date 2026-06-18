@@ -88,6 +88,10 @@ Deployment ~9.5 (ruff+CI+coverage+Dockerfile). Marketing ~9.5 (campaign backend/
 ## UX = 10 (Compare tab + audit-log explorer DONE). Deployment ~9.8 (wheel+Docker+CI build gate;
 ## FIXED distribution bug: targets JSON now packaged in socio_sim/data/benchmarks, verified from
 ## an extracted wheel). 5 dims at 10: Quant, Testing, Documentation, Marketing, UX.
+## UPDATE: Engineering ~9.5 (feed hot-loop optimised, ≈linear), Regulatory ~9.5 (trusted-flagger
+## priority added), 5 dims at 10 (Quant/Testing/Docs/Marketing/UX). Overall ~9.65.
+## NOTE on 3D (7.5): the 2D topology + cascade views are a DELIBERATE design choice — the audit
+## warns against decorative 3D; true WebGL would risk "3D slop" and is not clearly a cognition win.
 ## REMAINING to 10 (heavier builds, honest):
 ## Engineering (order-preserving hot-loop perf + parallel MC); Regulatory (appeals SLA,
 ## trusted-flagger, rights-impact); Deployment (Playwright-in-CI); 3D true WebGL.
