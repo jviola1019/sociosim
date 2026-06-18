@@ -230,6 +230,9 @@ def test_marketing_metrics_present_and_consistent():
               "lift_cuped", "lift_pvalue", "lift_significant", "mde"):
         assert k in m, f"missing {k}"
     assert m["mde"] > 0  # holdout sized -> a finite detectable effect
+    assert "dose_response" in m and len(m["dose_response"]) >= 1
+    for bucket in m["dose_response"]:
+        assert "freq" in bucket and bucket["n"] > 0 and 0 <= bucket["conv_rate"] <= 1
     assert m["lift"] > 0 and m["iroas"] > 0 and m["roas"] > 0
     assert m["lift_pvalue"] < 0.05 and m["lift_significant"] is True
     assert np.isfinite(m["lift_cuped"])

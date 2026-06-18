@@ -109,6 +109,23 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
 
     # Marketing economics. SYNTHETIC: depend on conversion_value / ltv_multiplier
     # assumptions, and iROAS/CAC on the (now valid) incremental lift. Not real $.
+    # Frequency dose-response (ITT): conversion rate by impression count for
+    # exposed agents. Baseline is frequency-independent, so a rising curve
+    # reflects the ad dose. Buckets 1, 2, 3, 4+.
+    impr_by_agent: dict = {}
+    for e in auctions:
+        impr_by_agent[e["actor_id"]] = impr_by_agent.get(e["actor_id"], 0) + 1
+    dose: dict = {}
+    for aid, freq in impr_by_agent.items():
+        b = freq if freq < 4 else 4
+        d = dose.setdefault(b, [0, 0])
+        d[1] += 1
+        if aid in converted:
+            d[0] += 1
+    dose_response = [{"freq": ("4+" if b == 4 else str(b)), "n": d[1],
+                      "conv_rate": (d[0] / d[1]) if d[1] else 0.0}
+                     for b, d in sorted(dose.items())]
+
     incr_conv = max(lift, 0.0) * n_exposed
     roas = (revenue / spend) if spend else float("nan")
     iroas = (incr_conv * campaign.conversion_value / spend) if spend else float("nan")
@@ -140,6 +157,7 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
         "prob_lift_positive": prob_diff_positive(x_exposed, n_exposed,
                                                  x_holdout, n_holdout),
         "mde": min_detectable_effect(n_exposed, n_holdout, holdout_rate),
+        "dose_response": dose_response,
         "roas": roas,
         "iroas": iroas,
         "cac": cac,
