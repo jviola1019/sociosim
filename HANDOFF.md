@@ -96,6 +96,18 @@ Deployment ~9.5 (ruff+CI+coverage+Dockerfile). Marketing ~9.5 (campaign backend/
 ## Engineering (order-preserving hot-loop perf + parallel MC); Regulatory (appeals SLA,
 ## trusted-flagger, rights-impact); Deployment (Playwright-in-CI); 3D true WebGL.
 
+## SPRINT 3 — formerly out-of-scope (spec §6), now in scope (do RIGHT, verified):
+1. Real moderation-model training: numpy logistic-regression text classifier
+   (`content/ml_classifier.py`) trained on category-signal content; measured held-out
+   P/R; opt-in `classifier_mode="trained"` so DEFAULT determinism is preserved.
+2. Bundled empirical datasets: multiple PUBLISHED AGGREGATE (no-PII) target sets in
+   data/benchmarks/ + selectable loader; citations from research agent.
+3. Distributed/GPU: pluggable executor on parallel MC (ProcessPool done; Dask/Ray-ready);
+   GPU/multi-node honestly opt-in/env-gated (can't verify GPU here -> don't fake it).
+4. Real image synthesis: deterministic procedural raster (numpy->PNG, zero-dep, offline,
+   reproducible) producing real image bytes; diffusion via optional plugin hook.
+DESIGN: stays deliberate/editorial — no AI-slop. Each item TDD + verified + committed.
+
 ## Remaining punch-list to a literal 10/10 (prioritised)
 1. Multi-route Compare view (experiments.runner baseline-vs-intervention via a new
    /api/compare endpoint) + audit-log explorer + provenance badges on cards — UX ->9.5/10.

@@ -114,7 +114,8 @@ class Simulation:
         #   claude            -> Anthropic API (needs ANTHROPIC_API_KEY)
         #   ollama            -> free local Ollama server (no key)
         #   openai_compatible -> free local OpenAI-compatible server (no key)
-        base_gen = TemplateGenerator(cfg, self.rngs["content"])
+        base_gen = TemplateGenerator(cfg, self.rngs["content"],
+                                     inject_signal=(cfg.classifier_mode == "trained"))
         cache = cfg.llm_cache_path or str(Path(cfg.out_dir) / "llm_cache.json")
         if cfg.content_mode == "claude":
             self.generator = ClaudeAdapter(
@@ -131,9 +132,20 @@ class Simulation:
             self.generator = base_gen
         self._current_tick = 0
 
-        self.classifier = NoisyClassifier(cfg.classifier_targets,
-                                          cfg.category_base_rates,
-                                          self.rngs["classifier"])
+        if cfg.classifier_mode == "trained":
+            # Train a REAL classifier on category-signal content (measured P/R,
+            # not assumed). Deterministic: seeded training generator + numpy LR.
+            from socio_sim.config import CATEGORIES
+            from socio_sim.content.ml_classifier import (TrainableClassifier,
+                                                         build_training_data)
+            train_gen = TemplateGenerator(cfg, tree.generator("content_train", rep),
+                                          inject_signal=True)
+            texts, labels = build_training_data(train_gen, self.personas, n=1500)
+            self.classifier = TrainableClassifier(CATEGORIES).fit(texts, labels)
+        else:
+            self.classifier = NoisyClassifier(cfg.classifier_targets,
+                                              cfg.category_base_rates,
+                                              self.rngs["classifier"])
         self.policy = PolicyEngine(cfg.jurisdictions, cfg.ftc_enabled)
         self.moderation = ModerationSystem(cfg, self.policy, self.personas,
                                            self.log, self.rngs["moderation"])
@@ -174,6 +186,13 @@ class Simulation:
             self.brigaders = set(rt_rng.choice(cfg.n_agents, n_adv,
                                                replace=False).tolist())
         self._rt_rng = rt_rng
+
+    def _classify(self, item) -> dict:
+        """Platform belief about an item's categories: a real trained classifier
+        on the item text (trained mode) or the calibrated noise model (default)."""
+        if self.cfg.classifier_mode == "trained":
+            return self.classifier.predict_scores(item.text)
+        return self.classifier.classify_one(item.true_categories)
 
     def _log_degradation(self, reason: str):
         self.log.append(tick=self._current_tick, kind="degradation",
@@ -258,7 +277,7 @@ class Simulation:
                                     "model": getattr(self.generator, "model",
                                              getattr(self.generator, "MODEL", "n/a")),
                                     "text_preview": item.text[:60]})
-            scores = self.classifier.classify_one(item.true_categories)
+            scores = self._classify(item)
             self.scores_by_item[item.id] = scores
             self.log.append(tick=tick, kind="post", actor_id=int(agent_id),
                             content_id=item.id, data={
@@ -409,7 +428,7 @@ class Simulation:
         share.parent_id = item.id
         share.text = f"RT: {item.text}"
         item.shares += 1
-        scores = self.classifier.classify_one(share.true_categories)
+        scores = self._classify(share)
         self.scores_by_item[share.id] = scores
         self.log.append(tick=tick, kind="post", actor_id=agent_id,
                         content_id=share.id, data={

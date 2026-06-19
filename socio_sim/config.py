@@ -14,6 +14,9 @@ from socio_sim.behavior import BehaviorParams
 
 VALID_JURISDICTIONS = {"US", "EU", "CN"}
 VALID_FEED_STRATEGIES = {"personalized", "chronological", "random"}
+#: noise = calibrated noise model (default, fast, fully synthetic); trained = a
+#: REAL numpy classifier trained on category-signal content with measured P/R.
+VALID_CLASSIFIER_MODES = {"noise", "trained"}
 #: template = deterministic (default); claude = Anthropic API (needs key);
 #: ollama / openai_compatible = free, keyless local LLM servers.
 VALID_CONTENT_MODES = {"template", "claude", "ollama", "openai_compatible"}
@@ -86,6 +89,7 @@ class RunConfig:
 
     # Content
     content_mode: str = "template"
+    classifier_mode: str = "noise"   # "noise" | "trained" (real numpy classifier)
     n_topics: int = 8
     classifier_targets: dict = field(default_factory=_default_classifier_targets)
     category_base_rates: dict = field(default_factory=_default_base_rates)
@@ -179,6 +183,8 @@ class RunConfig:
             fail("red_team", f"unknown adversaries: {sorted(unknown_adv)}")
         if self.content_mode not in VALID_CONTENT_MODES:
             fail("content_mode", f"must be one of {sorted(VALID_CONTENT_MODES)}")
+        if self.classifier_mode not in VALID_CLASSIFIER_MODES:
+            fail("classifier_mode", f"must be one of {sorted(VALID_CLASSIFIER_MODES)}")
         for name in (
             "eu_optout_rate",
             "exploration_epsilon",

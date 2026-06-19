@@ -26,6 +26,20 @@ _TEMPLATES = (
 
 _SLANTS = ("an optimistic", "a skeptical", "a critical", "an enthusiastic", "a cautious")
 
+#: Category-indicative tokens so generated text actually CARRIES signal a real
+#: classifier can learn (used only when inject_signal=True, i.e. trained mode).
+#: Sensitive categories use neutral PLACEHOLDER tokens, never real slurs/content.
+_CATEGORY_SIGNAL = {
+    "misinfo": ("breaking", "exposed", "coverup", "miraclecure", "theydonttellyou"),
+    "fraud": ("freemoney", "claimprize", "wiretransfer", "giftcard", "actnow"),
+    "hate": ("grouptarget", "derogatoryplaceholder", "slurplaceholder"),
+    "harassment": ("worthless", "threatplaceholder", "leavenow", "pathetic"),
+    "adult": ("explicitplaceholder", "nsfwtag", "adultonly"),
+    "self_harm": ("selfharmplaceholder", "crisis", "hopeless"),
+    "illegal_goods": ("forsale", "unregistered", "contraband", "blackmarket"),
+    "political": ("election", "partisan", "vote", "policy"),
+}
+
 #: Probability a creator properly labels AI-generated content (CN compliance knob).
 CN_CREATOR_LABEL_COMPLIANCE = 0.9
 
@@ -33,11 +47,16 @@ WATERMARK_PROVIDER = "SocioSimGen-01"
 
 
 class TemplateGenerator:
-    def __init__(self, cfg: RunConfig, rng: np.random.Generator):
+    def __init__(self, cfg: RunConfig, rng: np.random.Generator,
+                 inject_signal: bool = False):
         self.cfg = cfg
         self.rng = rng
         self._counter = 0
         self._cn_active = "CN" in cfg.jurisdictions
+        #: When True, append category-indicative tokens so a trained classifier
+        #: has learnable signal (trained classifier_mode). Off by default ->
+        #: default content (and determinism baselines) are unchanged.
+        self.inject_signal = inject_signal
 
     def _next_id(self) -> str:
         self._counter += 1
@@ -86,6 +105,12 @@ class TemplateGenerator:
                     "content_ref": f"ref-{self._counter + 1}",
                 }
                 text = "[AI-generated content] " + text
+
+        if self.inject_signal and cats:
+            extra = [_CATEGORY_SIGNAL[c][int(rng.integers(0, len(_CATEGORY_SIGNAL[c])))]
+                     for c in sorted(cats) if c in _CATEGORY_SIGNAL]
+            if extra:
+                text = text + " " + " ".join(extra)
 
         return ContentItem(
             id=self._next_id(),

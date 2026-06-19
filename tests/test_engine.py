@@ -56,6 +56,19 @@ def test_replay_verifier_passes(result):
     assert ok, summary
 
 
+def test_trained_classifier_mode_runs_and_is_deterministic():
+    """The real trained-classifier mode runs end-to-end, emits classify +
+    moderation events, and is deterministic/replayable."""
+    cfg = RunConfig.test(jurisdictions=("EU",), classifier_mode="trained",
+                         category_base_rates=boosted_rates())
+    h1 = Simulation(cfg).run().log.stream_hash()
+    h2 = Simulation(cfg).run().log.stream_hash()
+    assert h1 == h2
+    res = Simulation(cfg).run()
+    assert res.log.by_kind("classify") and res.log.by_kind("post")
+    assert res.manifest.config["classifier_mode"] == "trained"
+
+
 def test_run_writes_outputs(tmp_path):
     cfg = RunConfig.test(out_dir=str(tmp_path))
     Simulation(cfg).run(write=True)
