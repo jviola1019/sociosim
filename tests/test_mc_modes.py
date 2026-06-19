@@ -46,3 +46,18 @@ def test_parallel_replicates_identical_to_sequential():
     assert seq["n_posts"]["values"] == par["n_posts"]["values"]
     assert seq["harmful_exposure_rate"]["median"] == \
         par["harmful_exposure_rate"]["median"]
+
+
+def test_pluggable_distributed_executor_matches_sequential():
+    """A pluggable executor (here a ProcessPoolExecutor; in production a Dask/Ray
+    executor) must produce identical aggregates to the sequential path."""
+    from concurrent.futures import ProcessPoolExecutor
+
+    from socio_sim.pipeline import _headline_metrics
+    from socio_sim.validation.montecarlo import run_replicates
+    cfg = RunConfig.test(jurisdictions=("EU",), n_agents=80, n_ticks=12)
+    seq = run_replicates(cfg, 4, _headline_metrics)
+    with ProcessPoolExecutor(max_workers=2) as ex:
+        dist = run_replicates(cfg, 4, _headline_metrics, executor=ex)
+    assert seq["n_posts"]["values"] == dist["n_posts"]["values"]
+    assert seq["welfare_mean"]["median"] == dist["welfare_mean"]["median"]

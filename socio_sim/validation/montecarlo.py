@@ -23,23 +23,28 @@ def _replicate_metric(args):
 
 def run_replicates(cfg: RunConfig, n_replicates: int, metric_fn: Callable,
                    campaigns_fn: Callable | None = None,
-                   workers: int = 1) -> dict:
+                   workers: int = 1, executor=None) -> dict:
     """Run `n_replicates` with distinct replicate ids; aggregate each metric
     returned by `metric_fn(result) -> dict[str, float]`.
 
-    workers > 1 runs replicates in a process pool. Because each replicate is
-    seeded independently by replicate_id and aggregation is order-independent,
-    the parallel result is IDENTICAL to sequential (verified by test). Parallel
-    requires picklable metric_fn (top-level) and is skipped when campaigns_fn is
-    set (web closures aren't picklable) — it falls back to sequential.
+    Distribution: pass `executor` (any concurrent.futures.Executor — a local
+    ProcessPoolExecutor, or a *distributed* one such as dask.distributed's
+    `Client.get_executor()` or a Ray executor) to fan replicates across cores or
+    machines; or set `workers > 1` for a local process pool. Because each
+    replicate is seeded independently by replicate_id and aggregation is
+    order-independent, the distributed/parallel result is IDENTICAL to sequential
+    (verified by test). Requires a picklable top-level metric_fn; skipped when
+    campaigns_fn is set (web closures aren't picklable) -> sequential fallback.
     """
     per_rep: list = []
-    if workers and workers > 1 and campaigns_fn is None and n_replicates > 1:
+    parallelisable = campaigns_fn is None and n_replicates > 1
+    args = [(cfg, rep, metric_fn) for rep in range(n_replicates)]
+    if executor is not None and parallelisable:
+        per_rep = list(executor.map(_replicate_metric, args))
+    elif workers and workers > 1 and parallelisable:
         from concurrent.futures import ProcessPoolExecutor
         with ProcessPoolExecutor(max_workers=workers) as ex:
-            per_rep = list(ex.map(
-                _replicate_metric,
-                [(cfg, rep, metric_fn) for rep in range(n_replicates)]))
+            per_rep = list(ex.map(_replicate_metric, args))
     else:
         for rep in range(n_replicates):
             rep_cfg = replace(cfg, replicate_id=rep)
