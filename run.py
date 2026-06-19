@@ -52,7 +52,7 @@ def bootstrap_ollama(model: str, host: str):
 # --------------------------------------------------------------------------
 # Simulation run
 # --------------------------------------------------------------------------
-def run_sim(cfg: RunConfig, n_replicates: int = 1, workers: int = 1):
+def run_sim(cfg: RunConfig, n_replicates: int = 1, workers: int = 1, media: int = 0):
     mode = "Research" if n_replicates > 1 else "Preview"
     extra = f", {n_replicates} replicates" if n_replicates > 1 else ""
     print(f"\nRunning {cfg.n_agents} agents x {cfg.n_ticks} hourly ticks "
@@ -78,6 +78,18 @@ def run_sim(cfg: RunConfig, n_replicates: int = 1, workers: int = 1):
     print(f"\nReport:   {out / 'report.md'}")
     print(f"Logs:     {out / 'events.jsonl'}")
     print(f"Manifest: {out / 'manifest.json'}")
+
+    if media > 0:
+        import zlib
+
+        from socio_sim.content.media import synth_image
+        mdir = out / "media"
+        mdir.mkdir(parents=True, exist_ok=True)
+        posts = [e for e in result.log.events if e["kind"] == "post"][:media]
+        for e in posts:
+            seed = zlib.crc32(str(e["content_id"]).encode())  # stable per content id
+            (mdir / f"{e['content_id']}.png").write_bytes(synth_image(seed, 256, 256))
+        print(f"Synthesized {len(posts)} real PNG images -> {mdir}")
 
     print(f"\nCalibration vs published benchmarks "
           f"(implausibility I={a.implausibility:.2f}, cutoff 3.0):")
@@ -155,6 +167,9 @@ def main():
                         "write VALIDATION_REPORT.md, and exit")
     p.add_argument("--sens-samples", type=int, default=24,
                    help="LHS samples for --validate sensitivity (default 24)")
+    p.add_argument("--media", type=int, default=0,
+                   help="synthesize real PNG images for the first N posts into "
+                        "<out>/media/ (deterministic, offline procedural)")
     p.add_argument("--out", default="out/run", help="output directory")
     args = p.parse_args()
 
@@ -207,7 +222,8 @@ def main():
     cfg = factory(**overrides)
 
     try:
-        return run_sim(cfg, n_replicates=args.replicates, workers=args.workers)
+        return run_sim(cfg, n_replicates=args.replicates, workers=args.workers,
+                       media=args.media)
     finally:
         if server_proc is not None:
             print("\nStopping the Ollama server we started.")
