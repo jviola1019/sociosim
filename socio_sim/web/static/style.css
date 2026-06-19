@@ -92,12 +92,13 @@ h1, h2, h3, h4 { font-family: var(--disp); font-weight: 600; letter-spacing: -.0
 .config { position: sticky; top: 86px; display: flex; flex-direction: column; max-height: calc(100vh - 110px); overflow: hidden; }
 
 /* segmented tabs */
-.seg-tabs { position: relative; display: flex; gap: 2px; padding: 6px; margin: 14px 14px 0; background: var(--bg); border-radius: 12px; overflow-x: auto; scrollbar-width: none; }
-.seg-tabs::-webkit-scrollbar { display: none; }
-.seg-tabs button { position: relative; z-index: 1; flex: none; background: none; border: none; cursor: pointer; font-family: var(--body); font-size: 13px; font-weight: 500; color: var(--ink-2); padding: 8px 14px; border-radius: 9px; white-space: nowrap; transition: color .25s var(--ease); }
-.seg-tabs button.on { color: var(--ink); }
+/* Wraps to multiple rows instead of horizontal-scrolling (no half-cut tabs at
+   narrow widths); active tab shown by a raised pill (robust across rows). */
+.seg-tabs { position: relative; display: flex; flex-wrap: wrap; gap: 2px; padding: 6px; margin: 14px 14px 0; background: var(--bg); border-radius: 12px; }
+.seg-tabs button { position: relative; z-index: 1; background: none; border: none; cursor: pointer; font-family: var(--body); font-size: 13px; font-weight: 500; color: var(--ink-2); padding: 8px 14px; border-radius: 9px; white-space: nowrap; transition: color .25s var(--ease), background .2s var(--ease); }
+.seg-tabs button.on { color: var(--ink); background: var(--surface); box-shadow: var(--sh-1); }
 .seg-tabs button:hover { color: var(--ink); }
-.seg-ink { position: absolute; top: 6px; bottom: 6px; z-index: 0; background: var(--surface); border-radius: 9px; box-shadow: var(--sh-1); transition: transform .34s var(--ease), width .34s var(--ease); }
+.seg-ink { display: none; }
 
 .cfg-body { flex: 1; overflow-y: auto; padding: var(--s3); }
 .tabpanel { display: none; flex-direction: column; gap: 14px; }
