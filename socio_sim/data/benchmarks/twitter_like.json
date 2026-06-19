@@ -1,0 +1,40 @@
+{
+  "description": "Microblog (Twitter/X-like) calibration targets: PUBLISHED AGGREGATE statistics only (no individual-level data). Research approximations with citations; tolerances are deliberately wide where the literature disagrees.",
+  "targets": {
+    "degree_tail_exponent": {
+      "value": 2.3,
+      "tolerance": 0.4,
+      "source": "Follower-degree power-law exponent ~2.3-2.4 (Kwak, Lee, Park & Moon 2010, 'What is Twitter, a Social Network or a News Media?', WWW; Myers et al. 2014)"
+    },
+    "clustering": {
+      "value": 0.10,
+      "tolerance": 0.05,
+      "source": "Low average clustering ~0.1 for the follower graph (Kwak et al. 2010)"
+    },
+    "diurnal_peak_hour": {
+      "value": 12,
+      "tolerance": 3,
+      "source": "Microblog posting activity peaks around midday/early afternoon local time (circadian posting studies)"
+    },
+    "diurnal_trough_hour": {
+      "value": 4,
+      "tolerance": 2,
+      "source": "Overnight trough ~03-05h local time (circadian posting studies)"
+    },
+    "posts_per_agent_day": {
+      "value": 0.5,
+      "tolerance": 0.4,
+      "source": "Heavy-tailed; median user posts < 1x/day, mean higher (platform usage aggregates)"
+    },
+    "ad_ctr": {
+      "value": 0.010,
+      "tolerance": 0.008,
+      "source": "Microblog/social display ad CTR ~0.5-1.5% (industry aggregates)"
+    },
+    "appeal_grant_rate": {
+      "value": 0.20,
+      "tolerance": 0.15,
+      "source": "Reinstatement on appeal ~10-30% (platform transparency reports)"
+    }
+  }
+}

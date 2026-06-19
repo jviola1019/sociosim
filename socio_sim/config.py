@@ -119,6 +119,9 @@ class RunConfig:
     # Behaviour parameters (extracted, documented, sensitivity-testable knobs)
     behavior: BehaviorParams = field(default_factory=BehaviorParams)
 
+    # Calibration benchmark target set (bundled published aggregates)
+    benchmark: str = "default"
+
     # Output
     out_dir: str = "out"
 
@@ -185,6 +188,9 @@ class RunConfig:
             fail("content_mode", f"must be one of {sorted(VALID_CONTENT_MODES)}")
         if self.classifier_mode not in VALID_CLASSIFIER_MODES:
             fail("classifier_mode", f"must be one of {sorted(VALID_CLASSIFIER_MODES)}")
+        from socio_sim.validation.targets import available_benchmarks
+        if self.benchmark not in available_benchmarks():
+            fail("benchmark", f"must be one of {available_benchmarks()}")
         for name in (
             "eu_optout_rate",
             "exploration_epsilon",

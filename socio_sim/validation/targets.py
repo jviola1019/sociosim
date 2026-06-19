@@ -11,12 +11,28 @@ from scipy import stats
 
 # Packaged inside socio_sim/ so it ships in the wheel and the Docker image
 # (was a repo-relative path that broke any installed/containerised run).
-DEFAULT_TARGETS_PATH = (Path(__file__).resolve().parents[1]
-                        / "data" / "benchmarks" / "default_targets.json")
+BENCHMARK_DIR = Path(__file__).resolve().parents[1] / "data" / "benchmarks"
+DEFAULT_TARGETS_PATH = BENCHMARK_DIR / "default_targets.json"
 
 
-def load_targets(path: str | Path | None = None) -> dict:
-    p = Path(path) if path else DEFAULT_TARGETS_PATH
+def available_benchmarks() -> list:
+    """Named bundled empirical-aggregate target sets (no individual-level data)."""
+    names = ["default"]
+    for p in sorted(BENCHMARK_DIR.glob("*.json")):
+        if p.name != "default_targets.json":
+            names.append(p.stem)
+    return names
+
+
+def load_targets(name: str = "default", path: str | Path | None = None) -> dict:
+    """Load a named bundled target set (default | twitter_like | facebook_like),
+    or an explicit `path`. Each is published aggregate statistics with citations."""
+    if path is not None:
+        p = Path(path)
+    elif name == "default":
+        p = DEFAULT_TARGETS_PATH
+    else:
+        p = BENCHMARK_DIR / f"{name}.json"
     return json.loads(p.read_text(encoding="utf-8"))["targets"]
 
 

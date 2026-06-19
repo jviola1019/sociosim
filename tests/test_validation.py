@@ -18,6 +18,30 @@ def test_targets_load_with_tolerances():
         assert "source" in spec
 
 
+def test_bundled_empirical_benchmark_sets():
+    from socio_sim.validation.targets import available_benchmarks
+    avail = available_benchmarks()
+    assert {"default", "twitter_like", "facebook_like"} <= set(avail)
+    for name in ("twitter_like", "facebook_like"):
+        t = load_targets(name)
+        assert t and all(s["tolerance"] > 0 and s.get("source") for s in t.values())
+    # honest: Facebook degree is not power-law (Ugander 2011) -> omitted, not faked
+    assert "degree_tail_exponent" not in load_targets("facebook_like")
+    assert "clustering" in load_targets("facebook_like")
+
+
+def test_benchmark_selection_flows_through_pipeline():
+    from socio_sim.pipeline import run_and_analyze
+    a = run_and_analyze(RunConfig.test(jurisdictions=("EU",), benchmark="twitter_like"),
+                        verify_replay=False)
+    assert set(a.targets) == set(load_targets("twitter_like"))
+
+
+def test_invalid_benchmark_rejected():
+    with pytest.raises(Exception):
+        RunConfig.test(benchmark="does_not_exist").validate()
+
+
 def test_default_targets_ship_inside_the_package():
     """Guards a distribution bug: the targets file must live under socio_sim/
     (not a repo-relative path) so installed wheels / Docker can load it."""

@@ -102,7 +102,7 @@ def run_and_analyze(cfg: RunConfig, *, write: bool = True,
                         ).run(write=write, progress_callback=progress_callback)
     summary = summarize_run(result)
     observed = compute_observed(result, summary)
-    targets = load_targets()
+    targets = load_targets(cfg.benchmark)
 
     replay = {"checked": False, "ok": None, "msg": "skipped (large run)"}
     if verify_replay:

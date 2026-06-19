@@ -131,6 +131,8 @@ def _build_config(body: dict) -> RunConfig:
         feed_size=int(_f(body, "feed_size", 20)),
         ad_slot_interval=int(_f(body, "ad_slot_interval", 5)),
         content_mode=body.get("content_mode", "template"),
+        classifier_mode=body.get("classifier_mode", "noise"),
+        benchmark=body.get("benchmark", "default"),
         n_topics=int(_f(body, "n_topics", 8)),
         classifier_targets=classifier_targets,
         category_base_rates=base_rates,

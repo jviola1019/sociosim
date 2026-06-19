@@ -134,6 +134,10 @@ def main():
                    help="quick=1k/7d (default), test=200/48t, standard=10k/28d")
     p.add_argument("--jurisdictions", default="EU",
                    help="comma list of US,EU,CN (default EU)")
+    p.add_argument("--benchmark", default="default",
+                   help="calibration target set: default | twitter_like | facebook_like")
+    p.add_argument("--classifier", default="noise", choices=["noise", "trained"],
+                   help="moderation classifier: noise model (default) or a real trained one")
     p.add_argument("--model", default="qwen2.5:0.5b",
                    help="Ollama model for --llm (default qwen2.5:0.5b, ~400MB)")
     p.add_argument("--host", default=DEFAULT_HOST, help="Ollama host:port")
@@ -193,7 +197,8 @@ def main():
         jurisdictions=tuple(j.strip() for j in args.jurisdictions.split(",")),
         root_seed=args.seed, out_dir=args.out, content_mode=content_mode,
         llm_model=args.model if content_mode != "template" else "",
-        llm_base_url=base_url,
+        llm_base_url=base_url, benchmark=args.benchmark,
+        classifier_mode=args.classifier,
     )
     if args.agents:
         overrides["n_agents"] = args.agents
