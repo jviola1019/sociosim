@@ -73,6 +73,13 @@ def render(summary: dict, manifest: Manifest) -> str:
         for g, d in sorted(groups.items()):
             lines.append(f"- {g}: FPR {d['fpr']:.4f} | FNR {d['fnr']:.4f} "
                          f"(n={d['n_posts']})")
+    mp = summary.get("minor_protection")
+    if mp:
+        lines.append("")
+        lines.append("## Minor protection (rights-impact)")
+        lines.append(f"- Ad impressions to minors: {mp['ad_impressions_to_minors']} "
+                     f"of {mp['ad_impressions']} ({mp['minor_ad_rate']:.4f}) — "
+                     "0 expected under the EU minor-ad ban (EU-ADS-MINOR-1).")
     lines.append("")
     lines.append("## Ad campaigns")
     for cid, m in summary["ads"].items():

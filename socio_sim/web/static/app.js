@@ -246,7 +246,7 @@ function renderNetwork(gs) {
   const host = $("#network"); if (!host) return;
   if (!gs || !gs.nodes || !gs.nodes.length) { host.innerHTML = `<p class="dim small">No graph sample for this run.</p>`; return; }
   const W = 640, H = 440;
-  host.innerHTML = `<div class="chart"><div class="ct">Social Graph — 3D perspective (top ${gs.nodes.length} hubs)</div><div class="cs">depth = front/back · node size = degree · colour = ideology (blue = left, orange = right) · auto-rotating (static with reduced motion)</div><canvas id="net3d" width="${W}" height="${H}" style="width:100%" role="img" aria-label="3D perspective view of the sampled social network: ${gs.nodes.length} highest-degree agents coloured by ideology with edges among them"></canvas></div>`;
+  host.innerHTML = `<div class="chart" style="position:relative"><div class="ct">Social Graph — 3D perspective (top ${gs.nodes.length} hubs)</div><div class="cs">depth = front/back · size = degree · colour = ideology · drag to rotate · hover a node to inspect</div><canvas id="net3d" width="${W}" height="${H}" style="width:100%" role="img" aria-label="3D perspective view of the sampled social network: ${gs.nodes.length} highest-degree agents coloured by ideology with edges among them"></canvas><div id="net3dTip" class="net-tip" hidden></div></div>`;
   const cv = $("#net3d"); if (!cv) return;
   const ctx = cv.getContext("2d");
   const nodes = gs.nodes.map(n => ({ ...n })), idx = {};
@@ -274,6 +274,7 @@ function renderNetwork(gs) {
   const maxDeg = Math.max(...nodes.map(n => n.deg), 1);
   const col = g => g === "L" ? "#0a84ff" : g === "R" ? "#ff9500" : "#86868b";
   const cx = W / 2, cy = H / 2, focal = 520;
+  let lastProj = null;
   function draw(angle) {
     ctx.clearRect(0, 0, W, H);
     const ca = Math.cos(angle), sa = Math.sin(angle);
@@ -282,6 +283,7 @@ function renderNetwork(gs) {
       const s = focal / (focal + rz + 280);
       return { px: cx + rx * s, py: cy + n.y * s, s, rz, n };
     });
+    lastProj = proj;
     ctx.lineWidth = 0.6;
     for (const [a, b] of links) {
       ctx.strokeStyle = "rgba(150,150,160,0.32)";
@@ -299,7 +301,21 @@ function renderNetwork(gs) {
   let angle = 0, dragging = false, lastX = 0;
   cv.style.cursor = "grab";
   cv.addEventListener("pointerdown", e => { dragging = true; lastX = e.offsetX; cv.style.cursor = "grabbing"; try { cv.setPointerCapture(e.pointerId); } catch (_) {} });
-  cv.addEventListener("pointermove", e => { if (dragging) { angle += (e.offsetX - lastX) * 0.01; lastX = e.offsetX; draw(angle); } });
+  const tip = $("#net3dTip");
+  cv.addEventListener("pointermove", e => {
+    if (dragging) { angle += (e.offsetX - lastX) * 0.01; lastX = e.offsetX; draw(angle); return; }
+    if (!lastProj || !tip) return;                       // hover-pick nearest node
+    const sx = cv.width / (cv.clientWidth || cv.width), sy = cv.height / (cv.clientHeight || cv.height);
+    const mx = e.offsetX * sx, my = e.offsetY * sy;
+    let best = null, bd = 1e9;
+    for (const p of lastProj) { const dx = p.px - mx, dy = p.py - my, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = p; } }
+    if (best && bd < 220) {
+      const g = best.n.group === "L" ? "left" : best.n.group === "R" ? "right" : best.n.group;
+      tip.hidden = false; tip.style.left = (e.offsetX + 12) + "px"; tip.style.top = (e.offsetY + 8) + "px";
+      tip.textContent = `agent ${best.n.id} · degree ${best.n.deg} · ${g}`;
+    } else { tip.hidden = true; }
+  });
+  cv.addEventListener("pointerleave", () => { if (tip) tip.hidden = true; });
   cv.addEventListener("pointerup", () => { dragging = false; cv.style.cursor = "grab"; });
   const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (reduce) { draw(0.5); return; }   // static auto-view; drag still rotates

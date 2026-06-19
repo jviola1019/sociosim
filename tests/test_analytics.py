@@ -91,6 +91,29 @@ def test_bootstrap_ci_contains_mean():
     assert lo < values.mean() < hi
 
 
+def test_minor_protection_counts_minor_ad_impressions():
+    from socio_sim.analytics.metrics import minor_protection
+
+    class P:
+        n = 3
+        is_minor = np.array([True, False, False])
+    log = EventLog()
+    log.append(0, "impression", 0, "a", {"strategy": "ad"})           # minor
+    log.append(0, "impression", 1, "b", {"strategy": "ad"})           # adult
+    log.append(0, "impression", 2, "c", {"strategy": "personalized"})  # organic
+    mp = minor_protection(log, P())
+    assert mp["ad_impressions"] == 2 and mp["ad_impressions_to_minors"] == 1
+
+
+def test_eu_minor_ad_ban_holds_end_to_end():
+    """A run-level check that EU-ADS-MINOR-1 actually prevents ad impressions to
+    minors (rights-impact metric == 0), while adults are still served."""
+    cfg = RunConfig.test(jurisdictions=("EU",))
+    mp = summarize_run(Simulation(cfg).run())["minor_protection"]
+    assert mp["ad_impressions"] > 0
+    assert mp["ad_impressions_to_minors"] == 0
+
+
 def test_fairness_keys_and_run_summary():
     cfg = RunConfig.test(jurisdictions=("EU",))
     result = Simulation(cfg).run()

@@ -233,6 +233,22 @@ def fairness_diagnostics(log: EventLog, personas) -> dict:
     return out
 
 
+def minor_protection(log: EventLog, personas) -> dict:
+    """Rights-impact: ad exposure of minors. Under the EU minor-ad ban
+    (EU-ADS-MINOR-1) this should be 0; in US mode minors may be served. A direct
+    check that the minor-protection rule actually bites end-to-end."""
+    ad_impr = [e for e in log.by_kind("impression")
+               if e["data"].get("strategy") == "ad"]
+    to_minor = sum(1 for e in ad_impr
+                   if 0 <= e["actor_id"] < personas.n
+                   and bool(personas.is_minor[e["actor_id"]]))
+    return {
+        "ad_impressions": len(ad_impr),
+        "ad_impressions_to_minors": to_minor,
+        "minor_ad_rate": (to_minor / len(ad_impr)) if ad_impr else 0.0,
+    }
+
+
 def summarize_run(result, rng: np.random.Generator | None = None) -> dict:
     log = result.log
     rng = rng or SeedTree(result.config.root_seed).generator("analytics", 0)
@@ -261,6 +277,7 @@ def summarize_run(result, rng: np.random.Generator | None = None) -> dict:
             "ci": bootstrap_ci(welfare["per_agent"], rng=rng),
         },
         "fairness": fairness_diagnostics(log, result.personas),
+        "minor_protection": minor_protection(log, result.personas),
         "ads": _ads_with_fdr(log, result),
         "graph": result.graph_stats,
     }
