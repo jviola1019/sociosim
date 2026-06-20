@@ -105,7 +105,15 @@ function applyPreset(name) {
 }
 $("#content_mode").addEventListener("change", e => $$("[data-llm]").forEach(el => el.hidden = e.target.value === "template"));
 $("#graph_kind").addEventListener("change", e => $$("[data-graph]").forEach(el => el.hidden = el.dataset.graph !== e.target.value));
-["homophily_rewire_fraction", "classifier_precision", "classifier_recall", "human_review_accuracy"].forEach(id => { const lab = { homophily_rewire_fraction: "homoVal", classifier_precision: "precVal", classifier_recall: "recVal", human_review_accuracy: "hraVal" }[id]; const el = $("#" + id); if (el) el.addEventListener("input", e => $("#" + lab).textContent = (+e.target.value).toFixed(2)); });
+// Selecting the Calibrated profile configures the graph to its history-matched
+// values (Holme–Kim plc, p=0.7) so the form matches RunConfig.calibrated().
+$$("input[name=profile]").forEach(r => r.addEventListener("change", e => {
+  if (e.target.value === "calibrated" && e.target.checked) {
+    setVal("graph_kind", "plc"); setVal("graph_plc_p", 0.7);
+    $("#graph_kind").dispatchEvent(new Event("change"));
+  }
+}));
+["homophily_rewire_fraction", "classifier_precision", "classifier_recall", "human_review_accuracy", "follow_rate", "unfollow_rate", "churn_rate"].forEach(id => { const lab = { homophily_rewire_fraction: "homoVal", classifier_precision: "precVal", classifier_recall: "recVal", human_review_accuracy: "hraVal", follow_rate: "folVal", unfollow_rate: "unfVal", churn_rate: "chuVal" }[id]; const el = $("#" + id); if (el) el.addEventListener("input", e => $("#" + lab).textContent = (+e.target.value).toFixed(2)); });
 
 /* ---------- campaign editor (S3) ---------- */
 function campaignRow(c = {}) {
@@ -135,8 +143,9 @@ function collect() {
   const num = id => { const x = v(id); return x == null ? null : +x; }, chk = id => $("#" + id).checked, checked = sel => $$(sel + " input:checked").map(i => i.value);
   const body = {
     label: v("label") || "", profile: $("input[name=profile]:checked").value, root_seed: num("root_seed"), tick_hours: num("tick_hours"), verify_replay: chk("verify_replay"), n_replicates: num("n_replicates"),
-    n_agents: num("n_agents"), n_ticks: num("n_ticks"), n_topics: num("n_topics"), graph_kind: v("graph_kind"), graph_m: num("graph_m"), graph_k: num("graph_k"), graph_p: num("graph_p"), homophily_rewire_fraction: num("homophily_rewire_fraction"),
-    content_mode: v("content_mode"), llm_model: v("llm_model"), llm_base_url: v("llm_base_url"), jurisdictions: checked("#jurisdictions"), ftc_enabled: chk("ftc_enabled"),
+    n_agents: num("n_agents"), n_ticks: num("n_ticks"), n_topics: num("n_topics"), graph_kind: v("graph_kind"), graph_m: num("graph_m"), graph_plc_p: num("graph_plc_p"), graph_k: num("graph_k"), graph_p: num("graph_p"), homophily_rewire_fraction: num("homophily_rewire_fraction"),
+    benchmark: v("benchmark"), follow_rate: num("follow_rate"), unfollow_rate: num("unfollow_rate"), churn_rate: num("churn_rate"),
+    content_mode: v("content_mode"), classifier_mode: v("classifier_mode"), llm_model: v("llm_model"), llm_base_url: v("llm_base_url"), jurisdictions: checked("#jurisdictions"), ftc_enabled: chk("ftc_enabled"),
     classifier_precision: num("classifier_precision"), classifier_recall: num("classifier_recall"), human_review_accuracy: num("human_review_accuracy"), human_review_delay_ticks: num("human_review_delay_ticks"), appeal_grant_fp_rate: num("appeal_grant_fp_rate"),
     feed_strategy: v("feed_strategy"), eu_optout_rate: num("eu_optout_rate"), exploration_epsilon: num("exploration_epsilon"), feed_size: num("feed_size"),
     ads_enabled: chk("ads_enabled"), ftc_compliance: chk("ftc_compliance"), holdout_fraction: num("holdout_fraction"), ad_frequency_cap_per_day: num("ad_frequency_cap_per_day"), ad_slot_interval: num("ad_slot_interval"), red_team: checked("#redteam"),

@@ -93,7 +93,8 @@ def _build_config(body: dict) -> RunConfig:
     """
     profile = body.get("profile", "quick")
     factory = {"quick": RunConfig.quick, "test": RunConfig.test,
-               "standard": RunConfig.standard}.get(profile, RunConfig.quick)
+               "standard": RunConfig.standard,
+               "calibrated": RunConfig.calibrated}.get(profile, RunConfig.quick)
 
     jurisdictions = tuple(j for j in body.get("jurisdictions", ["EU"])
                           if j in ("US", "EU", "CN")) or ("EU",)
@@ -114,13 +115,21 @@ def _build_config(body: dict) -> RunConfig:
     graph_kind = body.get("graph_kind", "ba")
     # SBM blocks must sum to the agent count (else the graph has a different node
     # count than n_agents -> engine indexing error). Derive from the effective n.
-    _prof_n = {"quick": 1000, "test": 200, "standard": 10000}.get(profile, 1000)
+    _prof_n = {"quick": 1000, "test": 200, "standard": 10000,
+               "calibrated": 1000}.get(profile, 1000)
     _n = int(body["n_agents"]) if body.get("n_agents") else _prof_n
     _half = _n // 2
-    graph_params = {"m": int(_f(body, "graph_m", 5))} if graph_kind == "ba" else \
-        ({"k": int(_f(body, "graph_k", 10)), "p": _f(body, "graph_p", 0.05)}
-         if graph_kind == "ws" else {"block_sizes": [_half, _n - _half],
-                                     "p_matrix": [[0.02, 0.002], [0.002, 0.02]]})
+    if graph_kind == "ba":
+        graph_params = {"m": int(_f(body, "graph_m", 5))}
+    elif graph_kind == "plc":
+        graph_params = {"m": int(_f(body, "graph_m", 5)),
+                        "p": _f(body, "graph_plc_p", 0.7)}
+    elif graph_kind == "ws":
+        graph_params = {"k": int(_f(body, "graph_k", 10)),
+                        "p": _f(body, "graph_p", 0.05)}
+    else:  # sbm
+        graph_params = {"block_sizes": [_half, _n - _half],
+                        "p_matrix": [[0.02, 0.002], [0.002, 0.02]]}
 
     overrides = dict(
         jurisdictions=jurisdictions,

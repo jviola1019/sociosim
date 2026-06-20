@@ -14,6 +14,16 @@ chain ABC->MC; (3) approx clustering for scale; (4) dynamic social graph
 SPRINT-3 DONE+verified: real trained classifier (measured P/R), bundled empirical
 datasets (cited), distributed pluggable executor, procedural image + APNG video +
 pluggable backend + accel/GPU kernel (numpy-verified). 49 commits.
+SPRINT-4 DONE+verified (all 5 eng caveats + UI): (1) calibrated profile (plc p=0.7,
+I=1.0 all in-band, CALIBRATION_REPORT, replay); (2) multi-output/seed/Sobol
+sensitivity + ABC->output (report §1b/§2b); (3) approx clustering n>5000; (4)
+dynamic graph follow/unfollow/churn (opt-in, deterministic+replay, default static);
+(5) stale-doc + style.css honesty. UI: all new options exposed as controls
+(classifier/benchmark/plc/dynamic-graph/calibrated profile) — browser-verified
+end-to-end (trained+twitter_like+dynamic run = 3812 events). Guardrails KEPT
+(no-PII, not-legal-advice, projections-not-predictions, synthetic-by-design).
+Caught+fixed regression: test_logs dead-kinds test updated (follow/unfollow/churn
+now LIVE). Coverage 93%; ruff clean; wheel ships 7 data assets.
 
 ## Status snapshot
 - Suite green (~122 tests). Determinism baselines RE-LOCKED after P2 (test_determinism_regression.py).

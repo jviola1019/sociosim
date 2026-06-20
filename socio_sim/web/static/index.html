@@ -51,6 +51,7 @@
           <label><input type="radio" name="profile" value="test"><b>Test</b><i>200 · 48h</i></label>
           <label><input type="radio" name="profile" value="quick" checked><b>Quick</b><i>1K · 7d</i></label>
           <label><input type="radio" name="profile" value="standard"><b>Standard</b><i>10K · 28d</i></label>
+          <label><input type="radio" name="profile" value="calibrated"><b>Calibrated</b><i>I=1.0 · in-band</i></label>
         </div>
         <div class="duo">
           <label class="field"><span class="lbl">Random Seed</span><input type="number" id="root_seed" value="42"></label>
@@ -90,10 +91,14 @@
         <label class="field"><span class="lbl">Network Model</span>
           <select id="graph_kind">
             <option value="ba" selected>Barabási–Albert · scale-free hubs</option>
+            <option value="plc">Holme–Kim · scale-free + clustering (calibrated)</option>
             <option value="ws">Watts–Strogatz · small-world</option>
             <option value="sbm">Stochastic block · communities</option>
           </select></label>
         <div data-graph="ba" class="duo gp"><label class="field"><span class="lbl">Attachments m</span><input type="number" id="graph_m" value="5" min="1"></label></div>
+        <div data-graph="plc" class="duo gp" hidden>
+          <label class="field"><span class="lbl">Triad prob p <i>clustering</i></span><input type="number" id="graph_plc_p" value="0.7" step="0.05" min="0" max="1"></label>
+        </div>
         <div data-graph="ws" class="duo gp" hidden>
           <label class="field"><span class="lbl">Neighbours k</span><input type="number" id="graph_k" value="10" min="2"></label>
           <label class="field"><span class="lbl">Rewire p</span><input type="number" id="graph_p" value="0.05" step="0.01" min="0" max="1"></label>
@@ -102,6 +107,20 @@
           <span class="lbl">Homophily Rewiring <b id="homoVal" class="val">0.15</b></span>
           <input type="range" id="homophily_rewire_fraction" min="0" max="0.8" step="0.05" value="0.15"></label>
         <p class="hint">How strongly agents prefer connecting to similar others.</p>
+        <hr>
+        <label class="field"><span class="lbl">Calibration Benchmark <i>target set</i></span>
+          <select id="benchmark">
+            <option value="default" selected>Default · generic aggregates</option>
+            <option value="twitter_like">Twitter-like · microblog</option>
+            <option value="facebook_like">Facebook-like · social network</option>
+          </select></label>
+        <span class="lbl">Dynamic Graph <i>per active agent / day · 0 = static</i></span>
+        <label class="field"><span class="lbl">Follow rate <b id="folVal" class="val">0.00</b></span>
+          <input type="range" id="follow_rate" min="0" max="0.2" step="0.005" value="0"></label>
+        <label class="field"><span class="lbl">Unfollow rate <b id="unfVal" class="val">0.00</b></span>
+          <input type="range" id="unfollow_rate" min="0" max="0.2" step="0.005" value="0"></label>
+        <label class="field"><span class="lbl">Churn rate <b id="chuVal" class="val">0.00</b></span>
+          <input type="range" id="churn_rate" min="0" max="0.1" step="0.002" value="0"></label>
       </section>
 
       <!-- CONTENT -->
@@ -114,6 +133,11 @@
           </select></label>
         <label class="field llm" data-llm hidden><span class="lbl">Model</span><input type="text" id="llm_model" value="qwen2.5:0.5b" spellcheck="false"></label>
         <label class="field llm" data-llm hidden><span class="lbl">Server URL <i>blank = default</i></span><input type="text" id="llm_base_url" placeholder="http://localhost:11434" spellcheck="false"></label>
+        <label class="field"><span class="lbl">Moderation Classifier</span>
+          <select id="classifier_mode">
+            <option value="noise" selected>Noise model · calibrated, instant</option>
+            <option value="trained">Trained · real numpy classifier (measured P/R)</option>
+          </select></label>
         <hr>
         <span class="lbl">Content Prevalence <i>share of all content</i></span>
         <div id="rates" class="rates"></div>
