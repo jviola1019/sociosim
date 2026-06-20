@@ -83,7 +83,7 @@ class Simulation:
         self.rngs = {name: tree.generator(name, rep) for name in (
             "graph", "agents", "content", "classifier", "moderation", "ads",
             "feed", "activity", "posting", "engagement", "optout", "conversion",
-            "ad_latency")}
+            "ad_latency", "graph_dynamics")}
 
         # Graph + personas
         graph = make_graph(cfg.graph_kind, cfg.n_agents, self.rngs["graph"],
@@ -104,6 +104,14 @@ class Simulation:
         self.graph_stats["graph_sample"] = sample_subgraph(graph, _groups)
         self.neighbors = {i: np.array(sorted(graph.neighbors(i)), dtype=int)
                           for i in range(cfg.n_agents)}
+        # Optional dynamic-graph state (follow/unfollow/churn). Built only when
+        # enabled so static (default) runs pay nothing and stay bit-identical.
+        self._dynamic_graph = (cfg.follow_rate > 0 or cfg.unfollow_rate > 0
+                               or cfg.churn_rate > 0)
+        self.churned: set[int] = set()
+        self._adj = ({i: set(self.neighbors[i].tolist())
+                      for i in range(cfg.n_agents)}
+                     if self._dynamic_graph else None)
 
         self.state = AgentState.init(cfg.n_agents, cfg.n_topics)
         self.log = EventLog()
@@ -194,6 +202,53 @@ class Simulation:
             return self.classifier.predict_scores(item.text)
         return self.classifier.classify_one(item.true_categories)
 
+    def _follow_candidate(self, a: int, rng) -> int:
+        """Triadic closure: a friend-of-a-friend if possible, else a random
+        node (preferential-ish via the giant component). Deterministic."""
+        nbrs = sorted(self._adj[a])
+        if nbrs:
+            mid = nbrs[int(rng.integers(0, len(nbrs)))]
+            cands = sorted(self._adj[mid] - self._adj[a] - {a})
+            if cands:
+                return cands[int(rng.integers(0, len(cands)))]
+        return int(rng.integers(0, self.cfg.n_agents))
+
+    def _evolve_graph(self, tick: int):
+        """Daily follow/unfollow/churn. Deterministic: a dedicated RNG stream is
+        drawn in fixed agent order; ties are undirected (both endpoints updated).
+        Emitted as follow/unfollow/churn events -> part of the hashed stream."""
+        rng = self.rngs["graph_dynamics"]
+        cfg = self.cfg
+        changed: set[int] = set()
+        for a in range(cfg.n_agents):
+            if a in self.churned:
+                continue
+            if cfg.churn_rate > 0 and rng.random() < cfg.churn_rate:
+                self.churned.add(a)
+                self.log.append(tick=tick, kind="churn", actor_id=a,
+                                content_id=None,
+                                data={"degree": len(self._adj[a])})
+                continue
+            if (cfg.unfollow_rate > 0 and self._adj[a]
+                    and rng.random() < cfg.unfollow_rate):
+                ties = sorted(self._adj[a])
+                b = ties[int(rng.integers(0, len(ties)))]
+                self._adj[a].discard(b)
+                self._adj[b].discard(a)
+                changed.update((a, b))
+                self.log.append(tick=tick, kind="unfollow", actor_id=a,
+                                content_id=None, data={"target": int(b)})
+            if cfg.follow_rate > 0 and rng.random() < cfg.follow_rate:
+                c = self._follow_candidate(a, rng)
+                if c != a and c not in self.churned and c not in self._adj[a]:
+                    self._adj[a].add(c)
+                    self._adj[c].add(a)
+                    changed.update((a, c))
+                    self.log.append(tick=tick, kind="follow", actor_id=a,
+                                    content_id=None, data={"target": int(c)})
+        for c in changed:
+            self.neighbors[c] = np.array(sorted(self._adj[c]), dtype=int)
+
     def _log_degradation(self, reason: str):
         self.log.append(tick=self._current_tick, kind="degradation",
                         actor_id=-1, content_id=None, data={"reason": reason})
@@ -212,6 +267,10 @@ class Simulation:
             hour = (tick * cfg.tick_hours) % 24
             if hour == 0:
                 self.state.reset_daily_counters()
+                # Daily social-graph evolution (follow/unfollow/churn) BEFORE the
+                # day's baseline/feeds so new ties take effect same day.
+                if self._dynamic_graph and tick > 0:
+                    self._evolve_graph(tick)
                 # Organic (non-ad) conversion opportunity for every agent, so
                 # the holdout has a measurable baseline rate (valid lift).
                 if cfg.ads_enabled:
@@ -221,6 +280,9 @@ class Simulation:
 
             active = np.flatnonzero(
                 self.personas.active_mask(hour, self.rngs["activity"]))
+            if self.churned:
+                active = active[~np.isin(active,
+                                         np.fromiter(self.churned, dtype=int))]
 
             self._do_posting(active, tick)
             self.moderation.process_queues(tick)

@@ -13,9 +13,9 @@ from pathlib import Path
 
 #: Allowed event kinds. `degradation` = LLM-adapter fallback to templates.
 #: Fail-closed POLICY-GAP escalations are logged as `moderation` events
-#: (rule_id "POLICY-GAP"), not a separate kind. follow/unfollow are not emitted
-#: in v1 (the social graph is static — see KNOWN_LIMITATIONS.md), so they are
-#: intentionally absent here rather than declared-but-unused.
+#: (rule_id "POLICY-GAP"), not a separate kind. follow/unfollow/churn are emitted
+#: only when the optional dynamic-graph rates are set (>0); the default graph is
+#: static, so they are absent from default runs.
 EVENT_KINDS = {
     "post",
     "impression",
@@ -31,6 +31,9 @@ EVENT_KINDS = {
     "organic_conversion",
     "llm_call",
     "degradation",
+    "follow",
+    "unfollow",
+    "churn",
 }
 
 

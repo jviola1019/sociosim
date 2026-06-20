@@ -107,6 +107,11 @@ class RunConfig:
     graph_kind: str = "ba"
     graph_params: dict = field(default_factory=lambda: {"m": 5})
     homophily_rewire_fraction: float = 0.15
+    # Dynamic-graph evolution (per active agent, per day). All 0 => static graph
+    # (default; determinism baselines preserved). >0 enables follow/unfollow/churn.
+    follow_rate: float = 0.0       # P(add a tie via triadic closure)
+    unfollow_rate: float = 0.0     # P(drop a random current tie)
+    churn_rate: float = 0.0        # P(agent permanently deactivates)
 
     # Moderation
     human_review_accuracy: float = 0.92
@@ -191,6 +196,9 @@ class RunConfig:
         from socio_sim.validation.targets import available_benchmarks
         if self.benchmark not in available_benchmarks():
             fail("benchmark", f"must be one of {available_benchmarks()}")
+        for rname in ("follow_rate", "unfollow_rate", "churn_rate"):
+            if not 0.0 <= getattr(self, rname) <= 1.0:
+                fail(rname, "must be in [0, 1]")
         for name in (
             "eu_optout_rate",
             "exploration_epsilon",

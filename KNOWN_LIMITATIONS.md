@@ -26,10 +26,13 @@ list; this file tracks what remains open or newly surfaced.
   (≈linear, ~16k events/s). The standard profile (10k × 672) extrapolates to
   ~5 min/replicate single-threaded; **parallel Monte Carlo replicates (process
   pool) is the remaining scale lever** for the 100-replicate standard runs.
-- Exact `nx.average_clustering` is still O(n·⟨k²⟩) on very large graphs; an
-  approximate estimator for very large n is a further option.
-- **Static social graph:** no follow/unfollow/churn in v1 (dead event kinds
-  removed; spec corrected).
+- Average clustering is exact for n≤5000 and a deterministic sampled estimate
+  above that, so very large graphs stay fast.
+- **Dynamic social graph available** (opt-in `follow_rate`/`unfollow_rate`/
+  `churn_rate`, or `--dynamic-graph`): daily follow (triadic closure)/unfollow/
+  churn, emitted as events, deterministic + replayable. Default is still static
+  (rates 0) so baseline runs are unchanged. Residual: tie formation is a simple
+  triadic-closure/random model, not fit to a measured rewiring process.
 
 ## Marketing
 - Incrementality is valid (organic baseline + Newcombe/Beta CI + CUPED + BH-FDR);

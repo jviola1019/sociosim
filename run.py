@@ -153,6 +153,9 @@ def main():
                    help="calibration target set: default | twitter_like | facebook_like")
     p.add_argument("--classifier", default="noise", choices=["noise", "trained"],
                    help="moderation classifier: noise model (default) or a real trained one")
+    p.add_argument("--dynamic-graph", action="store_true",
+                   help="enable daily follow/unfollow/churn graph evolution "
+                        "(off by default = static graph)")
     p.add_argument("--model", default="qwen2.5:0.5b",
                    help="Ollama model for --llm (default qwen2.5:0.5b, ~400MB)")
     p.add_argument("--host", default=DEFAULT_HOST, help="Ollama host:port")
@@ -218,6 +221,8 @@ def main():
         llm_base_url=base_url, benchmark=args.benchmark,
         classifier_mode=args.classifier,
     )
+    if args.dynamic_graph:
+        overrides.update(follow_rate=0.02, unfollow_rate=0.01, churn_rate=0.004)
     if args.agents:
         overrides["n_agents"] = args.agents
     if args.ticks:
