@@ -147,6 +147,16 @@ class RunConfig:
         base.update(overrides)
         return cls(**base)
 
+    @classmethod
+    def calibrated(cls, **overrides) -> "RunConfig":
+        """History-matched profile: a Holme-Kim graph (m=5, p=0.7) brings every
+        published-benchmark observable within 1 tolerance band (implausibility
+        I=1.0 < 3.0; see CALIBRATION_REPORT.md). Quick scale by default."""
+        base = dict(n_agents=1_000, n_ticks=7 * 24, n_replicates=20,
+                    graph_kind="plc", graph_params={"m": 5, "p": 0.7})
+        base.update(overrides)
+        return cls(**base)
+
     # -- serialization ----------------------------------------------------
     def to_dict(self) -> dict:
         d = asdict(self)  # asdict recurses into the nested BehaviorParams

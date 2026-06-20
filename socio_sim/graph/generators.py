@@ -14,6 +14,11 @@ def make_graph(kind: str, n: int, rng: np.random.Generator, **params) -> nx.Grap
     seed = int(rng.integers(0, 2**31 - 1))
     if kind == "ba":
         return nx.barabasi_albert_graph(n, params.get("m", 5), seed=seed)
+    if kind == "plc":
+        # Holme-Kim: BA-style power-law degree PLUS tunable clustering via the
+        # triad-formation probability p (calibration knob for clustering).
+        return nx.powerlaw_cluster_graph(
+            n, params.get("m", 5), params.get("p", 0.3), seed=seed)
     if kind == "ws":
         return nx.watts_strogatz_graph(
             n, params.get("k", 10), params.get("p", 0.05), seed=seed

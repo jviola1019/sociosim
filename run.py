@@ -145,8 +145,10 @@ def main():
     p.add_argument("--llm", action="store_true",
                    help="generate post text with a free local Ollama model "
                         "(auto starts server + pulls model)")
-    p.add_argument("--profile", default="quick", choices=["quick", "test", "standard"],
-                   help="quick=1k/7d (default), test=200/48t, standard=10k/28d")
+    p.add_argument("--profile", default="quick",
+                   choices=["quick", "test", "standard", "calibrated"],
+                   help="quick=1k/7d (default), test=200/48t, standard=10k/28d, "
+                        "calibrated=history-matched (I=1.0, all metrics in-band)")
     p.add_argument("--jurisdictions", default="EU",
                    help="comma list of US,EU,CN (default EU)")
     p.add_argument("--benchmark", default="default",
@@ -213,7 +215,8 @@ def main():
             base_url = f"http://{args.host}"
 
     factory = {"quick": RunConfig.quick, "test": RunConfig.test,
-               "standard": RunConfig.standard}[args.profile]
+               "standard": RunConfig.standard,
+               "calibrated": RunConfig.calibrated}[args.profile]
     overrides = dict(
         jurisdictions=tuple(j.strip() for j in args.jurisdictions.split(",")),
         root_seed=args.seed, out_dir=args.out, content_mode=content_mode,

@@ -5,13 +5,15 @@ Honest residual limitations after the P0/P1 audit remediation (branch
 list; this file tracks what remains open or newly surfaced.
 
 ## Quant / validation
-- **BehaviorParams are synthetic, not calibrated.** `VALIDATION_REPORT.md` shows
-  every swept knob has a high first-order sensitivity index for posts/agent, yet
-  none is fitted to data. Outputs depending on them are scenario assumptions,
-  not predictions, until calibrated against real (anonymised) targets.
-- **Calibration is coarse.** Benchmark targets are wide published aggregates;
-  the default run is *not implausible* (I≈1.8<3) but `degree_tail_exponent` and
-  `diurnal_peak_hour` sit outside their ±1-tolerance bands (see report).
+- **A calibrated profile now exists.** `RunConfig.calibrated()` / `--profile
+  calibrated` history-matches the graph (Holme–Kim `plc`, p=0.7) so **every**
+  published-aggregate observable falls within one tolerance band (implausibility
+  I=1.0 < 3.0; `CALIBRATION_REPORT.md`, replay-verified). Honest scope: this is
+  calibration *consistency* against wide published **aggregates**, not predictive
+  validation — the model stays a synthetic ABM (projections, not predictions).
+- **The default profile is still uncalibrated** (BA graph, I≈1.7, clustering
+  below band) and BehaviorParams remain synthetic scenario knobs. Use the
+  calibrated profile when calibration consistency matters.
 - **Sensitivity study is small** (single output, single seed, n≈24 LHS, ±50%
   bounds, correlation-ratio estimator over-estimates at small n). A full study
   needs multiple outputs, many seeds (Monte Carlo), and Sobol sequences.
