@@ -34,25 +34,33 @@ class TrainableClassifier:
     """One-vs-rest logistic regression; outputs per-category scores in [0, 1]."""
 
     def __init__(self, categories, dim: int = 1024, lr: float = 0.5,
-                 epochs: int = 300, l2: float = 1e-4):
+                 epochs: int = 300, l2: float = 1e-4, xp=None):
         self.categories = list(categories)
         self.dim = dim
         self.lr = lr
         self.epochs = epochs
         self.l2 = l2
+        self._xp = xp           # array module override (numpy / cupy); None=auto
         self.W = np.zeros((dim, len(self.categories)))
         self.b = np.zeros(len(self.categories))
 
     def fit(self, texts, labels) -> "TrainableClassifier":
-        X = np.array([vectorize(t, self.dim) for t in texts])
-        Y = np.array([[1.0 if c in lab else 0.0 for c in self.categories]
-                      for lab in labels])
-        n = max(len(X), 1)
+        # Training matmuls run on GPU (CuPy) when available, else NumPy; weights
+        # are brought back to host numpy so inference stays dependency-free.
+        from socio_sim import accel
+        xp = self._xp if self._xp is not None else accel.array_module()
+        Xn = np.array([vectorize(t, self.dim) for t in texts])
+        Yn = np.array([[1.0 if c in lab else 0.0 for c in self.categories]
+                       for lab in labels])
+        X, Y = xp.asarray(Xn), xp.asarray(Yn)
+        W, b = xp.asarray(self.W), xp.asarray(self.b)
+        n = max(len(Xn), 1)
         for _ in range(self.epochs):
-            P = 1.0 / (1.0 + np.exp(-np.clip(X @ self.W + self.b, -30, 30)))
+            P = 1.0 / (1.0 + xp.exp(-xp.clip(X @ W + b, -30, 30)))
             G = P - Y
-            self.W -= self.lr * ((X.T @ G) / n + self.l2 * self.W)
-            self.b -= self.lr * G.mean(axis=0)
+            W -= self.lr * ((X.T @ G) / n + self.l2 * W)
+            b -= self.lr * G.mean(axis=0)
+        self.W, self.b = accel.to_numpy(W), accel.to_numpy(b)
         return self
 
     def predict_scores(self, text: str) -> dict:

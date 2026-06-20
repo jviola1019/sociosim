@@ -50,6 +50,22 @@ list; this file tracks what remains open or newly surfaced.
 - `style.css` header still advertises interactions (aurora-mesh/tilt/spotlight/
   magnetic) that are not implemented (Q-CSS open).
 
+## Formerly out-of-scope (spec §6) — now delivered, with honest caveats
+- **Real image/video synthesis:** deterministic procedural PNG (real bytes,
+  offline, zero-dep). It is deliberate generative art, not photoreal; video is
+  frame sequences (container encoding e.g. APNG/MP4 not yet wired); a diffusion
+  backend is a pluggable hook, not bundled (would break offline/determinism).
+- **Distributed/GPU:** distributed Monte Carlo via a pluggable executor
+  (ProcessPool verified; Dask/Ray-ready). **GPU is NOT verified here** — kernels
+  are numpy with a CuPy drop-in possible; treat GPU as opt-in/unverified.
+- **Bundled empirical datasets:** published *aggregate* sets only (no PII);
+  values are research approximations with wide tolerances; Facebook degree-tail
+  omitted (not power-law, Ugander 2011) rather than fabricated.
+- **Real moderation-model training:** the trained classifier is real and its P/R
+  is measured, but it is trained on **synthetic templated** content, so it learns
+  the simulator's injected signal — NOT evidence of real-world moderation
+  accuracy. Use it to study FP/FN *dynamics*, not as a deployable model.
+
 ## Tooling
 - **ruff not installed** (dev deps = pytest only); add to `pyproject.toml` to
   enforce a lint gate.

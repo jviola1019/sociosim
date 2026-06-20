@@ -82,14 +82,17 @@ def run_sim(cfg: RunConfig, n_replicates: int = 1, workers: int = 1, media: int 
     if media > 0:
         import zlib
 
-        from socio_sim.content.media import synth_image
+        from socio_sim.content.media import synth_image, synth_video
         mdir = out / "media"
         mdir.mkdir(parents=True, exist_ok=True)
         posts = [e for e in result.log.events if e["kind"] == "post"][:media]
         for e in posts:
             seed = zlib.crc32(str(e["content_id"]).encode())  # stable per content id
             (mdir / f"{e['content_id']}.png").write_bytes(synth_image(seed, 256, 256))
-        print(f"Synthesized {len(posts)} real PNG images -> {mdir}")
+        if posts:  # one real animated-PNG (APNG) video sample
+            vseed = zlib.crc32(str(posts[0]["content_id"]).encode())
+            (mdir / "sample_video.png").write_bytes(synth_video(vseed, 10, 192, 192))
+        print(f"Synthesized {len(posts)} real PNG images + 1 APNG video -> {mdir}")
 
     print(f"\nCalibration vs published benchmarks "
           f"(implausibility I={a.implausibility:.2f}, cutoff 3.0):")
