@@ -32,32 +32,35 @@ list; this file tracks what remains open or newly surfaced.
   removed; spec corrected).
 
 ## Marketing
-- Incrementality is valid (organic baseline + Newcombe/Beta CI + CUPED + BH-FDR).
-  ROAS/iROAS/CAC/LTV are reported but **synthetic** (depend on conversion_value /
-  ltv_multiplier assumptions). Lift is ITT over the realized frequency mix; no
-  dose-response curve or attribution-window modelling yet. No campaign editor in
-  the UI (S3 open).
+- Incrementality is valid (organic baseline + Newcombe/Beta CI + CUPED + BH-FDR);
+  dose-response by frequency and an attribution-window model **are** implemented,
+  and the UI has a campaign editor. ROAS/iROAS/CAC/LTV remain **synthetic** —
+  they depend on conversion_value / ltv_multiplier assumptions, so treat the
+  money figures as scenario inputs, not measured returns.
 
 ## Regulatory
 - Policy packs are research approximations with statute citations and
   `legal_uncertainty` notes — **not legal advice**. Deadlines (e.g. EU 24h) are
   modelling assumptions, not statutory mandates.
 
-## UI (P6 — largest open item)
-- Single-screen studio only; no Compare/Validate/Audit/Transparency routes, no
-  topology/force-graph or cascade replay, no `n_replicates` control (S4), no
-  preset reset-then-apply (S1). Provenance badges not yet surfaced in the UI.
-- `style.css` header still advertises interactions (aurora-mesh/tilt/spotlight/
-  magnetic) that are not implemented (Q-CSS open).
+## UI
+- Multi-tab studio is built: Overview/Feed/Charts/Network (interactive 3D
+  force-graph)/Cascade replay/Fairness/Ads/Calibration/Compare (A/B)/Audit/Log,
+  plus the `n_replicates` control, preset reset-then-apply, theme toggle, and a
+  campaign editor. Remaining UI polish: full a11y pass (slider aria-valuetext,
+  focus order, data tables) and provenance badges on individual content cards.
 
 ## Formerly out-of-scope (spec §6) — now delivered, with honest caveats
-- **Real image/video synthesis:** deterministic procedural PNG (real bytes,
-  offline, zero-dep). It is deliberate generative art, not photoreal; video is
-  frame sequences (container encoding e.g. APNG/MP4 not yet wired); a diffusion
-  backend is a pluggable hook, not bundled (would break offline/determinism).
+- **Real image/video synthesis:** deterministic procedural PNG **and a real
+  playable APNG video** (`synth_video`), offline + zero-dep. An external
+  diffusion/image model is plugged in via `set_image_backend`. Honest residual:
+  the default art is deliberate generative geometry, not photoreal — photoreal
+  requires the (optional) diffusion backend, which trades away offline/determinism.
 - **Distributed/GPU:** distributed Monte Carlo via a pluggable executor
-  (ProcessPool verified; Dask/Ray-ready). **GPU is NOT verified here** — kernels
-  are numpy with a CuPy drop-in possible; treat GPU as opt-in/unverified.
+  (ProcessPool verified; Dask/Ray-ready); `accel.py` routes the classifier
+  training matmuls to CuPy when a GPU is present, else NumPy (numpy path
+  verified). Honest residual: the **GPU path is not exercised on hardware here**
+  (CI has no device) — opt-in, verify on a GPU box to claim it.
 - **Bundled empirical datasets:** published *aggregate* sets only (no PII);
   values are research approximations with wide tolerances; Facebook degree-tail
   omitted (not power-law, Ugander 2011) rather than fabricated.
@@ -67,8 +70,9 @@ list; this file tracks what remains open or newly surfaced.
   accuracy. Use it to study FP/FN *dynamics*, not as a deployable model.
 
 ## Tooling
-- **ruff not installed** (dev deps = pytest only); add to `pyproject.toml` to
-  enforce a lint gate.
+- ruff is a dev dependency and a CI gate (lint passes clean); pytest-cov enforces
+  an 85% coverage floor (actual ~92%). GitHub Actions runs ruff + pytest + a real
+  Playwright E2E + a wheel build with a data-asset assertion.
 
 See `AUDIT_LOG.md` for the full issue ledger with status, and `HANDOFF.md` for
 the resume plan.

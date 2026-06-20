@@ -220,7 +220,7 @@ input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.12); }
 .opanel h4 { font-size: 15px; margin: 0 0 14px; color: var(--ink); }
 .opanel h4:not(:first-child) { margin-top: var(--s4); }
 
-/* metric cards with perspective + spotlight */
+/* metric cards: entrance animation + hover border (reduced-motion respected) */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); gap: var(--s2); }
 .card { position: relative; border: 1px solid var(--line); border-radius: var(--r); padding: 20px; background: var(--surface); box-shadow: var(--sh-1); transition: border-color .2s var(--ease); animation: cardin .55s var(--ease) backwards; }
 .card:hover { border-color: var(--line-2); }

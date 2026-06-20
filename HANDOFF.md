@@ -3,6 +3,18 @@
 **Purpose:** live resume doc so this sprint continues across sessions/token cutoffs.
 Resuming? Read this, then `AUDIT_LOG.md`, then `CHANGELOG.md`. Branch: `feat/audit-p0-p1`.
 
+## SPRINT 4 — fix ALL caveats (user decision 2026-06-19)
+DECISION: keep ALL guardrails (fully legal, no PII, no fabrication, research-only,
+not-legal-advice, projections-not-predictions) as honest disclaimers; push every
+ENGINEERING caveat to research-grade rigor ("what top corps use, more fine-tuned",
+"without fallacing the ABM"). Scope (all selected): (1) calibrate graph/diurnal/
+behavior to published targets; (2) expand sensitivity multi-output/seed/Sobol +
+chain ABC->MC; (3) approx clustering for scale; (4) dynamic social graph
+(follow/unfollow/churn — regen determinism). PLUS stale-doc fixes + style.css.
+SPRINT-3 DONE+verified: real trained classifier (measured P/R), bundled empirical
+datasets (cited), distributed pluggable executor, procedural image + APNG video +
+pluggable backend + accel/GPU kernel (numpy-verified). 49 commits.
+
 ## Status snapshot
 - Suite green (~122 tests). Determinism baselines RE-LOCKED after P2 (test_determinism_regression.py).
 - Confirmed scope: Preview+Research MC modes; organic-baseline incrementality; full multi-route UI.
