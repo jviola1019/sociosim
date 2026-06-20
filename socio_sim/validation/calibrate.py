@@ -24,19 +24,31 @@ def implausibility(observed: dict, targets: dict) -> float:
     return max(discrepancies) if discrepancies else float("inf")
 
 
+def _scale(unit, bounds: dict, names: list) -> list:
+    out = []
+    for row in unit:
+        out.append({name: float(bounds[name][0]
+                                + row[j] * (bounds[name][1] - bounds[name][0]))
+                    for j, name in enumerate(names)})
+    return out
+
+
 def lhs_samples(bounds: dict, n_samples: int, rng: np.random.Generator) -> list:
     names = sorted(bounds)
     sampler = qmc.LatinHypercube(d=len(names),
                                  seed=int(rng.integers(0, 2**31 - 1)))
-    unit = sampler.random(n_samples)
-    out = []
-    for row in unit:
-        params = {}
-        for j, name in enumerate(names):
-            lo, hi = bounds[name]
-            params[name] = float(lo + row[j] * (hi - lo))
-        out.append(params)
-    return out
+    return _scale(sampler.random(n_samples), bounds, names)
+
+
+def sobol_samples(bounds: dict, n_samples: int, rng: np.random.Generator) -> list:
+    """Balanced low-discrepancy Sobol design (2^m points, m chosen so 2^m >=
+    n_samples) — better space-filling than LHS for variance-based sensitivity."""
+    import math
+    names = sorted(bounds)
+    sampler = qmc.Sobol(d=len(names), scramble=True,
+                        seed=int(rng.integers(0, 2**31 - 1)))
+    m = max(1, math.ceil(math.log2(max(n_samples, 2))))
+    return _scale(sampler.random_base2(m), bounds, names)
 
 
 def history_match(run_fn: Callable[..., dict], bounds: dict, targets: dict,

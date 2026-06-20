@@ -20,7 +20,8 @@ from socio_sim.config import RunConfig
 from socio_sim.engine import Simulation
 from socio_sim.stats import discrete_ks
 from socio_sim.validation.calibrate import (abc_posterior, history_match,
-                                            implausibility, lhs_samples)
+                                            implausibility, lhs_samples,
+                                            sobol_samples)
 from socio_sim.validation.sensitivity import first_order_indices
 from socio_sim.validation.targets import compute_observed, load_targets
 
@@ -62,6 +63,42 @@ def behavior_sensitivity(cfg: RunConfig, bounds: dict, n_samples: int,
     }
 
 
+#: Headline outputs swept in the multi-output sensitivity study.
+SENSITIVITY_OUTPUTS = ("n_posts", "harmful_exposure_rate", "welfare_mean")
+
+
+def multi_output_sensitivity(cfg: RunConfig, bounds: dict, n_samples: int,
+                             outputs=SENSITIVITY_OUTPUTS,
+                             seeds=(1, 2, 3)) -> dict:
+    """First-order (Sobol-design) indices for MULTIPLE outputs, averaged over
+    MULTIPLE seeds so the estimate reflects parameter influence, not seed noise.
+    Returns per-output {param: {mean, std}} of S1 across seeds."""
+    from socio_sim.pipeline import _headline_metrics
+    names = sorted(bounds)
+    per_seed = {o: [] for o in outputs}
+    n_design = 0
+    for sd in seeds:
+        design = sobol_samples(bounds, n_samples, np.random.default_rng(sd))
+        n_design = len(design)
+        X = np.array([[s[n] for n in names] for s in design], dtype=float)
+        ys = {o: [] for o in outputs}
+        for s in design:
+            c = replace(cfg, behavior=replace(cfg.behavior, **s), root_seed=int(sd))
+            metrics = _headline_metrics(Simulation(c).run())
+            for o in outputs:
+                ys[o].append(float(metrics[o]))
+        for o in outputs:
+            per_seed[o].append(first_order_indices(X, np.array(ys[o]), names))
+    indices = {}
+    for o in outputs:
+        rows = per_seed[o]
+        indices[o] = {n: {"mean": float(np.mean([r[n] for r in rows])),
+                          "std": float(np.std([r[n] for r in rows]))}
+                      for n in names}
+    return {"names": names, "outputs": list(outputs), "n_samples": n_design,
+            "n_seeds": len(seeds), "indices": indices}
+
+
 def calibration_implausibility(cfg: RunConfig) -> dict:
     """Implausibility I = max standardized discrepancy of observed vs targets
     (history-matching cutoff 3.0)."""
@@ -85,7 +122,8 @@ def posterior_calibrated_mc(profile: str = "test", n_samples: int = 24,
     parameter posterior into an interval for `metric`. This is genuine
     parameter-uncertainty propagation (not single-run noise)."""
     factory = {"test": RunConfig.test, "quick": RunConfig.quick,
-               "standard": RunConfig.standard}[profile]
+               "standard": RunConfig.standard,
+               "calibrated": RunConfig.calibrated}[profile]
     cfg = factory(jurisdictions=("EU",), root_seed=seed)
     rng = np.random.default_rng(seed)
     bounds = {"p_post_given_active": (0.15, 0.45),
@@ -114,17 +152,22 @@ def posterior_calibrated_mc(profile: str = "test", n_samples: int = 24,
             "output_ci": ci, "provenance": "abc-posterior-propagated"}
 
 
+_PROFILES = {"test": RunConfig.test, "quick": RunConfig.quick,
+             "standard": RunConfig.standard, "calibrated": RunConfig.calibrated}
+
+
 def run_validation_study(profile: str = "test", n_samples: int = 24,
                          seed: int = 42) -> dict:
-    factory = {"test": RunConfig.test, "quick": RunConfig.quick,
-               "standard": RunConfig.standard}[profile]
-    cfg = factory(jurisdictions=("EU",), root_seed=seed)
+    cfg = _PROFILES[profile](jurisdictions=("EU",), root_seed=seed)
     rng = np.random.default_rng(seed)
     return {
         "profile": profile, "seed": seed, "n_agents": cfg.n_agents,
         "n_ticks": cfg.n_ticks,
         "sensitivity": behavior_sensitivity(
             cfg, default_behavior_bounds(), n_samples, posts_per_agent, rng),
+        "multi_sensitivity": multi_output_sensitivity(
+            cfg, default_behavior_bounds(), n_samples,
+            seeds=(seed, seed + 1, seed + 2)),
         "calibration": calibration_implausibility(cfg),
         "posterior_mc": posterior_calibrated_mc(profile, n_samples, seed),
     }
@@ -169,6 +212,24 @@ def render_validation_report(study: dict) -> str:
         "Interpretation: parameters with high S1 dominate this output and MUST "
         "be calibrated (or their dependent claims flagged uncalibrated) before "
         "use. Low-S1 parameters are safe to leave at documented defaults.",
+    ]
+    ms = study.get("multi_sensitivity")
+    if ms:
+        lines += [
+            "",
+            "## 1b. Multi-output sensitivity (Sobol design, multi-seed)",
+            f"First-order indices for {len(ms['outputs'])} outputs over a Sobol "
+            f"design (n={ms['n_samples']}) averaged across {ms['n_seeds']} seeds "
+            "(mean ± sd of S1 across seeds).",
+            "",
+            "| BehaviorParam | " + " | ".join(ms["outputs"]) + " |",
+            "|---|" + "|".join(["---"] * len(ms["outputs"])) + "|",
+        ]
+        for name in ms["names"]:
+            cells = [f"{ms['indices'][o][name]['mean']:.3f}±"
+                     f"{ms['indices'][o][name]['std']:.3f}" for o in ms["outputs"]]
+            lines.append(f"| `{name}` | " + " | ".join(cells) + " |")
+    lines += [
         "",
         "## 2. Calibration vs published benchmarks",
         f"Implausibility **I = {c['implausibility']:.2f}** "
@@ -195,9 +256,11 @@ def render_validation_report(study: dict) -> str:
         "",
         "## 3. Limitations",
         "- Bounds are +/-50% of defaults, not empirically derived.",
-        "- Single output (posts/agent) and a single seed; a full study sweeps "
-        "multiple outputs and many seeds (Monte Carlo).",
-        "- Benchmark targets are coarse published aggregates with wide tolerances.",
+        "- Section 1b now sweeps MULTIPLE outputs over a Sobol design across "
+        "MULTIPLE seeds; section 1 keeps the single-output LHS view for "
+        "continuity. Indices are first-order only (no higher-order/total effects).",
+        "- Benchmark targets are coarse published aggregates with wide tolerances; "
+        "use `--profile calibrated` for a history-matched, in-band configuration.",
         "- `degree_tail_exponent` / network targets depend on the graph model, "
         "not BehaviorParams.",
     ]

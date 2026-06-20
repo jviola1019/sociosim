@@ -14,12 +14,15 @@ list; this file tracks what remains open or newly surfaced.
 - **The default profile is still uncalibrated** (BA graph, I≈1.7, clustering
   below band) and BehaviorParams remain synthetic scenario knobs. Use the
   calibrated profile when calibration consistency matters.
-- **Sensitivity study is small** (single output, single seed, n≈24 LHS, ±50%
-  bounds, correlation-ratio estimator over-estimates at small n). A full study
-  needs multiple outputs, many seeds (Monte Carlo), and Sobol sequences.
-- **Monte Carlo Research mode** aggregates a fixed set of headline metrics; it
-  does not yet propagate parameter-uncertainty posteriors (history-matching/ABC
-  exist but are not chained into the default Research run).
+- **Sensitivity is now multi-output, multi-seed, Sobol** (`multi_output_sensitivity`,
+  report §1b): first-order indices for n_posts / harmful_exposure / welfare over a
+  Sobol design, averaged across seeds with cross-seed sd. Residual: first-order
+  only (no total-effect/higher-order indices); bounds are still ±50% of defaults.
+- **ABC posterior is propagated to outputs** (`posterior_calibrated_mc`, report
+  §2b): history-match → ABC posterior → output interval (parameter-uncertainty,
+  not single-run noise). Residual: this runs in the validation study; the default
+  Research MC still reports fixed-parameter replicate intervals unless you invoke
+  the posterior-propagated path.
 
 ## Engine / scale
 - **Feed hot loop optimised** (per-tick author index + O(k) exploration-pool

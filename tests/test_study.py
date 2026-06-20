@@ -48,6 +48,21 @@ def test_calibration_includes_diurnal_ks_distributional_check():
     assert 0.0 <= c["diurnal_ks"] <= 1.0
 
 
+def test_multi_output_sensitivity_sobol_multiseed():
+    from socio_sim.validation.study import multi_output_sensitivity
+    cfg = RunConfig.test(jurisdictions=("EU",))
+    bounds = {"p_post_given_active": (0.15, 0.45),
+              "p_flag_scale": (0.15, 0.45)}
+    ms = multi_output_sensitivity(cfg, bounds, n_samples=8, seeds=(1, 2))
+    assert ms["n_seeds"] == 2 and ms["n_samples"] >= 8
+    assert set(ms["outputs"]) >= {"n_posts"}
+    # n_posts should be driven more by posting prob than by the flag knob
+    s = ms["indices"]["n_posts"]
+    assert s["p_post_given_active"]["mean"] >= s["p_flag_scale"]["mean"]
+    # cross-seed std is reported (uncertainty of the index estimate)
+    assert "std" in s["p_post_given_active"]
+
+
 def test_posterior_calibrated_mc_propagates_parameter_uncertainty():
     pm = posterior_calibrated_mc(profile="test", n_samples=16, seed=4)
     assert pm["n_accepted"] >= 1
