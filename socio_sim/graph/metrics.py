@@ -8,6 +8,22 @@ import numpy as np
 from socio_sim.validation.targets import hill_exponent
 
 
+#: Above this node count, average clustering is estimated by triangle sampling
+#: (NetworkX's approximation) instead of the exact O(n*<k^2>) computation.
+CLUSTERING_EXACT_MAX = 5000
+
+
+def average_clustering(g: nx.Graph, exact_max: int = CLUSTERING_EXACT_MAX,
+                       trials: int = 4000, seed: int = 0) -> float:
+    """Exact average clustering for small graphs; a deterministic sampled
+    estimate (fixed seed) for large ones so very large graphs stay fast."""
+    if g.number_of_nodes() <= exact_max:
+        return float(nx.average_clustering(g))
+    from networkx.algorithms.approximation import \
+        average_clustering as approx_clustering
+    return float(approx_clustering(g, trials=trials, seed=seed))
+
+
 def summary(g: nx.Graph) -> dict:
     degrees = np.array([d for _, d in g.degree()], dtype=float)
     try:
@@ -23,7 +39,7 @@ def summary(g: nx.Graph) -> dict:
     return {
         "n": g.number_of_nodes(),
         "m": g.number_of_edges(),
-        "clustering": float(nx.average_clustering(g)),
+        "clustering": average_clustering(g),
         "degree_mean": float(degrees.mean()),
         "degree_median": float(np.median(degrees)),
         "degree_max": float(degrees.max()),

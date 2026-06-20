@@ -1,12 +1,26 @@
 import numpy as np
 
 from socio_sim.graph.generators import make_graph, mix_homophily
-from socio_sim.graph.metrics import homophily_index, summary
+from socio_sim.graph.metrics import (average_clustering, homophily_index,
+                                     summary)
 from socio_sim.rng import SeedTree
 
 
 def rng():
     return SeedTree(7).generator("graph", 0)
+
+
+def test_approx_clustering_matches_exact_and_is_deterministic():
+    g = make_graph("ba", 600, rng(), m=4)
+    exact = average_clustering(g, exact_max=10**9)
+    approx = average_clustering(g, exact_max=100, trials=8000, seed=0)
+    assert abs(exact - approx) < 0.02            # sampled estimate ~ exact
+    again = average_clustering(g, exact_max=100, trials=8000, seed=0)
+    assert approx == again                        # deterministic (fixed seed)
+    # small graphs always take the exact path
+    small = make_graph("ba", 80, rng(), m=3)
+    import networkx as nx
+    assert average_clustering(small) == float(nx.average_clustering(small))
 
 
 def test_ba_heavy_tail():
