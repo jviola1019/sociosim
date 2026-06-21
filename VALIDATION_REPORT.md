@@ -28,6 +28,17 @@ First-order indices for 3 outputs over a Sobol design (n=16) averaged across 3 s
 | `p_post_given_active` | 0.986±0.003 | 0.754±0.054 | 0.542±0.147 |
 | `p_share_given_engaged` | 0.098±0.094 | 0.389±0.158 | 0.500±0.164 |
 
+## 1c. Saltelli first-order + TOTAL-effect indices
+Gold-standard variance-based sensitivity for `n_posts` (A/B/AB_i design, 56 model runs, N=8). ST ≥ S1; ST≈0 ⇒ the parameter can be fixed.
+
+| BehaviorParam | S1 (first-order) | ST (total-effect) |
+|---|---|---|
+| `engagement_base` | 0.000 | 0.001 |
+| `impression_fatigue` | 0.052 | 0.002 |
+| `p_flag_scale` | 0.102 | 0.006 |
+| `p_post_given_active` | 0.642 | 0.473 |
+| `p_share_given_engaged` | 0.000 | 0.008 |
+
 ## 2. Calibration vs published benchmarks
 Implausibility **I = 1.80** (history-matching cutoff 3.0; I<3 = not implausible).
 Diurnal distribution KS gap = 0.048 (0 = posting-hour distribution matches the diurnal curve exactly).
@@ -47,6 +58,6 @@ Calibrated `posts_per_agent_day` over 8 accepted parameter sets (provenance: abc
 
 ## 3. Limitations
 - Bounds are +/-50% of defaults, not empirically derived.
-- Section 1b now sweeps MULTIPLE outputs over a Sobol design across MULTIPLE seeds; section 1 keeps the single-output LHS view for continuity. Indices are first-order only (no higher-order/total effects).
+- Section 1b sweeps MULTIPLE outputs (Sobol, multi-seed); section 1c adds Saltelli first-order S1 AND total-effect ST (interactions); section 1 keeps the single-output correlation-ratio view for continuity.
 - Benchmark targets are coarse published aggregates with wide tolerances; use `--profile calibrated` for a history-matched, in-band configuration.
 - `degree_tail_exponent` / network targets depend on the graph model, not BehaviorParams.

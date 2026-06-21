@@ -63,6 +63,44 @@ def test_multi_output_sensitivity_sobol_multiseed():
     assert "std" in s["p_post_given_active"]
 
 
+def test_saltelli_indices_recover_known_first_and_total_effects():
+    """On the Ishigami-style additive model y = a*x1 + b*x2 (no interaction),
+    S1 should rank x1>x2 and ST≈S1 (no interaction inflation)."""
+    import numpy as np
+
+    from socio_sim.validation.sensitivity import saltelli_indices
+    rng = np.random.default_rng(0)
+    n = 4096
+    A = rng.random((n, 2))
+    B = rng.random((n, 2))
+
+    def f(M):
+        return 3.0 * M[:, 0] + 1.0 * M[:, 1]
+    fA, fB = f(A), f(B)
+    fab = {}
+    for i, name in enumerate(["x1", "x2"]):
+        AB = A.copy()
+        AB[:, i] = B[:, i]
+        fab[name] = f(AB)
+    r = saltelli_indices(fA, fB, fab, ["x1", "x2"])
+    assert r["S1"]["x1"] > r["S1"]["x2"]               # x1 dominates
+    assert abs(r["ST"]["x1"] - r["S1"]["x1"]) < 0.1    # additive => ST≈S1
+    assert r["S1"]["x1"] + r["S1"]["x2"] > 0.9         # variance accounted for
+
+
+def test_saltelli_study_runs_on_engine():
+    from socio_sim.validation.study import saltelli_study
+    cfg = RunConfig.test(jurisdictions=("EU",))
+    bounds = {"p_post_given_active": (0.15, 0.45),
+              "p_flag_scale": (0.15, 0.45)}
+    r = saltelli_study(cfg, bounds, n_base=4, output="n_posts", seed=5)
+    assert r["n_eval"] == r["N"] * (len(bounds) + 2)
+    assert r["ST"]["p_post_given_active"] >= 0.0       # total-effect computed
+    # posting prob should dominate posting volume (S1 or ST)
+    assert (r["ST"]["p_post_given_active"]
+            >= r["ST"]["p_flag_scale"] - 0.2)
+
+
 def test_posterior_calibrated_mc_propagates_parameter_uncertainty():
     pm = posterior_calibrated_mc(profile="test", n_samples=16, seed=4)
     assert pm["n_accepted"] >= 1

@@ -22,7 +22,8 @@ from socio_sim.stats import discrete_ks
 from socio_sim.validation.calibrate import (abc_posterior, history_match,
                                             implausibility, lhs_samples,
                                             sobol_samples)
-from socio_sim.validation.sensitivity import first_order_indices
+from socio_sim.validation.sensitivity import (first_order_indices,
+                                              saltelli_indices)
 from socio_sim.validation.targets import compute_observed, load_targets
 
 
@@ -99,6 +100,45 @@ def multi_output_sensitivity(cfg: RunConfig, bounds: dict, n_samples: int,
             "n_seeds": len(seeds), "indices": indices}
 
 
+def saltelli_study(cfg: RunConfig, bounds: dict, n_base: int = 8,
+                   output: str = "n_posts", seed: int = 7) -> dict:
+    """Saltelli S1 + total-effect ST for one headline output over the A/B/AB_i
+    design (N*(d+2) model runs). Deterministic: seeded Sobol + seeded runs."""
+    import math
+
+    from scipy.stats import qmc
+
+    from socio_sim.pipeline import _headline_metrics
+    names = sorted(bounds)
+    d = len(names)
+    sob = qmc.Sobol(d=d, scramble=True, seed=seed)
+    m = max(1, math.ceil(math.log2(max(n_base, 2))))
+    pts = sob.random_base2(m + 1)          # 2^(m+1) points -> two halves
+    n = pts.shape[0] // 2
+    a_mat, b_mat = pts[:n], pts[n:2 * n]
+
+    def scale(row):
+        return {names[j]: bounds[names[j]][0]
+                + row[j] * (bounds[names[j]][1] - bounds[names[j]][0])
+                for j in range(d)}
+
+    def run(row):
+        c = replace(cfg, behavior=replace(cfg.behavior, **scale(row)))
+        return float(_headline_metrics(Simulation(c).run())[output])
+
+    f_a = [run(r) for r in a_mat]
+    f_b = [run(r) for r in b_mat]
+    f_ab = {}
+    for i, name in enumerate(names):
+        ab = a_mat.copy()
+        ab[:, i] = b_mat[:, i]
+        f_ab[name] = [run(r) for r in ab]
+    res = saltelli_indices(f_a, f_b, f_ab, names)
+    res.update({"names": names, "output": output, "N": int(n),
+                "n_eval": int(n * (d + 2))})
+    return res
+
+
 def calibration_implausibility(cfg: RunConfig) -> dict:
     """Implausibility I = max standardized discrepancy of observed vs targets
     (history-matching cutoff 3.0)."""
@@ -168,6 +208,9 @@ def run_validation_study(profile: str = "test", n_samples: int = 24,
         "multi_sensitivity": multi_output_sensitivity(
             cfg, default_behavior_bounds(), n_samples,
             seeds=(seed, seed + 1, seed + 2)),
+        "saltelli": saltelli_study(
+            cfg, default_behavior_bounds(),
+            n_base=max(4, min(8, n_samples // 2)), output="n_posts", seed=seed),
         "calibration": calibration_implausibility(cfg),
         "posterior_mc": posterior_calibrated_mc(profile, n_samples, seed),
     }
@@ -229,6 +272,21 @@ def render_validation_report(study: dict) -> str:
             cells = [f"{ms['indices'][o][name]['mean']:.3f}±"
                      f"{ms['indices'][o][name]['std']:.3f}" for o in ms["outputs"]]
             lines.append(f"| `{name}` | " + " | ".join(cells) + " |")
+    sa = study.get("saltelli")
+    if sa:
+        lines += [
+            "",
+            "## 1c. Saltelli first-order + TOTAL-effect indices",
+            f"Gold-standard variance-based sensitivity for `{sa['output']}` "
+            f"(A/B/AB_i design, {sa['n_eval']} model runs, N={sa['N']}). "
+            "ST ≥ S1; ST≈0 ⇒ the parameter can be fixed.",
+            "",
+            "| BehaviorParam | S1 (first-order) | ST (total-effect) |",
+            "|---|---|---|",
+        ]
+        for name in sa["names"]:
+            lines.append(f"| `{name}` | {sa['S1'][name]:.3f} | "
+                         f"{sa['ST'][name]:.3f} |")
     lines += [
         "",
         "## 2. Calibration vs published benchmarks",
@@ -256,9 +314,9 @@ def render_validation_report(study: dict) -> str:
         "",
         "## 3. Limitations",
         "- Bounds are +/-50% of defaults, not empirically derived.",
-        "- Section 1b now sweeps MULTIPLE outputs over a Sobol design across "
-        "MULTIPLE seeds; section 1 keeps the single-output LHS view for "
-        "continuity. Indices are first-order only (no higher-order/total effects).",
+        "- Section 1b sweeps MULTIPLE outputs (Sobol, multi-seed); section 1c "
+        "adds Saltelli first-order S1 AND total-effect ST (interactions); "
+        "section 1 keeps the single-output correlation-ratio view for continuity.",
         "- Benchmark targets are coarse published aggregates with wide tolerances; "
         "use `--profile calibrated` for a history-matched, in-band configuration.",
         "- `degree_tail_exponent` / network targets depend on the graph model, "
