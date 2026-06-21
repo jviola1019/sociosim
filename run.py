@@ -26,11 +26,25 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
-from socio_sim import RESEARCH_USE_NOTICE  # noqa: E402
-from socio_sim.config import RunConfig  # noqa: E402
-from socio_sim.llm_bootstrap import (DEFAULT_HOST, ensure_model,  # noqa: E402
-                                     ensure_server, find_ollama, server_up)
-from socio_sim.pipeline import run_and_analyze  # noqa: E402
+try:
+    from socio_sim import RESEARCH_USE_NOTICE  # noqa: E402
+    from socio_sim.config import RunConfig  # noqa: E402
+    from socio_sim.llm_bootstrap import (DEFAULT_HOST, ensure_model,  # noqa: E402
+                                         ensure_server, find_ollama, server_up)
+    from socio_sim.pipeline import run_and_analyze  # noqa: E402
+except ModuleNotFoundError as _e:  # missing runtime dependency -> friendly help
+    _name = getattr(_e, "name", "a dependency")
+    sys.stderr.write(
+        f"\n[SocioSim] Missing dependency: '{_name}'.\n"
+        "SocioSim needs numpy, networkx, scipy and pyyaml. Install them from the\n"
+        "project root (a virtualenv is recommended), then re-run your command:\n\n"
+        "    python -m pip install -e .            # installs SocioSim + deps\n"
+        "    # or:  python -m pip install -r requirements.txt\n\n"
+        "Virtualenv (avoids touching system Python):\n"
+        "    python -m venv .venv\n"
+        "    .venv\\Scripts\\activate   (Windows)   |   source .venv/bin/activate (macOS/Linux)\n"
+        "    python -m pip install -e .\n\n")
+    sys.exit(1)
 
 
 def bootstrap_ollama(model: str, host: str):
