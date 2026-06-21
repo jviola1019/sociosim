@@ -3,6 +3,25 @@
 **Purpose:** live resume doc so this sprint continues across sessions/token cutoffs.
 Resuming? Read this, then `AUDIT_LOG.md`, then `CHANGELOG.md`. Branch: `feat/audit-p0-p1`.
 
+## SPRINT 5 — UX/marketing/settings/security redesign (user decision 2026-06-21)
+USER DECISIONS: (1) Red Team tab -> **Full Business Marketing Suite** (subsections:
+Campaign Studio + A/B Experiment Lab + Audience & Brand-Safety), built on the
+existing measurement engine (incrementality/iROAS/CAC/LTV/MDE/dose-response).
+(2) **Fold red-team adversaries into presets** (drop standalone tab; keep feature
+via presets). (3) Presets: BOTH cited-framework AND business-scenario, **subsectioned**;
+ground in heavy research (many cited sources). (4) Settings: clarify
+labels/units/help/grouping + restructure/add knobs + harden web console +
+document security posture (ALL four).
+EVIDENCE BASE: 2 background research agents dispatched (marketing measurement/
+brand-safety standards [a7e44cef]; moderation-settings grounding + web-app
+security [a28f9a6]) -> cited recommendations feed presets/settings/suite/security.
+SEGMENTS: S5.1 research(agents) · S5.2 cited+subsectioned presets + visible
+summary · S5.3 settings clarity/restructure · S5.4 Business Suite · S5.5 security
+hardening + SECURITY.md · S5.6 test+browser-verify+docs+commit.
+DONE: S5.2 partial — visible "what this preset changes" summary panel (commit 60,
+browser-verified). Models are accurate; this sprint is design/content/security.
+PENDING: rest of S5.2-S5.6 (research-dependent; agents in flight).
+
 ## SPRINT 4 — fix ALL caveats (user decision 2026-06-19)
 DECISION: keep ALL guardrails (fully legal, no PII, no fabrication, research-only,
 not-legal-advice, projections-not-predictions) as honest disclaimers; push every
