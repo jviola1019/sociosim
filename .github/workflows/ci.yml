@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install (with dev extras)
+        run: pip install -e .[dev]
+      - name: Lint (ruff)
+        run: ruff check socio_sim tests run.py
+      - name: Tests (pytest + coverage gate)
+        run: pytest -q --cov=socio_sim --cov-report=term-missing --cov-fail-under=85
+      - name: E2E browser smoke (Playwright)
+        run: |
+          pip install -e .[e2e]
+          python -m playwright install --with-deps chromium
+          pytest -q tests/test_e2e_playwright.py
+      - name: Build wheel + verify packaged data
+        run: |
+          pip install build
+          python -m build --wheel
+          python -c "import zipfile,glob; n=zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist(); assert any(x.endswith('default_targets.json') for x in n), 'targets data missing from wheel'; assert sum(x.endswith('.yaml') for x in n)==4, 'policy packs missing from wheel'; print('wheel data OK')"

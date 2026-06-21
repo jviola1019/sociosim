@@ -1,8 +1,9 @@
 # CN pack — 2025 AI-content labelling measures: explicit labels + implicit
 # metadata watermarks on synthetic content; platforms must detect and add
 # conspicuous notices when labels are missing; logs retained >= 6 months.
+# Research approximation, NOT legal advice.
 pack: cn_ai_label
-version: "1.0"
+version: "1.1"
 jurisdiction: CN
 rules:
   - rule_id: CN-ILLEGAL-1
@@ -14,6 +15,11 @@ rules:
     evidence_threshold: 0.90
     log_required: true
     priority: 100
+    source_citation: "PRC Network Information Content Ecosystem Governance Provisions (2020); Cybersecurity Law Art. 47"
+    legal_uncertainty: "Category scope and 24h deadline are modeling assumptions; PRC removal obligations are broad and platform-liability-driven."
+    user_rights: "Notice; appeal not modelled (limited in practice)"
+    transparency_category: illegal_content_removal
+    human_review_required: false
 
   - rule_id: CN-AI-LABEL-1
     trigger:
@@ -27,3 +33,8 @@ rules:
     log_required: true
     retention_months: 6
     priority: 50
+    source_citation: "Measures for Labeling AI-Generated Synthetic Content (CAC, eff. 2025-09-01); Deep Synthesis Provisions (2023) Arts. 16-18"
+    legal_uncertainty: "Detection of unlabeled synthetic media is modelled as certain when a watermark/explicit label is present; real detection is imperfect."
+    user_rights: "Conspicuous platform notice added (no appeal)"
+    transparency_category: ai_content_label
+    human_review_required: false

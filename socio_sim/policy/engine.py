@@ -26,6 +26,14 @@ FTC_PACK_FILE = "ftc.yaml"
 REQUIRED_RULE_FIELDS = (
     "rule_id", "trigger", "action", "notice_required", "appeal_allowed",
     "deadline_hours", "evidence_threshold", "log_required", "priority",
+    "source_citation",  # policy-as-code, not vibes: every rule cites a source
+)
+
+#: Recommended on shipped packs (checked by tests); optional for user packs so
+#: the extra_pack extensibility API stays usable. Documented for completeness.
+RECOMMENDED_RULE_FIELDS = (
+    "legal_uncertainty", "user_rights", "transparency_category",
+    "human_review_required",
 )
 
 #: Actions that decide an item's fate; higher wins composition.

@@ -14,6 +14,10 @@ def first_order_indices(X: np.ndarray, y: np.ndarray, names: list,
                         n_bins: int = 20) -> dict:
     X = np.asarray(X, dtype=float)
     y = np.asarray(y, dtype=float)
+    # Adapt bin count to sample size: with n_bins >= n the conditional-mean
+    # estimator degenerates (every bin holds ~1 sample -> Var(E[y|x_j]) -> Var(y)
+    # -> every index saturates to 1.0). Keep >= ~2 samples per bin.
+    n_bins = max(2, min(n_bins, len(y) // 2))
     var_y = float(np.var(y))
     if var_y == 0:
         return {name: 0.0 for name in names}
@@ -29,3 +33,27 @@ def first_order_indices(X: np.ndarray, y: np.ndarray, names: list,
                                     weights=bin_weights))
         indices[name] = max(var_cond / var_y, 0.0)
     return indices
+
+
+def saltelli_indices(f_a, f_b, f_ab: dict, names: list) -> dict:
+    """Gold-standard variance-based sensitivity (Saltelli et al. 2010): both
+    first-order S1 and TOTAL-effect ST, from the A/B/AB_i design.
+
+    S1_i = mean(f_B * (f_AB_i - f_A)) / Var(Y)        (Saltelli 2010)
+    ST_i = 0.5 * mean((f_A - f_AB_i)^2) / Var(Y)      (Jansen 1999)
+
+    ST captures interactions (ST_i >= S1_i); ST_i ~ 0 means parameter i is
+    non-influential and can be fixed.
+    """
+    f_a = np.asarray(f_a, dtype=float)
+    f_b = np.asarray(f_b, dtype=float)
+    var_y = float(np.var(np.concatenate([f_a, f_b])))
+    s1, st = {}, {}
+    for name in names:
+        fab = np.asarray(f_ab[name], dtype=float)
+        if var_y > 0:
+            s1[name] = max(0.0, float(np.mean(f_b * (fab - f_a))) / var_y)
+            st[name] = max(0.0, float(0.5 * np.mean((f_a - fab) ** 2)) / var_y)
+        else:
+            s1[name] = st[name] = 0.0
+    return {"S1": s1, "ST": st, "var_y": var_y}

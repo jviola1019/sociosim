@@ -1,7 +1,8 @@
 # FTC Endorsement Guides — material-connection disclosure on sponsored and
 # influencer content; missing disclosure is inserted and flagged as violation.
+# Research approximation, NOT legal advice.
 pack: ftc
-version: "1.0"
+version: "1.1"
 jurisdiction: US-FTC
 rules:
   - rule_id: FTC-DISC-1
@@ -13,3 +14,8 @@ rules:
     evidence_threshold: 0.0
     log_required: true
     priority: 30
+    source_citation: "16 CFR Part 255 (Guides Concerning Use of Endorsements & Testimonials); FTC Act § 5 (15 U.S.C. § 45)"
+    legal_uncertainty: "Auto-inserting a disclosure is a simulation intervention; in practice the FTC pursues deceptive-omission enforcement against advertisers/endorsers, not auto-insertion."
+    user_rights: "Consumer protection from undisclosed material connections (no appeal applicable)"
+    transparency_category: disclosure_enforcement
+    human_review_required: false

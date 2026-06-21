@@ -38,6 +38,27 @@ def test_removal_with_notice_and_rationale():
     assert any("EU-ILLEGAL-1" in m["data"]["decision_rationale"] for m in mods)
 
 
+def test_trusted_flagger_escalation_gets_priority_review():
+    """DSA Art. 22: a trusted flagger's notice gets a shorter (priority) review
+    deadline than an ordinary user flag."""
+    mod, log, _ = setup(("EU",), human_review_delay_ticks=6)
+    it = item(id="t1", true_categories={"hate"})
+    mod.handle(it, scores={"hate": 0.6}, tick=0,
+               context={"user_flagged": True, "trusted_flagger": True})
+    trusted_due = mod.pending_reviews[-1].due_tick
+
+    mod2, _, _ = setup(("EU",), human_review_delay_ticks=6)
+    it2 = item(id="n1", true_categories={"hate"})
+    mod2.handle(it2, scores={"hate": 0.6}, tick=0,
+                context={"user_flagged": True, "trusted_flagger": False})
+    normal_due = mod2.pending_reviews[-1].due_tick
+
+    assert trusted_due < normal_due
+    assert trusted_due == mod.cfg.behavior.trusted_review_delay_ticks
+    esc = [e for e in log.by_kind("moderation") if e["data"].get("stage") == "escalated"]
+    assert esc and esc[-1]["data"]["trusted_flagger"] is True
+
+
 def test_downrank_and_label_for_misinfo():
     mod, log, _ = setup(("EU",))
     it = item(true_categories={"misinfo"})

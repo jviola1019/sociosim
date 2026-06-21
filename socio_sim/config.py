@@ -10,8 +10,13 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 
+from socio_sim.behavior import BehaviorParams
+
 VALID_JURISDICTIONS = {"US", "EU", "CN"}
 VALID_FEED_STRATEGIES = {"personalized", "chronological", "random"}
+#: noise = calibrated noise model (default, fast, fully synthetic); trained = a
+#: REAL numpy classifier trained on category-signal content with measured P/R.
+VALID_CLASSIFIER_MODES = {"noise", "trained"}
 #: template = deterministic (default); claude = Anthropic API (needs key);
 #: ollama / openai_compatible = free, keyless local LLM servers.
 VALID_CONTENT_MODES = {"template", "claude", "ollama", "openai_compatible"}
@@ -84,6 +89,7 @@ class RunConfig:
 
     # Content
     content_mode: str = "template"
+    classifier_mode: str = "noise"   # "noise" | "trained" (real numpy classifier)
     n_topics: int = 8
     classifier_targets: dict = field(default_factory=_default_classifier_targets)
     category_base_rates: dict = field(default_factory=_default_base_rates)
@@ -101,6 +107,11 @@ class RunConfig:
     graph_kind: str = "ba"
     graph_params: dict = field(default_factory=lambda: {"m": 5})
     homophily_rewire_fraction: float = 0.15
+    # Dynamic-graph evolution (per active agent, per day). All 0 => static graph
+    # (default; determinism baselines preserved). >0 enables follow/unfollow/churn.
+    follow_rate: float = 0.0       # P(add a tie via triadic closure)
+    unfollow_rate: float = 0.0     # P(drop a random current tie)
+    churn_rate: float = 0.0        # P(agent permanently deactivates)
 
     # Moderation
     human_review_accuracy: float = 0.92
@@ -109,6 +120,12 @@ class RunConfig:
 
     # Red-team adversaries (subset of experiments.scenarios.ADVERSARIES)
     red_team: tuple = ()
+
+    # Behaviour parameters (extracted, documented, sensitivity-testable knobs)
+    behavior: BehaviorParams = field(default_factory=BehaviorParams)
+
+    # Calibration benchmark target set (bundled published aggregates)
+    benchmark: str = "default"
 
     # Output
     out_dir: str = "out"
@@ -130,9 +147,19 @@ class RunConfig:
         base.update(overrides)
         return cls(**base)
 
+    @classmethod
+    def calibrated(cls, **overrides) -> "RunConfig":
+        """History-matched profile: a Holme-Kim graph (m=5, p=0.7) brings every
+        published-benchmark observable within 1 tolerance band (implausibility
+        I=1.0 < 3.0; see CALIBRATION_REPORT.md). Quick scale by default."""
+        base = dict(n_agents=1_000, n_ticks=7 * 24, n_replicates=20,
+                    graph_kind="plc", graph_params={"m": 5, "p": 0.7})
+        base.update(overrides)
+        return cls(**base)
+
     # -- serialization ----------------------------------------------------
     def to_dict(self) -> dict:
-        d = asdict(self)
+        d = asdict(self)  # asdict recurses into the nested BehaviorParams
         d["jurisdictions"] = list(self.jurisdictions)
         d["red_team"] = list(self.red_team)
         return d
@@ -142,6 +169,9 @@ class RunConfig:
         d = dict(d)
         d["jurisdictions"] = tuple(d.get("jurisdictions", ("US",)))
         d["red_team"] = tuple(d.get("red_team", ()))
+        beh = d.get("behavior")
+        if isinstance(beh, dict):       # rebuild nested dataclass from manifest
+            d["behavior"] = BehaviorParams(**beh)
         return cls(**d)
 
     def config_hash(self) -> str:
@@ -171,6 +201,14 @@ class RunConfig:
             fail("red_team", f"unknown adversaries: {sorted(unknown_adv)}")
         if self.content_mode not in VALID_CONTENT_MODES:
             fail("content_mode", f"must be one of {sorted(VALID_CONTENT_MODES)}")
+        if self.classifier_mode not in VALID_CLASSIFIER_MODES:
+            fail("classifier_mode", f"must be one of {sorted(VALID_CLASSIFIER_MODES)}")
+        from socio_sim.validation.targets import available_benchmarks
+        if self.benchmark not in available_benchmarks():
+            fail("benchmark", f"must be one of {available_benchmarks()}")
+        for rname in ("follow_rate", "unfollow_rate", "churn_rate"):
+            if not 0.0 <= getattr(self, rname) <= 1.0:
+                fail(rname, "must be in [0, 1]")
         for name in (
             "eu_optout_rate",
             "exploration_epsilon",

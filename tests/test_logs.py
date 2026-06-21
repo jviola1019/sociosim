@@ -13,6 +13,16 @@ def make_log(events):
     return log
 
 
+def test_event_kinds_match_emitted_capabilities():
+    """The whitelist must advertise exactly what the engine can emit: follow/
+    unfollow/churn are now LIVE (dynamic-graph option); policy_gap never was
+    (fail-closed escalations are logged as `moderation` rule POLICY-GAP)."""
+    from socio_sim.logs.events import EVENT_KINDS
+    for live in ("follow", "unfollow", "churn"):
+        assert live in EVENT_KINDS
+    assert "policy_gap" not in EVENT_KINDS
+
+
 EVENTS = [
     dict(tick=0, kind="post", actor_id=1, content_id="c1", data={"topic": 2}),
     dict(tick=1, kind="moderation", actor_id=-1, content_id="c1",

@@ -22,7 +22,7 @@ from pathlib import Path
 import numpy as np
 
 from socio_sim import RESEARCH_USE_NOTICE, __version__
-from socio_sim.analytics.metrics import cascade_sizes
+from socio_sim.analytics.metrics import cascade_sizes, cascade_tree
 from socio_sim.config import ADVERSARIES, CATEGORIES, RunConfig
 from socio_sim.llm_bootstrap import ensure_model, ensure_server, server_up
 from socio_sim.pipeline import run_and_analyze
@@ -34,6 +34,23 @@ _CONTENT_TYPES = {".html": "text/html; charset=utf-8",
                   ".css": "text/css; charset=utf-8",
                   ".js": "text/javascript; charset=utf-8",
                   ".svg": "image/svg+xml"}
+
+
+def safe_static_path(suffix: str):
+    """Resolve a ``/static/<suffix>`` request, contained within STATIC_DIR.
+
+    Returns the resolved Path, or None for traversal attempts (``..`` / absolute
+    paths) that would escape the static directory. Localhost-only binding does
+    not make traversal safe: a page in the browser can still fetch 127.0.0.1.
+    """
+    base = STATIC_DIR.resolve()
+    try:
+        target = (base / suffix).resolve()
+    except (OSError, ValueError):
+        return None
+    if target == base or target.is_relative_to(base):
+        return target
+    return None
 
 HARMFUL_CATS = ("hate", "harassment", "fraud", "misinfo", "adult",
                 "illegal_goods", "self_harm")
@@ -76,7 +93,8 @@ def _build_config(body: dict) -> RunConfig:
     """
     profile = body.get("profile", "quick")
     factory = {"quick": RunConfig.quick, "test": RunConfig.test,
-               "standard": RunConfig.standard}.get(profile, RunConfig.quick)
+               "standard": RunConfig.standard,
+               "calibrated": RunConfig.calibrated}.get(profile, RunConfig.quick)
 
     jurisdictions = tuple(j for j in body.get("jurisdictions", ["EU"])
                           if j in ("US", "EU", "CN")) or ("EU",)
@@ -95,10 +113,23 @@ def _build_config(body: dict) -> RunConfig:
             base_rates[cat] = float(body[f"rate_{cat}"])
 
     graph_kind = body.get("graph_kind", "ba")
-    graph_params = {"m": int(_f(body, "graph_m", 5))} if graph_kind == "ba" else \
-        ({"k": int(_f(body, "graph_k", 10)), "p": _f(body, "graph_p", 0.05)}
-         if graph_kind == "ws" else {"block_sizes": [500, 500],
-                                     "p_matrix": [[0.02, 0.002], [0.002, 0.02]]})
+    # SBM blocks must sum to the agent count (else the graph has a different node
+    # count than n_agents -> engine indexing error). Derive from the effective n.
+    _prof_n = {"quick": 1000, "test": 200, "standard": 10000,
+               "calibrated": 1000}.get(profile, 1000)
+    _n = int(body["n_agents"]) if body.get("n_agents") else _prof_n
+    _half = _n // 2
+    if graph_kind == "ba":
+        graph_params = {"m": int(_f(body, "graph_m", 5))}
+    elif graph_kind == "plc":
+        graph_params = {"m": int(_f(body, "graph_m", 5)),
+                        "p": _f(body, "graph_plc_p", 0.7)}
+    elif graph_kind == "ws":
+        graph_params = {"k": int(_f(body, "graph_k", 10)),
+                        "p": _f(body, "graph_p", 0.05)}
+    else:  # sbm
+        graph_params = {"block_sizes": [_half, _n - _half],
+                        "p_matrix": [[0.02, 0.002], [0.002, 0.02]]}
 
     overrides = dict(
         jurisdictions=jurisdictions,
@@ -109,6 +140,11 @@ def _build_config(body: dict) -> RunConfig:
         feed_size=int(_f(body, "feed_size", 20)),
         ad_slot_interval=int(_f(body, "ad_slot_interval", 5)),
         content_mode=body.get("content_mode", "template"),
+        classifier_mode=body.get("classifier_mode", "noise"),
+        benchmark=body.get("benchmark", "default"),
+        follow_rate=_f(body, "follow_rate", 0.0),
+        unfollow_rate=_f(body, "unfollow_rate", 0.0),
+        churn_rate=_f(body, "churn_rate", 0.0),
         n_topics=int(_f(body, "n_topics", 8)),
         classifier_targets=classifier_targets,
         category_base_rates=base_rates,
@@ -136,6 +172,33 @@ def _build_config(body: dict) -> RunConfig:
     if body.get("llm_base_url"):
         overrides["llm_base_url"] = str(body["llm_base_url"])
     return factory(**overrides).validate()
+
+
+def _campaigns_fn(body: dict):
+    """Build a campaigns factory from a web `campaigns` spec list, or None to
+    use the default campaigns. The factory returns FRESH Campaign objects each
+    call (budgets mutate during a run; Monte Carlo needs independent copies)."""
+    specs = body.get("campaigns")
+    if not specs:
+        return None
+    clean = []
+    for s in specs:
+        try:
+            clean.append(dict(
+                id=str(s.get("id") or f"camp{len(clean) + 1}"),
+                advertiser=str(s.get("advertiser") or "Advertiser"),
+                bid=float(s.get("bid", 2.0)),
+                budget=float(s.get("budget", 100.0)),
+                base_ctr=float(s.get("base_ctr", 0.012)),
+                base_cvr=float(s.get("base_cvr", 0.05)),
+                conversion_value=float(s.get("conversion_value", 1.0)),
+            ))
+        except (TypeError, ValueError):
+            continue
+    if not clean:
+        return None
+    from socio_sim.ads.campaigns import Campaign
+    return lambda cfg: [Campaign(**c) for c in clean]
 
 
 def _chart_data(result, summary) -> dict:
@@ -174,6 +237,7 @@ def _chart_data(result, summary) -> dict:
         "timeline_posts": posts_t,
         "timeline_removed": removed_t,
         "timeline_buckets": nb,
+        "cascade_tree": cascade_tree(result.log),
     }
 
 
@@ -236,6 +300,8 @@ def _run_job(job_id: str, body: dict):
     try:
         cfg = _build_config(body)
         job["n_ticks"] = cfg.n_ticks
+        # Preview (1) vs Research (N replicates -> Monte Carlo intervals).
+        n_replicates = max(1, min(int(body.get("n_replicates", 1) or 1), 200))
 
         # On-demand local LLM bootstrap so the dashboard's ollama mode works
         # without separate setup (skip for user-supplied openai_compatible).
@@ -254,11 +320,20 @@ def _run_job(job_id: str, body: dict):
         # Same run → analyze → verify pipeline the CLI and examples use.
         verify_replay = bool(body.get("verify_replay", cfg.n_agents <= 2000))
         a = run_and_analyze(
-            cfg, verify_replay=verify_replay, progress_callback=on_progress,
+            cfg, verify_replay=verify_replay, n_replicates=n_replicates,
+            campaigns_fn=_campaigns_fn(body), progress_callback=on_progress,
             on_phase=lambda p: job.__setitem__("phase", p))
         result = a.result
 
         llm_calls = result.log.by_kind("llm_call")
+        # Kind-stratified event sample for the in-UI audit-log explorer (up to
+        # 60 per kind, in order). The full log is on disk at out_dir/events.jsonl.
+        ev_sample, _per_kind = [], {}
+        for e in result.log.events:
+            c = _per_kind.get(e["kind"], 0)
+            if c < 60:
+                ev_sample.append(e)
+                _per_kind[e["kind"]] = c + 1
         job["result"] = _jsonable({
             "summary": a.summary,
             "charts": _chart_data(result, a.summary),
@@ -270,6 +345,12 @@ def _run_job(job_id: str, body: dict):
             "targets": a.targets,
             "implausibility": a.implausibility,
             "replay": a.replay,
+            "mc": a.mc,
+            "n_replicates": n_replicates,
+            "mode": "research" if n_replicates > 1 else "preview",
+            "transparency": a.transparency,
+            "event_sample": ev_sample,
+            "event_kinds": sorted(_per_kind),
             "elapsed_s": round(time.time() - started, 2),
             "n_events": len(result.log.events),
             "content_mode": cfg.content_mode,
@@ -285,6 +366,33 @@ def _run_job(job_id: str, body: dict):
             _STORE.save(job_id, job["result"], label=body.get("label", ""))
         except Exception:
             pass  # history is best-effort; never fail a run over it
+        job["status"] = "done"
+        job["progress"] = 1.0
+    except Exception as exc:
+        job["status"] = "error"
+        job["error"] = f"{type(exc).__name__}: {exc}"
+
+
+def _run_compare(job_id: str, body: dict):
+    """Baseline-vs-intervention experiment (common random numbers) over the web.
+    `body` is a normal run config; `body["intervention"]` holds the overrides
+    that define the intervention arm; `compare_replicates` sets N."""
+    job = _JOBS[job_id]
+    try:
+        from socio_sim.experiments.runner import compare
+        from socio_sim.pipeline import _headline_metrics
+        n = max(2, min(int(body.get("compare_replicates", 10) or 10), 100))
+        job["phase"] = "comparing (baseline vs intervention)"
+        base = _build_config(body)
+        interv = _build_config({**body, **(body.get("intervention") or {})})
+        res = compare(base, interv, n, _headline_metrics,
+                      campaigns_fn=_campaigns_fn(body))
+        job["result"] = _jsonable({
+            "compare": res, "n_replicates": n,
+            "baseline_jurisdictions": list(base.jurisdictions),
+            "intervention_jurisdictions": list(interv.jurisdictions),
+            "provenance": "crn-paired-monte-carlo",
+        })
         job["status"] = "done"
         job["progress"] = 1.0
     except Exception as exc:
@@ -353,7 +461,11 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     self._send_json({"result": payload, "meta": _STORE.meta(run_id)})
         elif route.startswith("/static/"):
-            self._send_file(STATIC_DIR / route[len("/static/"):])
+            target = safe_static_path(route[len("/static/"):])
+            if target is None:
+                self.send_error(404, "not found")
+            else:
+                self._send_file(target)
         else:
             self.send_error(404, "not found")
 
@@ -366,6 +478,9 @@ class Handler(BaseHTTPRequestHandler):
             return
         if fmt == "report":
             body, ctype, name = payload.get("report_md", ""), "text/markdown", "report.md"
+        elif fmt == "transparency":
+            body = json.dumps(payload.get("transparency") or {}, indent=2)
+            ctype, name = "application/json", "transparency.json"
         else:  # json
             body, ctype, name = json.dumps(payload, indent=2), "application/json", "result.json"
         data = body.encode("utf-8")
@@ -377,7 +492,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_POST(self):
-        if self.path != "/api/run":
+        route = self.path.split("?")[0]
+        if route not in ("/api/run", "/api/compare"):
             self.send_error(404, "not found")
             return
         length = int(self.headers.get("Content-Length", 0))
@@ -387,7 +503,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": "invalid JSON"}, 400)
             return
         try:
-            _build_config(body)
+            _build_config(body)  # validates the baseline arm
         except Exception as exc:
             self._send_json({"error": f"{type(exc).__name__}: {exc}"}, 400)
             return
@@ -395,8 +511,8 @@ class Handler(BaseHTTPRequestHandler):
         with _LOCK:
             _JOBS[job_id] = {"status": "running", "progress": 0.0,
                              "tick": 0, "phase": "queued"}
-        threading.Thread(target=_run_job, args=(job_id, body),
-                         daemon=True).start()
+        target = _run_compare if route == "/api/compare" else _run_job
+        threading.Thread(target=target, args=(job_id, body), daemon=True).start()
         self._send_json({"job_id": job_id})
 
     def do_DELETE(self):

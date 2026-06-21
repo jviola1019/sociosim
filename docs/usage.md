@@ -27,7 +27,8 @@ motion (blur-in reveals, count-up metrics, sliding tab indicators).
 - **Scenario** — a preset (EU DSA, US §230, CN labelling, multi-jurisdiction,
   marketing experiment, misinformation stress test, fairness audit, or Custom)
   populates the other tabs; then scale profile, seed, tick length, run label,
-  replay toggle.
+  replay toggle, and **Monte Carlo Replicates** (1 = Preview / within-run
+  intervals; >1 = Research run with mc-replicated percentile intervals).
 - **Network** — agent/tick overrides, topic count, graph model (BA / WS / SBM)
   and its parameters, homophily rewiring.
 - **Content** — generator (template / local LLM), model, and per-category
@@ -36,7 +37,9 @@ motion (blur-in reveals, count-up metrics, sliding tab indicators).
 - **Moderation** — jurisdiction packs + FTC toggle, classifier precision/recall,
   human-review accuracy and delay, appeal grant rate.
 - **Feed & Ads** — ranking strategy, EU opt-out, exploration ε, feed size,
-  holdout fraction, frequency cap, disclosure compliance.
+  holdout fraction, frequency cap, disclosure compliance, and a **campaign
+  editor** (add/remove campaigns with bid / budget / base CTR / base CVR;
+  blank = three default campaigns).
 - **Red Team** — adversary toggles.
 
 The simulation runs **only when Run Simulation is clicked**, after settings are
@@ -50,11 +53,30 @@ tuned. The engine runs in a background thread with a live progress meter
   moderation action applied.
 - **Charts** — diurnal posting, degree distribution, activity timeline, cascade
   sizes (hand-built SVG).
+- **Network** — sampled social-graph topology (top hubs + edges, force-directed,
+  coloured by ideology).
+- **Cascade** — the largest share tree, nodes revealed in posting-time order
+  (propagation replay).
 - **Fairness** (confusion grid + FPR/FNR by group), **Ads** (each campaign with a
-  **unique generated ad creative** + lift/CTR table), **Calibration** (benchmark
-  whisker plot), **Log** (full markdown report + manifest).
+  **unique generated ad creative** + table incl. CUPED-adjusted lift, MDE,
+  ROAS/iROAS/CAC/LTV and Benjamini–Hochberg significance), **Calibration**
+  (benchmark whisker plot), **Log** (markdown report + Monte Carlo intervals +
+  transparency tally; **Export** as Markdown / full JSON / transparency JSON).
 
 Outputs for each run are also written under `out/web/<timestamp>/`.
+
+### CLI flags (`run.py`)
+
+```bash
+python run.py --profile quick                    # Preview run (single replicate)
+python run.py --replicates 20                    # Research run: Monte Carlo 95% intervals
+python run.py --validate [--sens-samples 24]     # sensitivity + calibration -> VALIDATION_REPORT.md
+python run.py --web [--port 8765 --bind 0.0.0.0 --no-open]   # browser console
+python run.py --llm [--model qwen2.5:0.5b]       # free local Ollama content
+```
+
+`--bind` defaults to `127.0.0.1` (localhost only); set `0.0.0.0` only on a
+trusted host/container (see `Dockerfile`).
 
 When a run requests the local-LLM content mode, the server **bootstraps Ollama
 on demand** (starts the server, pulls the model) and shows the phase; if the
@@ -96,7 +118,7 @@ result = Simulation(cfg).run(write=True)   # writes events.jsonl + manifest.json
 
 Key config knobs (all validated eagerly): `jurisdictions` (any of US/EU/CN),
 `ftc_enabled`, `feed_strategy` (`personalized|chronological|random`),
-`eu_optout_rate`, `content_mode` (`template|claude`), `classifier_targets`
+`eu_optout_rate`, `content_mode` (`template|claude|ollama|openai_compatible`), `classifier_targets`
 (per-category precision/recall), `category_base_rates`, `ads_enabled`,
 `holdout_fraction`, `ad_frequency_cap_per_day`, `graph_kind` (`ba|ws|sbm`),
 `red_team` (adversary names).
@@ -107,7 +129,7 @@ Key config knobs (all validated eagerly): `jurisdictions` (any of US/EU/CN),
 from socio_sim.analytics.metrics import summarize_run
 from socio_sim.analytics.report import render
 
-summary = summarize_run(result)            # every aggregate has a 95% CI
+summary = summarize_run(result)            # key aggregates carry a provenance-labelled 95% interval
 markdown = render(summary, result.manifest)
 ```
 

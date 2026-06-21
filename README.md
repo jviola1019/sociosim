@@ -53,6 +53,9 @@ watch the live progress meter, then explore the tabbed results:
   persona, category tags, and moderation outcome.
 - **Charts** — diurnal posting, degree distribution, activity timeline, cascade
   sizes (hand-built SVG that draws in).
+- **Network** — sampled social-graph topology (top hubs + edges, force-directed,
+  coloured by ideology). Set **Monte Carlo Replicates > 1** for a Research run
+  with mc-replicated intervals.
 - **Fairness**, **Ads** (each campaign rendered with a **unique generated ad
   creative**), **Calibration** (benchmark whisker plot), **Log**.
 
@@ -80,6 +83,8 @@ python run.py --llm --profile quick              # 1,000 agents × 7 days
 python run.py --llm --model qwen2.5:3b           # nicer text, bigger model
 python run.py --profile standard --jurisdictions US,EU,CN
 python run.py --agents 300 --ticks 72 --seed 7   # custom scale/seed
+python run.py --replicates 20                    # Research run: Monte Carlo 95% intervals
+python run.py --validate                         # sensitivity + calibration -> VALIDATION_REPORT.md
 ```
 
 ## Documentation
@@ -89,6 +94,28 @@ python run.py --agents 300 --ticks 72 --seed 7   # custom scale/seed
 - `docs/legal_compliance.md` — how policy packs map to DSA, §230, CN labelling, FTC
 - `docs/nist_ai_rmf_map.md` — NIST AI RMF alignment
 - `docs/superpowers/specs/` — design spec; `docs/superpowers/plans/` — build plan
+
+## Reproducibility & quality gates
+
+- **Determinism:** same config + seed → identical event-stream SHA-256 (verified
+  on every small run; regression-locked in `tests/test_determinism_regression.py`).
+- **Uncertainty provenance:** every headline interval is labelled — within-run
+  bootstrap, analytic Wilson/Beta credible, or **mc-replicated**. *Preview* =
+  single run; *Research* (`--replicates N`) = Monte Carlo percentiles.
+- **Incrementality:** ad lift = exposed − holdout conversion over an organic
+  baseline channel, with a Newcombe CI, CUPED adjustment, a lift p-value,
+  Benjamini–Hochberg FDR across campaigns, and ROAS/iROAS/CAC/LTV (synthetic).
+- **Validation:** `python run.py --validate` runs a BehaviorParams sensitivity
+  sweep + calibration (implausibility, diurnal-KS, ABC-posterior propagation) →
+  `VALIDATION_REPORT.md`.
+- **Transparency:** every run emits a DSA/§230/CN/FTC-style transparency tally
+  (web export `?fmt=transparency`); policy packs carry statute citations and
+  `legal_uncertainty` notes.
+- **Tests/CI:** `pytest` (~165 tests incl. property-based) + `ruff`, ~92%
+  coverage; GitHub Actions enforces both with an 85% coverage gate. See
+  `AUDIT_LOG.md`, `KNOWN_LIMITATIONS.md`, `SOURCE_LEDGER.md`, `CHANGELOG.md`.
+- **Docker:** `docker build -t sociosim . && docker run --rm sociosim`
+  (deterministic CLI run; web console notes inside the `Dockerfile`).
 
 ## Default run profiles (evidence-based)
 

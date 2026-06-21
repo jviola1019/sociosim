@@ -26,19 +26,16 @@ from socio_sim.content.classify import NoisyClassifier
 from socio_sim.content.generate import TemplateGenerator
 from socio_sim.feed.ranking import FeedRanker
 from socio_sim.graph.generators import make_graph, mix_homophily
+from socio_sim.graph.metrics import sample_subgraph
 from socio_sim.graph.metrics import summary as graph_summary
 from socio_sim.logs.events import EventLog
 from socio_sim.logs.manifest import Manifest
 from socio_sim.moderation.workflow import ModerationSystem
 from socio_sim.policy.engine import PolicyEngine
 
-P_POST_GIVEN_ACTIVE = 0.30
-P_SHARE_GIVEN_ENGAGED = 0.10
-P_FLAG_SCALE = 0.30
-IMPRESSION_FATIGUE = 0.005
-FATIGUE_DECAY_PER_TICK = 0.05
-RECENT_WINDOW_TICKS = 48
-EXPLORATION_POOL_SIZE = 10
+# Behaviour constants now live in socio_sim.behavior.BehaviorParams (cfg.behavior),
+# so they are documented, sensitivity-testable, and calibratable. Defaults there
+# reproduce the prior hardcoded values exactly (determinism guard locks this).
 
 HARMFUL_CATEGORIES = {"hate", "harassment", "fraud", "misinfo", "adult",
                       "illegal_goods", "self_harm"}
@@ -77,6 +74,7 @@ class Simulation:
     def __init__(self, cfg: RunConfig, campaigns: list | None = None):
         cfg.validate()
         self.cfg = cfg
+        self.bp = cfg.behavior  # documented behaviour knobs (was module constants)
         from socio_sim.rng import SeedTree
         tree = SeedTree(cfg.root_seed)
         rep = cfg.replicate_id
@@ -84,7 +82,8 @@ class Simulation:
         # pairing intact when an intervention changes one subsystem only.
         self.rngs = {name: tree.generator(name, rep) for name in (
             "graph", "agents", "content", "classifier", "moderation", "ads",
-            "feed", "activity", "posting", "engagement", "optout")}
+            "feed", "activity", "posting", "engagement", "optout", "conversion",
+            "ad_latency", "graph_dynamics")}
 
         # Graph + personas
         graph = make_graph(cfg.graph_kind, cfg.n_agents, self.rngs["graph"],
@@ -98,8 +97,21 @@ class Simulation:
             graph = mix_homophily(graph, attrs, cfg.homophily_rewire_fraction,
                                   self.rngs["graph"])
         self.graph_stats = graph_summary(graph)
+        # Sampled subgraph for the topology view (hubs + their edges, coloured
+        # by ideology bucket). Not in the event stream -> determinism unaffected.
+        _groups = {i: ("L" if self.personas.ideology[i, 0] < 0 else "R")
+                   for i in range(cfg.n_agents)}
+        self.graph_stats["graph_sample"] = sample_subgraph(graph, _groups)
         self.neighbors = {i: np.array(sorted(graph.neighbors(i)), dtype=int)
                           for i in range(cfg.n_agents)}
+        # Optional dynamic-graph state (follow/unfollow/churn). Built only when
+        # enabled so static (default) runs pay nothing and stay bit-identical.
+        self._dynamic_graph = (cfg.follow_rate > 0 or cfg.unfollow_rate > 0
+                               or cfg.churn_rate > 0)
+        self.churned: set[int] = set()
+        self._adj = ({i: set(self.neighbors[i].tolist())
+                      for i in range(cfg.n_agents)}
+                     if self._dynamic_graph else None)
 
         self.state = AgentState.init(cfg.n_agents, cfg.n_topics)
         self.log = EventLog()
@@ -110,7 +122,8 @@ class Simulation:
         #   claude            -> Anthropic API (needs ANTHROPIC_API_KEY)
         #   ollama            -> free local Ollama server (no key)
         #   openai_compatible -> free local OpenAI-compatible server (no key)
-        base_gen = TemplateGenerator(cfg, self.rngs["content"])
+        base_gen = TemplateGenerator(cfg, self.rngs["content"],
+                                     inject_signal=(cfg.classifier_mode == "trained"))
         cache = cfg.llm_cache_path or str(Path(cfg.out_dir) / "llm_cache.json")
         if cfg.content_mode == "claude":
             self.generator = ClaudeAdapter(
@@ -127,15 +140,28 @@ class Simulation:
             self.generator = base_gen
         self._current_tick = 0
 
-        self.classifier = NoisyClassifier(cfg.classifier_targets,
-                                          cfg.category_base_rates,
-                                          self.rngs["classifier"])
+        if cfg.classifier_mode == "trained":
+            # Train a REAL classifier on category-signal content (measured P/R,
+            # not assumed). Deterministic: seeded training generator + numpy LR.
+            from socio_sim.config import CATEGORIES
+            from socio_sim.content.ml_classifier import (TrainableClassifier,
+                                                         build_training_data)
+            train_gen = TemplateGenerator(cfg, tree.generator("content_train", rep),
+                                          inject_signal=True)
+            texts, labels = build_training_data(train_gen, self.personas, n=1500)
+            self.classifier = TrainableClassifier(CATEGORIES).fit(texts, labels)
+        else:
+            self.classifier = NoisyClassifier(cfg.classifier_targets,
+                                              cfg.category_base_rates,
+                                              self.rngs["classifier"])
         self.policy = PolicyEngine(cfg.jurisdictions, cfg.ftc_enabled)
         self.moderation = ModerationSystem(cfg, self.policy, self.personas,
                                            self.log, self.rngs["moderation"])
         self.campaigns = campaigns if campaigns is not None else default_campaigns(cfg)
         self.ads = AdSystem(cfg, self.campaigns, self.personas, self.state,
-                            self.policy, self.log, self.rngs["ads"])
+                            self.policy, self.log, self.rngs["ads"],
+                            baseline_rng=self.rngs["conversion"],
+                            latency_rng=self.rngs["ad_latency"])
         self.feed = FeedRanker(cfg, self.personas, self.state, self.log,
                                self.rngs["feed"])
 
@@ -169,6 +195,60 @@ class Simulation:
                                                replace=False).tolist())
         self._rt_rng = rt_rng
 
+    def _classify(self, item) -> dict:
+        """Platform belief about an item's categories: a real trained classifier
+        on the item text (trained mode) or the calibrated noise model (default)."""
+        if self.cfg.classifier_mode == "trained":
+            return self.classifier.predict_scores(item.text)
+        return self.classifier.classify_one(item.true_categories)
+
+    def _follow_candidate(self, a: int, rng) -> int:
+        """Triadic closure: a friend-of-a-friend if possible, else a random
+        node (preferential-ish via the giant component). Deterministic."""
+        nbrs = sorted(self._adj[a])
+        if nbrs:
+            mid = nbrs[int(rng.integers(0, len(nbrs)))]
+            cands = sorted(self._adj[mid] - self._adj[a] - {a})
+            if cands:
+                return cands[int(rng.integers(0, len(cands)))]
+        return int(rng.integers(0, self.cfg.n_agents))
+
+    def _evolve_graph(self, tick: int):
+        """Daily follow/unfollow/churn. Deterministic: a dedicated RNG stream is
+        drawn in fixed agent order; ties are undirected (both endpoints updated).
+        Emitted as follow/unfollow/churn events -> part of the hashed stream."""
+        rng = self.rngs["graph_dynamics"]
+        cfg = self.cfg
+        changed: set[int] = set()
+        for a in range(cfg.n_agents):
+            if a in self.churned:
+                continue
+            if cfg.churn_rate > 0 and rng.random() < cfg.churn_rate:
+                self.churned.add(a)
+                self.log.append(tick=tick, kind="churn", actor_id=a,
+                                content_id=None,
+                                data={"degree": len(self._adj[a])})
+                continue
+            if (cfg.unfollow_rate > 0 and self._adj[a]
+                    and rng.random() < cfg.unfollow_rate):
+                ties = sorted(self._adj[a])
+                b = ties[int(rng.integers(0, len(ties)))]
+                self._adj[a].discard(b)
+                self._adj[b].discard(a)
+                changed.update((a, b))
+                self.log.append(tick=tick, kind="unfollow", actor_id=a,
+                                content_id=None, data={"target": int(b)})
+            if cfg.follow_rate > 0 and rng.random() < cfg.follow_rate:
+                c = self._follow_candidate(a, rng)
+                if c != a and c not in self.churned and c not in self._adj[a]:
+                    self._adj[a].add(c)
+                    self._adj[c].add(a)
+                    changed.update((a, c))
+                    self.log.append(tick=tick, kind="follow", actor_id=a,
+                                    content_id=None, data={"target": int(c)})
+        for c in changed:
+            self.neighbors[c] = np.array(sorted(self._adj[c]), dtype=int)
+
     def _log_degradation(self, reason: str):
         self.log.append(tick=self._current_tick, kind="degradation",
                         actor_id=-1, content_id=None, data={"reason": reason})
@@ -187,16 +267,28 @@ class Simulation:
             hour = (tick * cfg.tick_hours) % 24
             if hour == 0:
                 self.state.reset_daily_counters()
-            self.state.decay_fatigue(FATIGUE_DECAY_PER_TICK)
+                # Daily social-graph evolution (follow/unfollow/churn) BEFORE the
+                # day's baseline/feeds so new ties take effect same day.
+                if self._dynamic_graph and tick > 0:
+                    self._evolve_graph(tick)
+                # Organic (non-ad) conversion opportunity for every agent, so
+                # the holdout has a measurable baseline rate (valid lift).
+                if cfg.ads_enabled:
+                    for aid in range(cfg.n_agents):
+                        self.ads.simulate_baseline(aid, tick)
+            self.state.decay_fatigue(self.bp.fatigue_decay_per_tick)
 
             active = np.flatnonzero(
                 self.personas.active_mask(hour, self.rngs["activity"]))
+            if self.churned:
+                active = active[~np.isin(active,
+                                         np.fromiter(self.churned, dtype=int))]
 
             self._do_posting(active, tick)
             self.moderation.process_queues(tick)
             self._do_feeds(active, tick)
 
-            cutoff = tick - RECENT_WINDOW_TICKS
+            cutoff = tick - self.bp.recent_window_ticks
             self.recent_posts = [p for p in self.recent_posts if p.tick > cutoff]
 
             if progress_callback is not None:
@@ -226,7 +318,8 @@ class Simulation:
         posting_rng = self.rngs["posting"]
         for agent_id in active:
             is_spammer = int(agent_id) in self.spammers
-            p_post = 1.0 if is_spammer else P_POST_GIVEN_ACTIVE
+            p_post = (self.bp.spammer_post_prob if is_spammer
+                      else self.bp.p_post_given_active)
             if posting_rng.random() >= p_post:
                 continue
             item = self.generator.generate(int(agent_id), self.personas, tick)
@@ -235,9 +328,10 @@ class Simulation:
                 if self._rt_rng.random() < 0.5:
                     item.true_categories.add("fraud")
             if int(agent_id) in self.amplifiers \
-                    and self._rt_rng.random() < 0.6:
+                    and self._rt_rng.random() < self.bp.amplifier_misinfo_prob:
                 item.true_categories.add("misinfo")
-                item.stance = float(np.clip(item.stance * 1.5, -1, 1))
+                item.stance = float(np.clip(
+                    item.stance * self.bp.amplifier_stance_gain, -1, 1))
             if self.cfg.content_mode in LLM_CONTENT_MODES:
                 self.log.append(tick=tick, kind="llm_call", actor_id=int(agent_id),
                                 content_id=item.id, data={
@@ -245,7 +339,7 @@ class Simulation:
                                     "model": getattr(self.generator, "model",
                                              getattr(self.generator, "MODEL", "n/a")),
                                     "text_preview": item.text[:60]})
-            scores = self.classifier.classify_one(item.true_categories)
+            scores = self._classify(item)
             self.scores_by_item[item.id] = scores
             self.log.append(tick=tick, kind="post", actor_id=int(agent_id),
                             content_id=item.id, data={
@@ -271,20 +365,48 @@ class Simulation:
         exposure = np.zeros((self.cfg.n_agents, n_topics))
         exposure_count = np.zeros((self.cfg.n_agents, n_topics))
 
+        # Index posts by author ONCE per tick (was an O(recent_posts) scan per
+        # active agent -> the dominant cost at scale). Candidate order is
+        # irrelevant downstream: FeedRanker.serve sorts by (-score, id), a total
+        # order, and candidates are not sampled — so building them by author
+        # changes nothing in the output. The exploration POOL is sampled, so its
+        # construction did change (oversample indices from recent_posts instead
+        # of materialising the full non-neighbour list); that is an intentional
+        # behaviour change and the locked determinism baselines were regenerated.
+        recent = self.recent_posts
+        n_recent = len(recent)
+        posts_by_author: dict = {}
+        for p in recent:
+            posts_by_author.setdefault(p.author_id, []).append(p)
+        pool_size = self.bp.exploration_pool_size
+
         for agent_id in active:
             aid = int(agent_id)
             neigh = self.neighbors[aid]
-            if len(neigh) == 0 and not self.recent_posts:
+            if len(neigh) == 0 and not recent:
                 continue
             neigh_set = set(neigh.tolist())
-            candidates = [p for p in self.recent_posts
-                          if p.author_id in neigh_set and p.author_id != aid]
-            pool = [p for p in self.recent_posts
-                    if p.author_id not in neigh_set and p.author_id != aid]
-            if len(pool) > EXPLORATION_POOL_SIZE:
-                idx = feed_rng.choice(len(pool), EXPLORATION_POOL_SIZE,
-                                      replace=False)
-                pool = [pool[i] for i in sorted(idx)]
+            candidates = []
+            for n in neigh_set:
+                if n == aid:
+                    continue
+                lst = posts_by_author.get(n)
+                if lst:
+                    candidates.extend(lst)
+            # Exploration pool: a random sample of non-neighbour posts, drawn by
+            # oversampling recent_posts indices (O(k)) then filtering — avoids the
+            # per-agent O(recent_posts) scan.
+            pool = []
+            if n_recent:
+                k = min(n_recent, pool_size * 3)
+                idx = (sorted(feed_rng.choice(n_recent, k, replace=False).tolist())
+                       if n_recent > k else range(n_recent))
+                for i in idx:
+                    p = recent[i]
+                    if p.author_id not in neigh_set and p.author_id != aid:
+                        pool.append(p)
+                        if len(pool) >= pool_size:
+                            break
 
             ads = []
             if self.cfg.ads_enabled:
@@ -302,7 +424,7 @@ class Simulation:
                 continue
 
             self.state.add_fatigue(np.bincount(
-                [aid], weights=[IMPRESSION_FATIGUE * len(feed)],
+                [aid], weights=[self.bp.impression_fatigue * len(feed)],
                 minlength=self.cfg.n_agents))
 
             for item in feed:
@@ -313,7 +435,8 @@ class Simulation:
                 belief = float(self.state.beliefs[aid, item.topic])
                 match = 1.0 - abs(item.stance - belief) / 2.0
                 p_engage = np.clip(
-                    0.3 * interest * match / (1.0 + float(self.state.fatigue[aid])),
+                    self.bp.engagement_base * interest * match
+                    / (1.0 + float(self.state.fatigue[aid])),
                     0, 1)
                 if eng.random() < p_engage:
                     item.likes += 1
@@ -323,14 +446,14 @@ class Simulation:
                                     data={"type": "like", "topic": item.topic})
                     exposure[aid, item.topic] += item.stance
                     exposure_count[aid, item.topic] += 1
-                    if eng.random() < P_SHARE_GIVEN_ENGAGED:
+                    if eng.random() < self.bp.p_share_given_engaged:
                         self._do_share(aid, item, tick)
 
                 # Brigading ring: coordinated bad-faith flags on influencers.
                 if aid in self.brigaders \
                         and 0 <= item.author_id < self.personas.n \
                         and self.personas.influencer[item.author_id] \
-                        and eng.random() < 0.8:
+                        and eng.random() < self.bp.brigade_flag_prob:
                     self.log.append(tick=tick, kind="flag", actor_id=aid,
                                     content_id=item.id,
                                     data={"brigade": True})
@@ -341,12 +464,15 @@ class Simulation:
                 # Flagging of perceived-harmful content (user easy-flag path)
                 if item.true_categories & HARMFUL_CATEGORIES:
                     attitude = float(self.personas.moderation_attitude[aid])
-                    if eng.random() < P_FLAG_SCALE * attitude:
+                    if eng.random() < self.bp.p_flag_scale * attitude:
+                        trusted = bool(self.personas.trusted_flagger[aid])
                         self.log.append(tick=tick, kind="flag", actor_id=aid,
-                                        content_id=item.id, data={})
+                                        content_id=item.id,
+                                        data={"trusted_flagger": trusted})
                         scores = self.scores_by_item.get(item.id, {})
                         self.moderation.handle(item, scores, tick,
-                                               context={"user_flagged": True})
+                                               context={"user_flagged": True,
+                                                        "trusted_flagger": trusted})
 
         engaged = exposure_count.sum(axis=1) > 0
         if engaged.any():
@@ -364,7 +490,7 @@ class Simulation:
         share.parent_id = item.id
         share.text = f"RT: {item.text}"
         item.shares += 1
-        scores = self.classifier.classify_one(share.true_categories)
+        scores = self._classify(share)
         self.scores_by_item[share.id] = scores
         self.log.append(tick=tick, kind="post", actor_id=agent_id,
                         content_id=share.id, data={

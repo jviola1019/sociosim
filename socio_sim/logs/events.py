@@ -11,14 +11,15 @@ import hashlib
 import json
 from pathlib import Path
 
-#: Allowed event kinds. `policy_gap` = fail-closed escalation for unmatched
-#: severe categories; `degradation` = LLM-adapter fallback to templates.
+#: Allowed event kinds. `degradation` = LLM-adapter fallback to templates.
+#: Fail-closed POLICY-GAP escalations are logged as `moderation` events
+#: (rule_id "POLICY-GAP"), not a separate kind. follow/unfollow/churn are emitted
+#: only when the optional dynamic-graph rates are set (>0); the default graph is
+#: static, so they are absent from default runs.
 EVENT_KINDS = {
     "post",
     "impression",
     "engagement",
-    "follow",
-    "unfollow",
     "flag",
     "classify",
     "moderation",
@@ -27,9 +28,12 @@ EVENT_KINDS = {
     "ad_auction",
     "ad_click",
     "ad_conversion",
+    "organic_conversion",
     "llm_call",
-    "policy_gap",
     "degradation",
+    "follow",
+    "unfollow",
+    "churn",
 }
 
 

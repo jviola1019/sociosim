@@ -70,7 +70,7 @@ docs/              # Usage, limitations, ethics, legal-compliance notes, NIST AI
 
 ### Data flow per tick
 1. `agents` computes active agents (diurnal curve × activity propensity, vectorised).
-2. Active agents act: post (via `content` generator), react, share, follow/unfollow.
+2. Active agents act: post (via `content` generator), react, share. (Dynamic follow/unfollow and graph churn are NOT implemented in v1 — the social graph is static; see KNOWN_LIMITATIONS.md.)
 3. `content` classifies new items (noisy classifier → category scores).
 4. `policy` + `moderation` evaluate flagged/classified items → actions (label, downrank, remove, escalate, notify; appeals enqueued where allowed), all logged with rule_id and rationale.
 5. `ads` runs auctions for eligible impression slots (respecting jurisdiction constraints + holdouts).
@@ -84,7 +84,7 @@ docs/              # Usage, limitations, ethics, legal-compliance notes, NIST AI
 
 ### Error handling
 - Config validated eagerly with explicit errors (no silent defaults beyond documented profile values).
-- Policy engine fails closed: unmatched severe categories escalate to human-review queue and log a `policy_gap` event; never silently pass.
+- Policy engine fails closed: unmatched severe categories escalate to the human-review queue and log a `moderation` event with `rule_id: POLICY-GAP`; never silently pass. (A separate `policy_gap` event kind was considered but not used — the escalation is a `moderation` record.)
 - LLM adapter failure → logged degradation event + fallback to TemplateGenerator for that call; run continues, manifest records the degradation.
 - Logs are append-only; writer flushes per tick; partial-run logs remain readable.
 
@@ -110,11 +110,19 @@ docs/              # Usage, limitations, ethics, legal-compliance notes, NIST AI
 - Determinism: same seed → identical event-stream hash; different seed → different.
 - Statistical (marked `slow`): generated graphs within KS tolerance of targets; diurnal activity matches curve; calibration loop reduces implausibility.
 
-## 6. Out of scope for v1 (explicit)
-- Real image/video synthesis (media simulated as typed objects with labelling metadata).
-- Distributed/GPU execution.
-- Bundled empirical datasets (loaders + named published aggregates only).
-- Real moderation-model training; classifiers are calibrated noise models plus an interface for plugging real models in.
+## 6. Out of scope for v1 (explicit) — NOW DELIVERED in sprint 3 (see below)
+- ~~Real image/video synthesis~~ → DELIVERED: deterministic procedural raster
+  (`content/media.py`, real PNG bytes, offline, `run.py --media N`); video as
+  frame sequences (`synth_frames`), container-encoding optional; diffusion backend pluggable.
+- ~~Distributed/GPU execution~~ → DELIVERED (distributed): pluggable executor on
+  `run_replicates` (ProcessPool / Dask / Ray). GPU honestly opt-in/env-gated
+  (numpy kernels; CuPy drop-in possible, unverified without a GPU).
+- ~~Bundled empirical datasets~~ → DELIVERED: published-aggregate sets
+  (`default`, `twitter_like`, `facebook_like`) with citations; `RunConfig.benchmark`.
+- ~~Real moderation-model training~~ → DELIVERED: real numpy logistic-regression
+  classifier on category-signal text with MEASURED P/R (`classifier_mode="trained"`).
+  Caveat: trained on synthetic templated content, so it learns the simulator's
+  signal — a real, measured model, not a claim about real-world moderation accuracy.
 
 ### Addendum (post-v1, delivered)
 - **Web console** (`socio_sim/web/`, `python run.py --web`): a localhost

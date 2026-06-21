@@ -1,7 +1,8 @@
 /* SocioSim — editorial research studio.
    Light, Apple-grade aesthetic: SF-style type, an 8pt spatial system, soft
-   depth, an aurora-mesh field, and restrained motion (blur-in reveals,
-   perspective tilt, cursor spotlight, magnetic buttons, count-up). Offline. */
+   depth, and restrained motion that communicates state — blur-in reveals,
+   count-up metrics, sliding tab indicator, draw-in SVG charts, interval bars.
+   Fully offline; honors prefers-reduced-motion. */
 
 :root {
   --bg:        #f5f5f7;
@@ -28,6 +29,18 @@
   --sh-1: 0 1px 2px rgba(0,0,0,.04), 0 1px 1px rgba(0,0,0,.03);
   --sh-2: 0 4px 14px -4px rgba(0,0,0,.08), 0 2px 6px -2px rgba(0,0,0,.05);
   --sh-3: 0 24px 60px -24px rgba(0,0,0,.18), 0 8px 24px -12px rgba(0,0,0,.1);
+}
+
+/* Dark control-room theme — overrides the neutral tokens; accents unchanged. */
+body[data-theme="dark"] {
+  --bg:        #0b0e14;
+  --surface:   #141925;
+  --surface-2: #1b2230;
+  --ink:       #e6e8ee;
+  --ink-2:     #b3b9c6;
+  --ink-3:     #7c8493;
+  --line:      #222a39;
+  --line-2:    #2d3748;
 }
 
 * { box-sizing: border-box; }
@@ -79,12 +92,13 @@ h1, h2, h3, h4 { font-family: var(--disp); font-weight: 600; letter-spacing: -.0
 .config { position: sticky; top: 86px; display: flex; flex-direction: column; max-height: calc(100vh - 110px); overflow: hidden; }
 
 /* segmented tabs */
-.seg-tabs { position: relative; display: flex; gap: 2px; padding: 6px; margin: 14px 14px 0; background: var(--bg); border-radius: 12px; overflow-x: auto; scrollbar-width: none; }
-.seg-tabs::-webkit-scrollbar { display: none; }
-.seg-tabs button { position: relative; z-index: 1; flex: none; background: none; border: none; cursor: pointer; font-family: var(--body); font-size: 13px; font-weight: 500; color: var(--ink-2); padding: 8px 14px; border-radius: 9px; white-space: nowrap; transition: color .25s var(--ease); }
-.seg-tabs button.on { color: var(--ink); }
+/* Wraps to multiple rows instead of horizontal-scrolling (no half-cut tabs at
+   narrow widths); active tab shown by a raised pill (robust across rows). */
+.seg-tabs { position: relative; display: flex; flex-wrap: wrap; gap: 2px; padding: 6px; margin: 14px 14px 0; background: var(--bg); border-radius: 12px; }
+.seg-tabs button { position: relative; z-index: 1; background: none; border: none; cursor: pointer; font-family: var(--body); font-size: 13px; font-weight: 500; color: var(--ink-2); padding: 8px 14px; border-radius: 9px; white-space: nowrap; transition: color .25s var(--ease), background .2s var(--ease); }
+.seg-tabs button.on { color: var(--ink); background: var(--surface); box-shadow: var(--sh-1); }
 .seg-tabs button:hover { color: var(--ink); }
-.seg-ink { position: absolute; top: 6px; bottom: 6px; z-index: 0; background: var(--surface); border-radius: 9px; box-shadow: var(--sh-1); transition: transform .34s var(--ease), width .34s var(--ease); }
+.seg-ink { display: none; }
 
 .cfg-body { flex: 1; overflow-y: auto; padding: var(--s3); }
 .tabpanel { display: none; flex-direction: column; gap: 14px; }
@@ -139,6 +153,12 @@ input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.12); }
 .track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 21px; height: 21px; border-radius: 50%; background: #fff; box-shadow: var(--sh-2); transition: transform .25s var(--ease); }
 .switch:has(input:checked) .track { background: var(--blue); }
 .switch:has(input:checked) .track::after { transform: translateX(17px); }
+
+.campaigns { display: flex; flex-direction: column; gap: 8px; }
+.camp-row { display: grid; grid-template-columns: 1.5fr .7fr .8fr .7fr .7fr auto; gap: 6px; align-items: center; }
+.camp-row input { font-size: 12px; padding: 7px 8px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--surface-2); font-family: var(--body); min-width: 0; }
+.camp-row .cf-del { cursor: pointer; border: 1px solid var(--line-2); background: var(--surface-2); border-radius: 8px; padding: 6px 9px; color: var(--ink-3); line-height: 1; }
+.camp-row .cf-del:hover { border-color: var(--red); color: var(--red); }
 
 .rates { display: grid; grid-template-columns: 1fr 1fr; gap: 11px 14px; }
 .rate { display: flex; flex-direction: column; gap: 5px; }
@@ -200,7 +220,7 @@ input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.12); }
 .opanel h4 { font-size: 15px; margin: 0 0 14px; color: var(--ink); }
 .opanel h4:not(:first-child) { margin-top: var(--s4); }
 
-/* metric cards with perspective + spotlight */
+/* metric cards: entrance animation + hover border (reduced-motion respected) */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); gap: var(--s2); }
 .card { position: relative; border: 1px solid var(--line); border-radius: var(--r); padding: 20px; background: var(--surface); box-shadow: var(--sh-1); transition: border-color .2s var(--ease); animation: cardin .55s var(--ease) backwards; }
 .card:hover { border-color: var(--line-2); }
@@ -236,6 +256,10 @@ input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.12); }
 .post .tag.harm { background: rgba(255,59,48,.1); color: var(--red); border-color: transparent; }
 .post .tag.ai { background: rgba(94,92,230,.12); color: var(--violet); border-color: transparent; }
 .post .tag.act { background: rgba(255,149,0,.12); color: #b35a00; border-color: transparent; }
+
+.net-tip { position: absolute; z-index: 5; pointer-events: none; font-family: var(--mono); font-size: 11px; color: var(--ink); background: var(--surface); border: 1px solid var(--line-2); border-radius: 7px; padding: 5px 8px; box-shadow: var(--sh-2); white-space: nowrap; }
+.casc-node { opacity: 0; animation: cascIn .5s var(--ease) forwards; }
+@keyframes cascIn { to { opacity: 1; } }
 
 .charts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s3); }
 @media (max-width: 1380px) { .charts { grid-template-columns: 1fr; } }

@@ -141,3 +141,124 @@ def test_measure_campaign_reports_lift():
     assert 0 <= m["ctr"] <= 1
     assert m["ctr_ci"][0] <= m["ctr"] <= m["ctr_ci"][1]
     assert "lift" in m and "spend" in m and "roi" in m
+
+
+# --- P2: organic baseline -> valid incrementality -------------------------
+
+def _run_baseline(ads, personas, n, opportunities=1):
+    """Run the organic (non-ad) conversion pass for every agent."""
+    for _ in range(opportunities):
+        for aid in range(n):
+            ads.simulate_baseline(aid, tick=0)
+
+
+def test_holdout_converts_via_organic_baseline():
+    """The whole point: holdout agents must be able to convert organically,
+    otherwise lift is a tautology."""
+    ads, log, personas, _ = setup(holdout_fraction=0.5)
+    personas.base_conversion[:] = 0.9          # almost everyone converts organically
+    _run_baseline(ads, personas, n=100)
+    org = log.by_kind("organic_conversion")
+    assert org, "no organic conversions emitted"
+    cid = ads.campaigns[0].id
+    converters = {e["actor_id"] for e in org if e["data"]["campaign_id"] == cid}
+    assert any(ads.in_holdout(cid, a) for a in converters), \
+        "no holdout agent ever converts -> lift would still be a tautology"
+
+
+def test_lift_approximately_zero_under_null_ad_effect():
+    """Ad adds nothing over baseline (base_cvr=0) -> incremental lift ~ 0."""
+    camp = [Campaign(id="null", advertiser="N", bid=5.0, budget=10_000,
+                     base_ctr=1.0, base_cvr=0.0)]   # clicks but never converts via ad
+    ads, log, personas, _ = setup(campaigns=camp, holdout_fraction=0.3,
+                                  ad_frequency_cap_per_day=100)
+    personas.base_conversion[:] = 0.1
+    _run_baseline(ads, personas, n=100, opportunities=3)
+    for t in range(48):
+        for aid in range(100):
+            if personas.is_minor[aid]:
+                continue
+            cr = ads.run_auction(aid, t)
+            if cr:
+                ads.simulate_response(aid, cr, t)
+    m = measure_campaign(log, camp[0], ads, n_agents=100)
+    assert m["n_holdout"] > 0 and m["holdout_rate"] > 0     # baseline works
+    # Statistically correct null guard: the holdout-based CI must bracket 0
+    # (we cannot reject "no incremental effect"). Magnitude is a sanity bound.
+    assert m["lift_ci"][0] <= 0 <= m["lift_ci"][1]
+    assert abs(m["lift"]) < 0.2
+
+
+def test_lift_positive_only_when_ad_adds_conversions():
+    camp = [Campaign(id="hot", advertiser="H", bid=5.0, budget=100_000,
+                     base_ctr=1.0, base_cvr=1.0)]   # ad converts on every impression
+    ads, log, personas, _ = setup(campaigns=camp, holdout_fraction=0.3,
+                                  ad_frequency_cap_per_day=100)
+    personas.base_conversion[:] = 0.05             # low organic baseline
+    _run_baseline(ads, personas, n=100)
+    for t in range(48):
+        for aid in range(100):
+            if personas.is_minor[aid]:
+                continue
+            cr = ads.run_auction(aid, t)
+            if cr:
+                ads.simulate_response(aid, cr, t)
+    m = measure_campaign(log, camp[0], ads, n_agents=100)
+    assert m["lift"] > 0
+    assert m["exposed_rate"] > m["holdout_rate"]
+    assert m["lift_ci"][0] > 0                       # significantly positive
+
+
+def test_attribution_window_limits_credited_conversions():
+    """A tighter attribution window must credit no more ad conversions (and no
+    more lift) than a wide one — measured on the same run."""
+    camp = [Campaign(id="aw", advertiser="A", bid=5.0, budget=100_000,
+                     base_ctr=1.0, base_cvr=1.0)]
+    ads, log, personas, _ = setup(campaigns=camp, holdout_fraction=0.3,
+                                  ad_frequency_cap_per_day=100)
+    personas.base_conversion[:] = 0.02
+    _run_baseline(ads, personas, n=100)
+    for t in range(48):
+        for aid in range(100):
+            if personas.is_minor[aid]:
+                continue
+            cr = ads.run_auction(aid, t)
+            if cr:
+                ads.simulate_response(aid, cr, t)
+    wide = measure_campaign(log, Campaign(id="aw", advertiser="A", bid=5.0,
+                            budget=100_000, attribution_window_ticks=9999), ads, 100)
+    tight = measure_campaign(log, Campaign(id="aw", advertiser="A", bid=5.0,
+                             budget=100_000, attribution_window_ticks=0), ads, 100)
+    assert wide["attributed_ad_conversions"] >= 1
+    assert tight["attributed_ad_conversions"] <= wide["attributed_ad_conversions"]
+    assert tight["lift"] <= wide["lift"] + 1e-9
+
+
+def test_marketing_metrics_present_and_consistent():
+    """ROAS/iROAS/CAC/LTV + CUPED lift + lift p-value are reported and coherent
+    under a strong (clearly incremental) ad effect."""
+    camp = [Campaign(id="m", advertiser="M", bid=5.0, budget=100_000,
+                     base_ctr=1.0, base_cvr=1.0, conversion_value=2.0)]
+    ads, log, personas, _ = setup(campaigns=camp, holdout_fraction=0.3,
+                                  ad_frequency_cap_per_day=100)
+    personas.base_conversion[:] = 0.05
+    _run_baseline(ads, personas, n=100)
+    for t in range(48):
+        for aid in range(100):
+            if personas.is_minor[aid]:
+                continue
+            cr = ads.run_auction(aid, t)
+            if cr:
+                ads.simulate_response(aid, cr, t)
+    m = measure_campaign(log, camp[0], ads, n_agents=100)
+    for k in ("roas", "iroas", "cac", "ltv", "incremental_ltv",
+              "lift_cuped", "lift_pvalue", "lift_significant", "mde"):
+        assert k in m, f"missing {k}"
+    assert m["mde"] > 0  # holdout sized -> a finite detectable effect
+    assert "dose_response" in m and len(m["dose_response"]) >= 1
+    for bucket in m["dose_response"]:
+        assert "freq" in bucket and bucket["n"] > 0 and 0 <= bucket["conv_rate"] <= 1
+    assert m["lift"] > 0 and m["iroas"] > 0 and m["roas"] > 0
+    assert m["lift_pvalue"] < 0.05 and m["lift_significant"] is True
+    assert np.isfinite(m["lift_cuped"])
+    assert m["ltv"] == 2.0 * camp[0].ltv_multiplier

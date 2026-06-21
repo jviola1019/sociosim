@@ -19,6 +19,7 @@
     <span class="status" id="llmLabel">LLM</span>
     <span class="status" id="engLabel">Engine</span>
     <span class="status ver" id="version"></span>
+    <button type="button" id="themeBtn" class="pill" title="Toggle dark / light theme" aria-label="Toggle dark or light theme">◐</button>
     <button type="button" id="histBtn" class="pill" title="Browse, reopen and export saved runs">
       History<b id="histCount" class="count">0</b>
     </button>
@@ -50,13 +51,32 @@
           <label><input type="radio" name="profile" value="test"><b>Test</b><i>200 · 48h</i></label>
           <label><input type="radio" name="profile" value="quick" checked><b>Quick</b><i>1K · 7d</i></label>
           <label><input type="radio" name="profile" value="standard"><b>Standard</b><i>10K · 28d</i></label>
+          <label><input type="radio" name="profile" value="calibrated"><b>Calibrated</b><i>I=1.0 · in-band</i></label>
         </div>
         <div class="duo">
           <label class="field"><span class="lbl">Random Seed</span><input type="number" id="root_seed" value="42"></label>
-          <label class="field"><span class="lbl">Tick (hours)</span><input type="number" id="tick_hours" value="1" min="1" max="24"></label>
+          <label class="field"><span class="lbl">Tick (hours)</span><select id="tick_hours"><option value="1" selected>1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="6">6</option><option value="8">8</option><option value="12">12</option><option value="24">24</option></select></label>
         </div>
         <label class="switch"><input type="checkbox" id="verify_replay" checked><span class="track"></span><span class="switch-txt">Verify Deterministic Replay</span></label>
         <p class="hint">Re-runs from the manifest and confirms an identical event-stream hash. Auto-skipped above 2,000 agents.</p>
+        <label class="field"><span class="lbl">Monte Carlo Replicates <i>1 = preview · &gt;1 = research</i></span><input type="number" id="n_replicates" value="1" min="1" max="200"></label>
+        <p class="hint">Research mode runs N seeded replicates and reports <b>mc-replicated</b> 95% intervals (Log tab); Preview (1) reports within-run intervals only.</p>
+        <hr>
+        <span class="lbl">A/B Compare <i>baseline = current config</i></span>
+        <label class="field"><span class="lbl">Intervention</span>
+          <select id="cmpIntervention">
+            <option value='{"jurisdictions":["EU"]}'>Swap to EU · DSA pack</option>
+            <option value='{"jurisdictions":["US"]}'>Swap to US · §230 pack</option>
+            <option value='{"jurisdictions":["CN"]}'>Swap to CN · AI-label pack</option>
+            <option value='{"feed_strategy":"chronological"}'>Chronological feed</option>
+            <option value='{"ads_enabled":false}'>Ads disabled</option>
+            <option value='{"ftc_compliance":false}'>No FTC disclosures</option>
+          </select></label>
+        <div class="duo">
+          <label class="field"><span class="lbl">Replicates</span><input type="number" id="cmpReplicates" value="5" min="2" max="50"></label>
+          <button type="button" id="cmpBtn" class="pill" style="align-self:end">Run A/B Compare</button>
+        </div>
+        <p class="hint">Baseline vs intervention with common random numbers; per-metric deltas with 95% intervals (Compare tab).</p>
       </section>
 
       <!-- NETWORK -->
@@ -71,10 +91,14 @@
         <label class="field"><span class="lbl">Network Model</span>
           <select id="graph_kind">
             <option value="ba" selected>Barabási–Albert · scale-free hubs</option>
+            <option value="plc">Holme–Kim · scale-free + clustering (calibrated)</option>
             <option value="ws">Watts–Strogatz · small-world</option>
             <option value="sbm">Stochastic block · communities</option>
           </select></label>
         <div data-graph="ba" class="duo gp"><label class="field"><span class="lbl">Attachments m</span><input type="number" id="graph_m" value="5" min="1"></label></div>
+        <div data-graph="plc" class="duo gp" hidden>
+          <label class="field"><span class="lbl">Triad prob p <i>clustering</i></span><input type="number" id="graph_plc_p" value="0.7" step="0.05" min="0" max="1"></label>
+        </div>
         <div data-graph="ws" class="duo gp" hidden>
           <label class="field"><span class="lbl">Neighbours k</span><input type="number" id="graph_k" value="10" min="2"></label>
           <label class="field"><span class="lbl">Rewire p</span><input type="number" id="graph_p" value="0.05" step="0.01" min="0" max="1"></label>
@@ -83,6 +107,20 @@
           <span class="lbl">Homophily Rewiring <b id="homoVal" class="val">0.15</b></span>
           <input type="range" id="homophily_rewire_fraction" min="0" max="0.8" step="0.05" value="0.15"></label>
         <p class="hint">How strongly agents prefer connecting to similar others.</p>
+        <hr>
+        <label class="field"><span class="lbl">Calibration Benchmark <i>target set</i></span>
+          <select id="benchmark">
+            <option value="default" selected>Default · generic aggregates</option>
+            <option value="twitter_like">Twitter-like · microblog</option>
+            <option value="facebook_like">Facebook-like · social network</option>
+          </select></label>
+        <span class="lbl">Dynamic Graph <i>per active agent / day · 0 = static</i></span>
+        <label class="field"><span class="lbl">Follow rate <b id="folVal" class="val">0.00</b></span>
+          <input type="range" id="follow_rate" min="0" max="0.2" step="0.005" value="0"></label>
+        <label class="field"><span class="lbl">Unfollow rate <b id="unfVal" class="val">0.00</b></span>
+          <input type="range" id="unfollow_rate" min="0" max="0.2" step="0.005" value="0"></label>
+        <label class="field"><span class="lbl">Churn rate <b id="chuVal" class="val">0.00</b></span>
+          <input type="range" id="churn_rate" min="0" max="0.1" step="0.002" value="0"></label>
       </section>
 
       <!-- CONTENT -->
@@ -95,6 +133,11 @@
           </select></label>
         <label class="field llm" data-llm hidden><span class="lbl">Model</span><input type="text" id="llm_model" value="qwen2.5:0.5b" spellcheck="false"></label>
         <label class="field llm" data-llm hidden><span class="lbl">Server URL <i>blank = default</i></span><input type="text" id="llm_base_url" placeholder="http://localhost:11434" spellcheck="false"></label>
+        <label class="field"><span class="lbl">Moderation Classifier</span>
+          <select id="classifier_mode">
+            <option value="noise" selected>Noise model · calibrated, instant</option>
+            <option value="trained">Trained · real numpy classifier (measured P/R)</option>
+          </select></label>
         <hr>
         <span class="lbl">Content Prevalence <i>share of all content</i></span>
         <div id="rates" class="rates"></div>
@@ -143,6 +186,11 @@
           <label class="field"><span class="lbl">Freq Cap / Day</span><input type="number" id="ad_frequency_cap_per_day" value="4" min="1"></label>
         </div>
         <label class="field"><span class="lbl">Ad Slot Interval</span><input type="number" id="ad_slot_interval" value="5" min="1"></label>
+        <hr>
+        <span class="lbl">Campaigns <i>blank = 3 default campaigns</i></span>
+        <div id="campaigns" class="campaigns"></div>
+        <button type="button" id="addCampaign" class="pill" style="margin-top:8px">+ Add campaign</button>
+        <p class="hint">Custom campaigns replace the defaults. Incremental lift uses the organic-baseline holdout (Newcombe CI + MDE).</p>
       </section>
 
       <!-- ADVERSARIES -->
@@ -193,6 +241,7 @@
             <div class="export-menu" id="exportMenu" hidden>
               <a id="expReport" href="#" download>Report · Markdown</a>
               <a id="expJson" href="#" download>Full result · JSON</a>
+              <a id="expTransparency" href="#" download>Transparency report · JSON</a>
               <a id="expEvents" href="#" target="_blank">Event log</a>
             </div>
           </div>
@@ -202,21 +251,29 @@
         <button type="button" role="tab" data-otab="overview" class="on">Overview</button>
         <button type="button" role="tab" data-otab="feed">Feed</button>
         <button type="button" role="tab" data-otab="charts">Charts</button>
+        <button type="button" role="tab" data-otab="network">Network</button>
+        <button type="button" role="tab" data-otab="cascade">Cascade</button>
         <button type="button" role="tab" data-otab="fairness">Fairness</button>
         <button type="button" role="tab" data-otab="ads">Ads</button>
         <button type="button" role="tab" data-otab="calib">Calibration</button>
+        <button type="button" role="tab" data-otab="compare">Compare</button>
+        <button type="button" role="tab" data-otab="audit">Audit</button>
         <button type="button" role="tab" data-otab="log">Log</button>
       </nav>
       <div class="ostage">
         <section data-opanel="overview" class="opanel on"><div class="cards" id="cards"></div></section>
         <section data-opanel="feed" class="opanel"><div class="feed" id="feedWrap"></div></section>
         <section data-opanel="charts" class="opanel"><div class="charts" id="charts"></div></section>
+        <section data-opanel="network" class="opanel"><div id="network" class="network"></div></section>
+        <section data-opanel="cascade" class="opanel"><div id="cascade" class="network"></div></section>
         <section data-opanel="fairness" class="opanel">
           <h4>Moderation Confusion</h4><div id="confusion" class="confusion"></div>
           <h4>False-Positive / False-Negative Rate by Group</h4><div id="fairness"></div>
         </section>
         <section data-opanel="ads" class="opanel"><div id="ads"></div></section>
         <section data-opanel="calib" class="opanel"><p class="dim small" id="implaus"></p><div id="calib" class="calib"></div></section>
+        <section data-opanel="compare" class="opanel"><div id="compare"></div></section>
+        <section data-opanel="audit" class="opanel"><div id="audit"></div></section>
         <section data-opanel="log" class="opanel"><pre class="mono report" id="rawReport"></pre></section>
       </div>
     </div>

@@ -81,10 +81,14 @@ class ModerationSystem:
                     item.text = item.text + " #ad (paid partnership)"
                 self._log_action(item, d, tick, extra={"ftc_violation": True})
             elif d.action == "escalate":
+                # DSA Art. 22: trusted-flagger notices get priority (shorter) review.
+                trusted = bool(context.get("trusted_flagger"))
+                delay = (self.cfg.behavior.trusted_review_delay_ticks if trusted
+                         else self.cfg.human_review_delay_ticks)
                 self.pending_reviews.append(_Review(
-                    item=item, decision=d, filed_tick=tick,
-                    due_tick=tick + self.cfg.human_review_delay_ticks))
-                self._log_action(item, d, tick, extra={"stage": "escalated"})
+                    item=item, decision=d, filed_tick=tick, due_tick=tick + delay))
+                self._log_action(item, d, tick,
+                                 extra={"stage": "escalated", "trusted_flagger": trusted})
                 self._maybe_notice(item, d, tick)
             # block_ad / strip_targeting are enforced upstream by the ads module.
 

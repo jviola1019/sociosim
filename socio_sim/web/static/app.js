@@ -76,31 +76,123 @@ async function loadMeta() {
 
 /* ---------- presets / form ---------- */
 function setVal(id, v) { const el = $("#" + id); if (!el) return; if (el.type === "checkbox") el.checked = !!v; else el.value = v; const lab = $("#" + ({ homophily_rewire_fraction: "homoVal", classifier_precision: "precVal", classifier_recall: "recVal", human_review_accuracy: "hraVal" }[id])); if (lab) lab.textContent = (+v).toFixed(2); }
+// Documented defaults for every control a preset may touch, so selecting a
+// preset yields a CLEAN known state instead of inheriting stale values from a
+// previously selected preset (audit S1).
+const FIELD_DEFAULTS = {
+  ftc_enabled: true, feed_strategy: "personalized", eu_optout_rate: 0.20,
+  exploration_epsilon: 0.10, human_review_accuracy: 0.92,
+  human_review_delay_ticks: 6, appeal_grant_fp_rate: 0.70, ftc_compliance: true,
+  ads_enabled: true, holdout_fraction: 0.10, ad_frequency_cap_per_day: 4,
+  ad_slot_interval: 5, classifier_precision: 0.90, classifier_recall: 0.85,
+  homophily_rewire_fraction: 0.15, n_replicates: 1,
+};
+function resetDefaults() {
+  $$("#jurisdictions input").forEach(i => i.checked = i.value === "EU");
+  $$("#redteam input").forEach(i => i.checked = false);
+  Object.entries(FIELD_DEFAULTS).forEach(([k, v]) => setVal(k, v));
+  (META.harmful_categories.concat(["ai_generated"])).forEach(c => {
+    const v = META.defaults[c] ?? 0.02; setVal("rate_" + c, v);
+    const b = $("#rl_" + c); if (b) b.textContent = (+v).toFixed(3);
+  });
+}
 function applyPreset(name) {
   const p = META.presets[name]; if (!p) return; $("#presetDesc").textContent = p.desc; const f = p.fields;
+  resetDefaults();  // clean slate, then apply this preset's overrides (S1)
   if (f.jurisdictions) $$("#jurisdictions input").forEach(i => i.checked = f.jurisdictions.includes(i.value));
   if (f.red_team) $$("#redteam input").forEach(i => i.checked = f.red_team.includes(i.value));
   Object.entries(f).forEach(([k, v]) => { if (k === "jurisdictions" || k === "red_team") return; if (k.startsWith("rate_")) { setVal(k, v); const b = $("#rl_" + k.slice(5)); if (b) b.textContent = (+v).toFixed(3); } else setVal(k, v); });
 }
 $("#content_mode").addEventListener("change", e => $$("[data-llm]").forEach(el => el.hidden = e.target.value === "template"));
 $("#graph_kind").addEventListener("change", e => $$("[data-graph]").forEach(el => el.hidden = el.dataset.graph !== e.target.value));
-["homophily_rewire_fraction", "classifier_precision", "classifier_recall", "human_review_accuracy"].forEach(id => { const lab = { homophily_rewire_fraction: "homoVal", classifier_precision: "precVal", classifier_recall: "recVal", human_review_accuracy: "hraVal" }[id]; const el = $("#" + id); if (el) el.addEventListener("input", e => $("#" + lab).textContent = (+e.target.value).toFixed(2)); });
+// Selecting the Calibrated profile configures the graph to its history-matched
+// values (Holme–Kim plc, p=0.7) so the form matches RunConfig.calibrated().
+$$("input[name=profile]").forEach(r => r.addEventListener("change", e => {
+  if (e.target.value === "calibrated" && e.target.checked) {
+    setVal("graph_kind", "plc"); setVal("graph_plc_p", 0.7);
+    $("#graph_kind").dispatchEvent(new Event("change"));
+  }
+}));
+["homophily_rewire_fraction", "classifier_precision", "classifier_recall", "human_review_accuracy", "follow_rate", "unfollow_rate", "churn_rate"].forEach(id => { const lab = { homophily_rewire_fraction: "homoVal", classifier_precision: "precVal", classifier_recall: "recVal", human_review_accuracy: "hraVal", follow_rate: "folVal", unfollow_rate: "unfVal", churn_rate: "chuVal" }[id]; const el = $("#" + id); if (el) el.addEventListener("input", e => $("#" + lab).textContent = (+e.target.value).toFixed(2)); });
+
+/* ---------- campaign editor (S3) ---------- */
+function campaignRow(c = {}) {
+  const d = document.createElement("div"); d.className = "camp-row";
+  d.innerHTML = `<input class="cf-adv" placeholder="Advertiser" value="${esc(c.advertiser || "")}">`
+    + `<input class="cf-bid" type="number" step="0.1" min="0" title="bid" value="${c.bid ?? 2}">`
+    + `<input class="cf-bud" type="number" step="1" min="0" title="budget" value="${c.budget ?? 100}">`
+    + `<input class="cf-ctr" type="number" step="0.001" min="0" max="1" title="base CTR" value="${c.base_ctr ?? 0.012}">`
+    + `<input class="cf-cvr" type="number" step="0.01" min="0" max="1" title="base CVR" value="${c.base_cvr ?? 0.05}">`
+    + `<button type="button" class="cf-del" title="remove" aria-label="remove campaign">×</button>`;
+  d.querySelector(".cf-del").addEventListener("click", () => d.remove());
+  return d;
+}
+$("#addCampaign")?.addEventListener("click", () => $("#campaigns").appendChild(campaignRow()));
+
+function collectCampaigns() {
+  return $$("#campaigns .camp-row").map((r, i) => ({
+    id: "c" + (i + 1),
+    advertiser: r.querySelector(".cf-adv").value || "Advertiser",
+    bid: +r.querySelector(".cf-bid").value, budget: +r.querySelector(".cf-bud").value,
+    base_ctr: +r.querySelector(".cf-ctr").value, base_cvr: +r.querySelector(".cf-cvr").value,
+  }));
+}
 
 function collect() {
   const v = id => { const e = $("#" + id); return e && e.value !== "" ? e.value : null; };
   const num = id => { const x = v(id); return x == null ? null : +x; }, chk = id => $("#" + id).checked, checked = sel => $$(sel + " input:checked").map(i => i.value);
   const body = {
-    label: v("label") || "", profile: $("input[name=profile]:checked").value, root_seed: num("root_seed"), tick_hours: num("tick_hours"), verify_replay: chk("verify_replay"),
-    n_agents: num("n_agents"), n_ticks: num("n_ticks"), n_topics: num("n_topics"), graph_kind: v("graph_kind"), graph_m: num("graph_m"), graph_k: num("graph_k"), graph_p: num("graph_p"), homophily_rewire_fraction: num("homophily_rewire_fraction"),
-    content_mode: v("content_mode"), llm_model: v("llm_model"), llm_base_url: v("llm_base_url"), jurisdictions: checked("#jurisdictions"), ftc_enabled: chk("ftc_enabled"),
+    label: v("label") || "", profile: $("input[name=profile]:checked").value, root_seed: num("root_seed"), tick_hours: num("tick_hours"), verify_replay: chk("verify_replay"), n_replicates: num("n_replicates"),
+    n_agents: num("n_agents"), n_ticks: num("n_ticks"), n_topics: num("n_topics"), graph_kind: v("graph_kind"), graph_m: num("graph_m"), graph_plc_p: num("graph_plc_p"), graph_k: num("graph_k"), graph_p: num("graph_p"), homophily_rewire_fraction: num("homophily_rewire_fraction"),
+    benchmark: v("benchmark"), follow_rate: num("follow_rate"), unfollow_rate: num("unfollow_rate"), churn_rate: num("churn_rate"),
+    content_mode: v("content_mode"), classifier_mode: v("classifier_mode"), llm_model: v("llm_model"), llm_base_url: v("llm_base_url"), jurisdictions: checked("#jurisdictions"), ftc_enabled: chk("ftc_enabled"),
     classifier_precision: num("classifier_precision"), classifier_recall: num("classifier_recall"), human_review_accuracy: num("human_review_accuracy"), human_review_delay_ticks: num("human_review_delay_ticks"), appeal_grant_fp_rate: num("appeal_grant_fp_rate"),
     feed_strategy: v("feed_strategy"), eu_optout_rate: num("eu_optout_rate"), exploration_epsilon: num("exploration_epsilon"), feed_size: num("feed_size"),
     ads_enabled: chk("ads_enabled"), ftc_compliance: chk("ftc_compliance"), holdout_fraction: num("holdout_fraction"), ad_frequency_cap_per_day: num("ad_frequency_cap_per_day"), ad_slot_interval: num("ad_slot_interval"), red_team: checked("#redteam"),
   };
-  (META.harmful_categories.concat(["ai_generated"])).forEach(c => body["rate_" + c] = num("rate_" + c)); return body;
+  (META.harmful_categories.concat(["ai_generated"])).forEach(c => body["rate_" + c] = num("rate_" + c));
+  const campaigns = collectCampaigns();
+  if (campaigns.length) body.campaigns = campaigns;
+  return body;
 }
 function stage(id) { ["idle", "running", "errstage", "results"].forEach(s => $("#" + s).hidden = s !== id); }
-function fail(msg) { if (polling) clearInterval(polling); polling = null; $("#runBtn").disabled = false; $("#errText").textContent = msg; stage("errstage"); }
+function fail(msg) { if (polling) clearInterval(polling); polling = null; if (cmpPolling) clearInterval(cmpPolling); cmpPolling = null; $("#runBtn").disabled = false; $("#errText").textContent = msg; stage("errstage"); }
+
+/* ---------- A/B compare (baseline vs intervention) ---------- */
+let cmpPolling = null;
+$("#cmpBtn")?.addEventListener("click", async () => {
+  const body = collect();
+  if (!body.jurisdictions.length) return fail("Select at least one jurisdiction pack (Moderation tab).");
+  try { body.intervention = JSON.parse($("#cmpIntervention").value); }
+  catch (e) { return fail("Invalid intervention."); }
+  body.compare_replicates = +($("#cmpReplicates").value || 5);
+  stage("running"); $("#runPhase").textContent = "comparing";
+  $("#meterFill").style.width = "45%"; $("#runDetail").textContent = "baseline vs intervention (common random numbers)…";
+  let res;
+  try { res = await (await fetch("/api/compare", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json(); }
+  catch (err) { return fail(String(err)); }
+  if (res.error) return fail(res.error);
+  cmpPolling = setInterval(() => pollCompare(res.job_id), 400);
+});
+async function pollCompare(id) {
+  let j; try { j = await (await fetch("/api/job/" + id)).json(); } catch (e) { return; }
+  if (j.status === "running") { $("#runPhase").textContent = j.phase || "comparing"; }
+  else if (j.status === "done") { clearInterval(cmpPolling); cmpPolling = null; renderCompare(j.result); }
+  else if (j.status === "error") fail(j.error || "compare failed");
+}
+function renderCompare(r) {
+  stage("results");
+  $("#runMeta").innerHTML = `A/B compare · baseline ${esc((r.baseline_jurisdictions || []).join("+"))} vs intervention ${esc((r.intervention_jurisdictions || []).join("+"))} · ${r.n_replicates} replicates · ${esc(r.provenance || "")}`;
+  const c = r.compare || {};
+  const rows = Object.entries(c).map(([k, m]) => {
+    const lo = m.delta_ci[0], hi = m.delta_ci[1], sig = (lo > 0 || hi < 0);
+    return `<tr><td>${esc(k.replace(/_/g, " "))}</td><td class="num">${fmt(m.baseline_median, 4)}</td><td class="num">${fmt(m.intervention_median, 4)}</td><td class="num">${fmt(m.delta_median, 4)}</td><td class="num">[${fmt(lo, 4)}, ${fmt(hi, 4)}]</td><td>${sig ? '<b style="color:var(--blue)">sig</b>' : '<span class="dim">n.s.</span>'}</td></tr>`;
+  }).join("");
+  $("#compare").innerHTML = `<table class="read"><thead><tr><th>metric</th><th>baseline</th><th>intervention</th><th>Δ</th><th>Δ 95% CI</th><th></th></tr></thead><tbody>${rows}</tbody></table><p class="hint">Δ = intervention − baseline (common random numbers; mc-replicated). "sig" = the 95% interval excludes 0.</p>`;
+  $$("#outTabs button").forEach(b => b.classList.toggle("on", b.dataset.otab === "compare"));
+  $$("[data-opanel]").forEach(p => p.classList.toggle("on", p.dataset.opanel === "compare"));
+  moveInk($("#outTabs"));
+}
 $("#cfgForm").addEventListener("submit", async e => {
   e.preventDefault(); const body = collect();
   if (!body.jurisdictions.length) return fail("Select at least one jurisdiction pack (Moderation tab).");
@@ -147,7 +239,7 @@ let _charts = null;
 function renderCharts(ch) {
   _charts = ch; const host = $("#charts"); host.innerHTML = "";
   const hours = [...Array(24)].map((_, i) => (i % 6 === 0 ? i : ""));
-  const cc = (title, sub, node) => { const d = document.createElement("div"); d.className = "chart"; d.innerHTML = `<div class="ct">${title}</div><div class="cs">${sub}</div>`; d.appendChild(node); return d; };
+  const cc = (title, sub, node) => { const d = document.createElement("div"); d.className = "chart"; d.innerHTML = `<div class="ct">${title}</div><div class="cs">${sub}</div>`; node.setAttribute("role", "img"); node.setAttribute("aria-label", `${title} — ${sub}`); d.appendChild(node); return d; };
   host.appendChild(cc("Diurnal Posting", "posts by hour of day", areaChart(ch.diurnal, { color: "#30c0b4", xlabels: hours })));
   host.appendChild(cc("Degree Distribution", "agents by follower count", barChart(ch.degree_hist.map(d => [Math.round(d[0]), d[1]]), { color: "#0a84ff", labelEvery: 4 })));
   host.appendChild(cc("Activity Timeline", "posts (teal) vs moderation actions (blue)", dualLine(ch.timeline_posts, ch.timeline_removed)));
@@ -155,6 +247,109 @@ function renderCharts(ch) {
   requestAnimationFrame(() => activateDraw(host));
 }
 function redrawCharts() { if (_charts) renderCharts(_charts); }
+
+/* ---------- network topology (deterministic force layout) ---------- */
+let _net3dRaf = null;
+function renderNetwork(gs) {
+  if (_net3dRaf) { cancelAnimationFrame(_net3dRaf); _net3dRaf = null; }
+  const host = $("#network"); if (!host) return;
+  if (!gs || !gs.nodes || !gs.nodes.length) { host.innerHTML = `<p class="dim small">No graph sample for this run.</p>`; return; }
+  const W = 640, H = 440;
+  host.innerHTML = `<div class="chart" style="position:relative"><div class="ct">Social Graph — 3D perspective (top ${gs.nodes.length} hubs)</div><div class="cs">depth = front/back · size = degree · colour = ideology · drag to rotate · hover a node to inspect</div><canvas id="net3d" width="${W}" height="${H}" style="width:100%" role="img" aria-label="3D perspective view of the sampled social network: ${gs.nodes.length} highest-degree agents coloured by ideology with edges among them"></canvas><div id="net3dTip" class="net-tip" hidden></div></div>`;
+  const cv = $("#net3d"); if (!cv) return;
+  const ctx = cv.getContext("2d");
+  const nodes = gs.nodes.map(n => ({ ...n })), idx = {};
+  nodes.forEach((n, i) => idx[n.id] = i);
+  const links = gs.edges.filter(([u, v]) => idx[u] != null && idx[v] != null).map(([u, v]) => [idx[u], idx[v]]);
+  const rnd = mulberry32(seedFrom("net3d" + nodes.length));
+  nodes.forEach(n => { n.x = (rnd() - 0.5) * 240; n.y = (rnd() - 0.5) * 240; n.z = (rnd() - 0.5) * 240; n.vx = n.vy = n.vz = 0; });
+  for (let it = 0; it < 120; it++) {            // deterministic 3D force layout
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j];
+      const dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z, d2 = dx * dx + dy * dy + dz * dz + 0.01, f = 900 / d2;
+      a.vx += dx * f; a.vy += dy * f; a.vz += dz * f; b.vx -= dx * f; b.vy -= dy * f; b.vz -= dz * f;
+    }
+    for (const [a, b] of links) {
+      const na = nodes[a], nb = nodes[b];
+      const dx = nb.x - na.x, dy = nb.y - na.y, dz = nb.z - na.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1, f = (d - 50) * 0.02;
+      na.vx += dx / d * f; na.vy += dy / d * f; na.vz += dz / d * f; nb.vx -= dx / d * f; nb.vy -= dy / d * f; nb.vz -= dz / d * f;
+    }
+    for (const n of nodes) {
+      n.vx -= n.x * 0.001; n.vy -= n.y * 0.001; n.vz -= n.z * 0.001;
+      n.x += Math.max(-8, Math.min(8, n.vx)); n.y += Math.max(-8, Math.min(8, n.vy)); n.z += Math.max(-8, Math.min(8, n.vz));
+      n.vx *= 0.85; n.vy *= 0.85; n.vz *= 0.85;
+    }
+  }
+  const maxDeg = Math.max(...nodes.map(n => n.deg), 1);
+  const col = g => g === "L" ? "#0a84ff" : g === "R" ? "#ff9500" : "#86868b";
+  const cx = W / 2, cy = H / 2, focal = 520;
+  let lastProj = null;
+  function draw(angle) {
+    ctx.clearRect(0, 0, W, H);
+    const ca = Math.cos(angle), sa = Math.sin(angle);
+    const proj = nodes.map(n => {
+      const rx = n.x * ca - n.z * sa, rz = n.x * sa + n.z * ca;   // rotate about Y
+      const s = focal / (focal + rz + 280);
+      return { px: cx + rx * s, py: cy + n.y * s, s, rz, n };
+    });
+    lastProj = proj;
+    ctx.lineWidth = 0.6;
+    for (const [a, b] of links) {
+      ctx.strokeStyle = "rgba(150,150,160,0.32)";
+      ctx.beginPath(); ctx.moveTo(proj[a].px, proj[a].py); ctx.lineTo(proj[b].px, proj[b].py); ctx.stroke();
+    }
+    for (const p of proj.slice().sort((u, v) => u.rz - v.rz)) {   // back-to-front
+      ctx.globalAlpha = Math.max(0.35, Math.min(1, p.s));
+      ctx.fillStyle = col(p.n.group);
+      ctx.beginPath(); ctx.arc(p.px, p.py, Math.max(1, (2 + 6 * Math.sqrt(p.n.deg / maxDeg)) * p.s), 0, 6.2832); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  // Interactive: drag to rotate (works even with reduced motion); otherwise
+  // auto-rotates. Drag pauses the auto-spin.
+  let angle = 0, dragging = false, lastX = 0;
+  cv.style.cursor = "grab";
+  cv.addEventListener("pointerdown", e => { dragging = true; lastX = e.offsetX; cv.style.cursor = "grabbing"; try { cv.setPointerCapture(e.pointerId); } catch (_) {} });
+  const tip = $("#net3dTip");
+  cv.addEventListener("pointermove", e => {
+    if (dragging) { angle += (e.offsetX - lastX) * 0.01; lastX = e.offsetX; draw(angle); return; }
+    if (!lastProj || !tip) return;                       // hover-pick nearest node
+    const sx = cv.width / (cv.clientWidth || cv.width), sy = cv.height / (cv.clientHeight || cv.height);
+    const mx = e.offsetX * sx, my = e.offsetY * sy;
+    let best = null, bd = 1e9;
+    for (const p of lastProj) { const dx = p.px - mx, dy = p.py - my, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = p; } }
+    if (best && bd < 220) {
+      const g = best.n.group === "L" ? "left" : best.n.group === "R" ? "right" : best.n.group;
+      tip.hidden = false; tip.style.left = (e.offsetX + 12) + "px"; tip.style.top = (e.offsetY + 8) + "px";
+      tip.textContent = `agent ${best.n.id} · degree ${best.n.deg} · ${g}`;
+    } else { tip.hidden = true; }
+  });
+  cv.addEventListener("pointerleave", () => { if (tip) tip.hidden = true; });
+  cv.addEventListener("pointerup", () => { dragging = false; cv.style.cursor = "grab"; });
+  const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduce) { draw(0.5); return; }   // static auto-view; drag still rotates
+  (function frame() { if (!dragging) angle += 0.006; draw(angle); _net3dRaf = requestAnimationFrame(frame); })();
+}
+
+/* ---------- cascade propagation replay ---------- */
+function renderCascade(t) {
+  const host = $("#cascade"); if (!host) return;
+  if (!t || !t.nodes || t.nodes.length < 2) { host.innerHTML = `<p class="dim small">No multi-post cascade (share tree) in this run.</p>`; return; }
+  const W = 640, H = 380, nodes = t.nodes.map(n => ({ ...n })), idx = {};
+  nodes.forEach((n, i) => idx[n.id] = i);
+  const maxDepth = Math.max(...nodes.map(n => n.depth), 1);
+  const byDepth = {};
+  nodes.forEach(n => { (byDepth[n.depth] = byDepth[n.depth] || []).push(n); });
+  Object.values(byDepth).forEach(arr => arr.forEach((n, i) => {
+    n.x = 50 + (n.depth / maxDepth) * (W - 100);
+    n.y = 30 + (i + 1) / (arr.length + 1) * (H - 60);
+  }));
+  // reveal in posting-time order -> propagation replay (motion communicates spread)
+  [...nodes].sort((a, b) => a.tick - b.tick).forEach((n, i) => n.delay = i * 45);
+  const e = t.edges.map(([u, v]) => { const a = nodes[idx[u]], b = nodes[idx[v]]; return `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="#e4e4e9" stroke-width="1"/>`; }).join("");
+  const c = nodes.map(n => `<circle class="casc-node" style="animation-delay:${n.delay}ms" cx="${n.x.toFixed(1)}" cy="${n.y.toFixed(1)}" r="${(5 - n.depth * 0.5 < 3 ? 3 : 5 - n.depth * 0.5).toFixed(1)}" fill="#ff9500"><title>${esc(n.id)} · tick ${n.tick} · depth ${n.depth}</title></circle>`).join("");
+  host.innerHTML = `<div class="chart"><div class="ct">Largest cascade — ${t.size} posts</div><div class="cs">share tree, left→right by depth; nodes appear in posting-time order (propagation replay)</div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Largest share cascade: ${nodes.length} posts revealed in posting-time order showing propagation">${e}${c}</svg></div>`;
+}
 
 /* ---------- interval bar ---------- */
 function ibar(lo, hi, pt, lo0, hi0, cls = "") {
@@ -171,13 +366,14 @@ function metric(k, count, { dec = 0, suf = "", pre = "", ci = "" } = {}) {
 function render(r) {
   stage("results");
   const s = r.summary, m = r.manifest, mod = s.moderation, ap = s.appeals, he = s.harmful_exposure, w = s.welfare;
-  $("#runMeta").innerHTML = `cfg ${m.config_hash.slice(0, 10)} · seed ${m.root_seed} · ${r.n_events} events · ${r.elapsed_s}s · packs ${Object.keys(m.pack_versions).join(",")}` + (r.content_mode !== "template" ? ` · ${r.content_mode}: ${r.n_llm_calls} calls / ${r.n_degradations} degraded` : "");
+  const modeTag = r.mode === "research" ? ` · research ×${r.n_replicates} (mc-replicated CIs)` : " · preview (within-run CIs)";
+  $("#runMeta").innerHTML = `cfg ${m.config_hash.slice(0, 10)} · seed ${m.root_seed} · ${r.n_events} events · ${r.elapsed_s}s · packs ${Object.keys(m.pack_versions).join(",")}` + modeTag + (r.content_mode !== "template" ? ` · ${r.content_mode}: ${r.n_llm_calls} calls / ${r.n_degradations} degraded` : "");
   $("#footHash").textContent = "stream " + m.stream_hash.slice(0, 16);
   const seal = $("#seal"); seal.className = "seal";
   if (!r.replay.checked) $("#sealTxt").textContent = "replay skipped";
   else if (r.replay.ok) { seal.classList.add("ok"); $("#sealTxt").textContent = "replay verified"; }
   else { seal.classList.add("bad"); $("#sealTxt").textContent = "replay mismatch"; }
-  if (currentRunId) { $("#expReport").href = `/api/runs/${currentRunId}/export?fmt=report`; $("#expJson").href = `/api/runs/${currentRunId}/export?fmt=json`; }
+  if (currentRunId) { $("#expReport").href = `/api/runs/${currentRunId}/export?fmt=report`; $("#expJson").href = `/api/runs/${currentRunId}/export?fmt=json`; $("#expTransparency").href = `/api/runs/${currentRunId}/export?fmt=transparency`; }
   $("#expEvents").hidden = true;
 
   const heB = ibar(he.ci[0], he.ci[1], he.rate, 0, Math.max(he.ci[1] * 1.3, .05));
@@ -196,6 +392,9 @@ function render(r) {
 
   renderFeed(r.feed || []);
   renderCharts(r.charts);
+  renderNetwork(r.summary.graph && r.summary.graph.graph_sample);
+  renderCascade(r.charts && r.charts.cascade_tree);
+  renderAudit(r.event_sample, r.event_kinds);
 
   $("#confusion").innerHTML = `<div class="cell tp"><div class="cl">true positive</div><div class="cv">${mod.tp}</div></div><div class="cell fp"><div class="cl">false positive</div><div class="cv">${mod.fp}</div></div><div class="cell fn"><div class="cl">false negative</div><div class="cv">${mod.fn}</div></div><div class="cell tn"><div class="cl">true negative</div><div class="cv">${mod.tn}</div></div>`;
   $("#fairness").innerHTML = Object.entries(s.fairness).map(([dim, gs]) => `<div class="fgrp">${esc(dim.replace(/_/g, " "))}</div><table class="read"><thead><tr><th>group</th><th>FPR</th><th>FNR</th><th>n posts</th></tr></thead><tbody>${Object.entries(gs).map(([g, d]) => `<tr><td>${esc(g)}</td><td class="num">${fmt(d.fpr, 4)}</td><td class="num">${fmt(d.fnr, 3)}</td><td class="num">${d.n_posts}</td></tr>`).join("")}</tbody></table>`).join("");
@@ -208,10 +407,36 @@ function render(r) {
     const lo0 = spec.value - 3 * spec.tolerance, hi0 = spec.value + 3 * spec.tolerance, sp = Math.max(hi0 - lo0, 1e-9), L = v => Math.max(0, Math.min(100, 100 * (v - lo0) / sp)), inb = Math.abs(obs - spec.value) <= spec.tolerance;
     return `<div class="calib-row"><span class="nm">${esc(name.replace(/_/g, " "))}</span><div class="ctrack"><span class="tol" style="left:${L(spec.value - spec.tolerance)}%;width:${L(spec.value + spec.tolerance) - L(spec.value - spec.tolerance)}%"></span><span class="ctr" style="left:${L(spec.value)}%"></span><span class="obs ${inb ? "in" : "out"}" style="left:${L(obs)}%"></span></div><span class="vl">${fmt(obs, 3)} <span class="dim">/ ${spec.value}</span></span></div>`;
   }).join("");
-  $("#rawReport").textContent = r.report_md || JSON.stringify(r.manifest, null, 2);
+  let prefix = "";
+  if (r.mc) {
+    prefix += `MONTE CARLO (provenance: mc-replicated, ${r.n_replicates} replicates)\n`;
+    for (const [k, d] of Object.entries(r.mc))
+      prefix += `  ${k}: median ${(+d.median).toFixed(4)}  95% [${(+d.ci[0]).toFixed(4)}, ${(+d.ci[1]).toFixed(4)}]\n`;
+    prefix += "\n";
+  }
+  if (r.transparency) {
+    const t = r.transparency;
+    prefix += `TRANSPARENCY REPORT: notices ${t.notices_sent} · appeals ${t.appeals.filed} filed / ${t.appeals.granted} granted · human reviews ${t.human_reviews} · deadline misses ${t.deadline_misses} · max retention ${t.max_retention_months}mo\n\n`;
+  }
+  $("#rawReport").textContent = prefix + (r.report_md || JSON.stringify(r.manifest, null, 2));
   $$("#outTabs button").forEach((b, i) => b.classList.toggle("on", i === 0));
   $$("[data-opanel]").forEach(p => p.classList.toggle("on", p.dataset.opanel === "overview"));
   moveInk($("#outTabs"));
+}
+
+function renderAudit(events, kinds) {
+  const host = $("#audit"); if (!host) return;
+  if (!events || !events.length) { host.innerHTML = `<p class="dim small">No event sample for this run.</p>`; return; }
+  const opts = ['<option value="">all kinds</option>']
+    .concat((kinds || []).map(k => `<option value="${esc(k)}">${esc(k)}</option>`)).join("");
+  host.innerHTML = `<div class="ahead"><select id="auditKind">${opts}</select> <span class="dim small">sampled audit events (up to 60 per kind; full append-only log on disk at the run's out_dir/events.jsonl)</span></div><div id="auditRows"></div>`;
+  const draw = (filter) => {
+    const rows = events.filter(e => !filter || e.kind === filter).map(e =>
+      `<tr><td class="num">${e.tick}</td><td>${esc(e.kind)}</td><td class="num">${e.actor_id}</td><td>${esc(e.content_id || "")}</td><td class="mono small">${esc(JSON.stringify(e.data || {}).slice(0, 90))}</td></tr>`).join("");
+    $("#auditRows").innerHTML = `<table class="read"><thead><tr><th>tick</th><th>kind</th><th>actor</th><th>content</th><th>data</th></tr></thead><tbody>${rows}</tbody></table>`;
+  };
+  $("#auditKind").addEventListener("change", e => draw(e.target.value));
+  draw("");
 }
 
 function renderFeed(feed) {
@@ -255,6 +480,15 @@ $("#histClose").addEventListener("click", closeDrawer);
 $("#histScrim").addEventListener("click", closeDrawer);
 
 window.addEventListener("resize", () => { moveInk($("#cfgTabs")); if (!$("#results").hidden) moveInk($("#outTabs")); });
+/* ---------- theme (dark control-room / light editorial) ---------- */
+function applyTheme(t) {
+  document.body.dataset.theme = (t === "dark") ? "dark" : "";
+  try { localStorage.setItem("sociosim-theme", t); } catch (e) { /* private mode */ }
+}
+$("#themeBtn")?.addEventListener("click", () =>
+  applyTheme(document.body.dataset.theme === "dark" ? "light" : "dark"));
+try { if (localStorage.getItem("sociosim-theme") === "dark") applyTheme("dark"); } catch (e) { /* ignore */ }
+
 wireTabs("#cfgTabs", "tab", "panel");
 wireTabs("#outTabs", "otab", "opanel");
 loadMeta();

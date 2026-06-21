@@ -56,8 +56,47 @@ def test_replay_verifier_passes(result):
     assert ok, summary
 
 
+def test_dynamic_graph_emits_events_and_is_deterministic():
+    cfg = RunConfig.test(jurisdictions=("EU",), n_ticks=72,
+                         follow_rate=0.1, unfollow_rate=0.1, churn_rate=0.04)
+    r1 = Simulation(cfg).run()
+    r2 = Simulation(cfg).run()
+    assert r1.log.stream_hash() == r2.log.stream_hash()      # deterministic
+    assert r1.log.by_kind("follow")                          # ties added
+    assert r1.log.by_kind("unfollow")                        # ties dropped
+    assert r1.log.by_kind("churn")                           # agents deactivated
+
+
+def test_dynamic_graph_replays_bit_identically():
+    from socio_sim.pipeline import run_and_analyze
+    a = run_and_analyze(RunConfig.test(jurisdictions=("EU",), n_ticks=72,
+                                       follow_rate=0.1, unfollow_rate=0.08,
+                                       churn_rate=0.03), verify_replay=True)
+    assert a.replay["ok"]
+
+
+def test_static_graph_is_default_and_emits_no_dynamics_events():
+    r = Simulation(RunConfig.test(jurisdictions=("EU",))).run()
+    assert not r.log.by_kind("follow")
+    assert not r.log.by_kind("unfollow")
+    assert not r.log.by_kind("churn")
+
+
+def test_trained_classifier_mode_runs_and_is_deterministic():
+    """The real trained-classifier mode runs end-to-end, emits classify +
+    moderation events, and is deterministic/replayable."""
+    cfg = RunConfig.test(jurisdictions=("EU",), classifier_mode="trained",
+                         category_base_rates=boosted_rates())
+    h1 = Simulation(cfg).run().log.stream_hash()
+    h2 = Simulation(cfg).run().log.stream_hash()
+    assert h1 == h2
+    res = Simulation(cfg).run()
+    assert res.log.by_kind("classify") and res.log.by_kind("post")
+    assert res.manifest.config["classifier_mode"] == "trained"
+
+
 def test_run_writes_outputs(tmp_path):
     cfg = RunConfig.test(out_dir=str(tmp_path))
-    res = Simulation(cfg).run(write=True)
+    Simulation(cfg).run(write=True)
     assert (tmp_path / "events.jsonl").exists()
     assert (tmp_path / "manifest.json").exists()

@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import numpy as np
 
-from socio_sim.ads.measure import measure_campaign
+from socio_sim.ads.measure import apply_fdr, measure_campaign
 from socio_sim.logs.events import EventLog
 from socio_sim.rng import SeedTree
+from socio_sim.stats import wilson_interval  # re-exported for callers/tests
 
 HARMFUL = {"hate", "harassment", "fraud", "misinfo", "adult",
            "illegal_goods", "self_harm"}
@@ -57,6 +58,8 @@ def moderation_confusion(log: EventLog) -> dict:
         "recall": tp / (tp + fn) if (tp + fn) else float("nan"),
         "fpr": fp / (fp + tn) if (fp + tn) else float("nan"),
         "fnr": fn / (fn + tp) if (fn + tp) else float("nan"),
+        "precision_ci": wilson_interval(tp, tp + fp),
+        "recall_ci": wilson_interval(tp, tp + fn),
     }
 
 
@@ -89,8 +92,12 @@ def appeal_stats(log: EventLog) -> dict:
         "filed": len(filed),
         "resolved": len(resolved),
         "granted_rate": len(granted) / len(resolved) if resolved else float("nan"),
+        "granted_rate_ci": wilson_interval(len(granted), len(resolved)),
         "mean_resolution_ticks": (
             float(np.mean([e["data"]["resolution_ticks"] for e in resolved]))
+            if resolved else float("nan")),
+        "p95_resolution_ticks": (
+            float(np.percentile([e["data"]["resolution_ticks"] for e in resolved], 95))
             if resolved else float("nan")),
         "human_reviews": len(reviews),
         "deadline_miss_rate": len(misses) / len(reviews) if reviews else 0.0,
@@ -125,6 +132,47 @@ def cascade_sizes(log: EventLog) -> list:
     for cid in parent:
         sizes[root(cid)] = sizes.get(root(cid), 0) + 1
     return list(sizes.values())
+
+
+def cascade_tree(log: EventLog, max_nodes: int = 150) -> dict:
+    """The largest share cascade as a tree for replay: nodes carry their posting
+    tick and depth so the UI can reveal them in time order (propagation replay).
+    """
+    posts = log.by_kind("post")
+    parent = {e["content_id"]: e["data"].get("parent_id") for e in posts}
+    tick = {e["content_id"]: e["tick"] for e in posts}
+    children: dict = {}
+    for cid, p in parent.items():
+        if p is not None:
+            children.setdefault(p, []).append(cid)
+
+    def root(cid):
+        seen = set()
+        while parent.get(cid) and cid not in seen:
+            seen.add(cid)
+            cid = parent[cid]
+        return cid
+
+    sizes: dict = {}
+    for cid in parent:
+        sizes[root(cid)] = sizes.get(root(cid), 0) + 1
+    if not sizes:
+        return {"nodes": [], "edges": [], "size": 0}
+    top = max(sizes, key=lambda r: (sizes[r], r))
+    if sizes[top] < 2:
+        return {"nodes": [], "edges": [], "size": sizes[top]}
+
+    nodes, edges, depth, queue, seen = [], [], {top: 0}, [top], {top}
+    while queue and len(nodes) < max_nodes:
+        cid = queue.pop(0)
+        nodes.append({"id": cid, "tick": int(tick.get(cid, 0)), "depth": depth[cid]})
+        for ch in sorted(children.get(cid, [])):
+            if ch not in seen and len(seen) < max_nodes:
+                seen.add(ch)
+                depth[ch] = depth[cid] + 1
+                edges.append([cid, ch])
+                queue.append(ch)
+    return {"nodes": nodes, "edges": edges, "size": sizes[top]}
 
 
 def welfare_proxy(log: EventLog) -> dict:
@@ -185,6 +233,22 @@ def fairness_diagnostics(log: EventLog, personas) -> dict:
     return out
 
 
+def minor_protection(log: EventLog, personas) -> dict:
+    """Rights-impact: ad exposure of minors. Under the EU minor-ad ban
+    (EU-ADS-MINOR-1) this should be 0; in US mode minors may be served. A direct
+    check that the minor-protection rule actually bites end-to-end."""
+    ad_impr = [e for e in log.by_kind("impression")
+               if e["data"].get("strategy") == "ad"]
+    to_minor = sum(1 for e in ad_impr
+                   if 0 <= e["actor_id"] < personas.n
+                   and bool(personas.is_minor[e["actor_id"]]))
+    return {
+        "ad_impressions": len(ad_impr),
+        "ad_impressions_to_minors": to_minor,
+        "minor_ad_rate": (to_minor / len(ad_impr)) if ad_impr else 0.0,
+    }
+
+
 def summarize_run(result, rng: np.random.Generator | None = None) -> dict:
     log = result.log
     rng = rng or SeedTree(result.config.root_seed).generator("analytics", 0)
@@ -213,8 +277,14 @@ def summarize_run(result, rng: np.random.Generator | None = None) -> dict:
             "ci": bootstrap_ci(welfare["per_agent"], rng=rng),
         },
         "fairness": fairness_diagnostics(log, result.personas),
-        "ads": {c.id: measure_campaign(log, c, result.ads,
-                                       result.config.n_agents)
-                for c in result.campaigns},
+        "minor_protection": minor_protection(log, result.personas),
+        "ads": _ads_with_fdr(log, result),
         "graph": result.graph_stats,
     }
+
+
+def _ads_with_fdr(log, result) -> dict:
+    measures = {c.id: measure_campaign(log, c, result.ads, result.config.n_agents)
+                for c in result.campaigns}
+    apply_fdr(list(measures.values()))  # BH-FDR across campaigns (mutates in place)
+    return measures
