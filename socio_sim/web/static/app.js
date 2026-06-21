@@ -96,12 +96,40 @@ function resetDefaults() {
     const b = $("#rl_" + c); if (b) b.textContent = (+v).toFixed(3);
   });
 }
+// Human-readable labels for fields a preset may set (so the change-summary is
+// plain-language, not raw keys). Falls back to the key when unmapped.
+const FIELD_LABELS = {
+  jurisdictions: "Jurisdiction packs", red_team: "Adversaries",
+  ftc_enabled: "FTC pack", ftc_compliance: "FTC ad disclosures",
+  feed_strategy: "Feed ranking", eu_optout_rate: "EU opt-out",
+  exploration_epsilon: "Exploration ε", human_review_accuracy: "Reviewer accuracy",
+  human_review_delay_ticks: "Review delay (ticks)", appeal_grant_fp_rate: "Appeal grant (FP)",
+  ads_enabled: "Advertising", holdout_fraction: "RCT holdout",
+  ad_frequency_cap_per_day: "Freq cap/day", ad_slot_interval: "Ad slot interval",
+  classifier_precision: "Classifier precision", classifier_recall: "Classifier recall",
+  classifier_mode: "Classifier mode", benchmark: "Benchmark set",
+  homophily_rewire_fraction: "Homophily", feed_size: "Feed size",
+};
+function prettyField(k, v) {
+  if (k === "jurisdictions" || k === "red_team") return `${FIELD_LABELS[k]}: ${(v || []).join(", ") || "none"}`;
+  if (k.startsWith("rate_")) return `${k.slice(5).replace(/_/g, " ")} prevalence: ${(+v).toFixed(3)}`;
+  const lab = FIELD_LABELS[k] || k;
+  return `${lab}: ${typeof v === "boolean" ? (v ? "on" : "off") : v}`;
+}
+function renderPresetSummary(f) {
+  const box = $("#presetSummary"), ul = $("#presetSummaryList");
+  const keys = Object.keys(f);
+  if (!keys.length) { box.hidden = true; return; }  // "custom" preset
+  ul.innerHTML = keys.map(k => `<li>${esc(prettyField(k, f[k]))}</li>`).join("");
+  box.hidden = false;
+}
 function applyPreset(name) {
   const p = META.presets[name]; if (!p) return; $("#presetDesc").textContent = p.desc; const f = p.fields;
   resetDefaults();  // clean slate, then apply this preset's overrides (S1)
   if (f.jurisdictions) $$("#jurisdictions input").forEach(i => i.checked = f.jurisdictions.includes(i.value));
   if (f.red_team) $$("#redteam input").forEach(i => i.checked = f.red_team.includes(i.value));
   Object.entries(f).forEach(([k, v]) => { if (k === "jurisdictions" || k === "red_team") return; if (k.startsWith("rate_")) { setVal(k, v); const b = $("#rl_" + k.slice(5)); if (b) b.textContent = (+v).toFixed(3); } else setVal(k, v); });
+  renderPresetSummary(f);  // visible "what this changes" (audit: presets felt inert)
 }
 $("#content_mode").addEventListener("change", e => $$("[data-llm]").forEach(el => el.hidden = e.target.value === "template"));
 $("#graph_kind").addEventListener("change", e => $$("[data-graph]").forEach(el => el.hidden = el.dataset.graph !== e.target.value));
