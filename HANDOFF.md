@@ -24,6 +24,13 @@ end-to-end (trained+twitter_like+dynamic run = 3812 events). Guardrails KEPT
 (no-PII, not-legal-advice, projections-not-predictions, synthetic-by-design).
 Caught+fixed regression: test_logs dead-kinds test updated (follow/unfollow/churn
 now LIVE). Coverage 93%; ruff clean; wheel ships 7 data assets.
+POST-AUDIT: + Saltelli S1+ST sensitivity (best-practice); data-legality verified
+(all aggregate/cited/synthetic, no PII/scraping). ONBOARDING FIX: run.py now
+catches missing runtime deps with install guidance (user hit ModuleNotFoundError
+on the MS-Store python shim); + requirements.txt; README install rewritten.
+PRESET/KNOB AUDIT: all 8 presets build+run+apply accurately; every knob probed =
+live (no dead knobs); benchmark analytics-only. Guarded by test_presets.py.
+Branch pushed to origin/feat/audit-p0-p1. PR not yet opened (no gh CLI/token).
 
 ## Status snapshot
 - Suite green (~122 tests). Determinism baselines RE-LOCKED after P2 (test_determinism_regression.py).
