@@ -20,17 +20,28 @@ analytics.
 
 ## Install
 
+SocioSim needs four runtime packages (numpy, networkx, scipy, pyyaml). Install
+them before running anything — `python run.py` will otherwise print a clear
+"missing dependency" message telling you to do this.
+
 ```bash
-python -m venv .venv
-.venv\Scripts\activate          # Windows
-pip install -e .[dev]
+python -m venv .venv                       # recommended: isolate from system Python
+.venv\Scripts\activate                     # Windows  (source .venv/bin/activate on macOS/Linux)
+pip install -e .                           # SocioSim + runtime deps
+# or, without installing the package:  pip install -r requirements.txt
+# add tooling for tests/lint:           pip install -e .[dev]
 ```
+
+> If you see `ModuleNotFoundError: No module named 'networkx'`, the deps aren't
+> installed in the Python you're using. Activate the venv (above) and re-run
+> `pip install -e .`. On Windows, the Microsoft-Store `python` shim has no
+> packages — use the venv's interpreter.
 
 ## Quick start (one command)
 
 ```bash
 python run.py --web      # browser dashboard (recommended) — opens automatically
-python run.py            # CLI run, template mode — no LLM, nothing to install
+python run.py            # CLI run, template mode — no LLM needed (deps must be installed)
 python run.py --llm      # CLI run with a free local LLM (auto Ollama)
 ```
 
@@ -85,6 +96,11 @@ python run.py --profile standard --jurisdictions US,EU,CN
 python run.py --agents 300 --ticks 72 --seed 7   # custom scale/seed
 python run.py --replicates 20                    # Research run: Monte Carlo 95% intervals
 python run.py --validate                         # sensitivity + calibration -> VALIDATION_REPORT.md
+python run.py --profile calibrated               # history-matched (I=1.0, all metrics in-band)
+python run.py --classifier trained               # real trained moderation classifier (measured P/R)
+python run.py --benchmark twitter_like           # calibrate against a named published-aggregate set
+python run.py --dynamic-graph                    # daily follow/unfollow/churn graph evolution
+python run.py --media 5                           # also synthesize real PNG images + an APNG video
 ```
 
 ## Documentation
@@ -111,7 +127,7 @@ python run.py --validate                         # sensitivity + calibration -> 
 - **Transparency:** every run emits a DSA/§230/CN/FTC-style transparency tally
   (web export `?fmt=transparency`); policy packs carry statute citations and
   `legal_uncertainty` notes.
-- **Tests/CI:** `pytest` (~165 tests incl. property-based) + `ruff`, ~92%
+- **Tests/CI:** `pytest` (~190 tests incl. property-based) + `ruff`, ~93%
   coverage; GitHub Actions enforces both with an 85% coverage gate. See
   `AUDIT_LOG.md`, `KNOWN_LIMITATIONS.md`, `SOURCE_LEDGER.md`, `CHANGELOG.md`.
 - **Docker:** `docker build -t sociosim . && docker run --rm sociosim`
@@ -119,10 +135,12 @@ python run.py --validate                         # sensitivity + calibration -> 
 
 ## Default run profiles (evidence-based)
 
-| Profile  | Agents | Horizon | Ticks  | Replicates |
-|----------|--------|---------|--------|------------|
-| standard | 10,000 | 28 days | hourly | 100        |
-| quick    | 1,000  | 7 days  | hourly | 20         |
+| Profile    | Agents | Horizon | Ticks  | Replicates | Notes |
+|------------|--------|---------|--------|------------|-------|
+| standard   | 10,000 | 28 days | hourly | 100        | default scale |
+| quick      | 1,000  | 7 days  | hourly | 20         | fast iteration |
+| test       | 200    | 48 h    | hourly | 2          | tiny smoke runs |
+| calibrated | 1,000  | 7 days  | hourly | 20         | history-matched: Holme–Kim graph, I=1.0, all benchmark metrics in-band (`CALIBRATION_REPORT.md`) |
 
 Scale defaults are grounded in published ABM/LLM-simulation literature and ad
 experimentation practice; see the design spec for citations.
