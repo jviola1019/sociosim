@@ -157,8 +157,44 @@ from socio_sim.validation.targets import load_targets, compute_observed
 - `run_replicates` -> outcome distributions (median + 95% percentile interval).
 - `history_match` (LHS, implausibility < 3) then `abc_posterior` (closest
   fraction) -> parameter credible intervals.
-- `validation.sensitivity.first_order_indices` -> variance-based first-order
-  sensitivity (Sobol-style approximation).
+- `validation.sensitivity.first_order_indices` -> first-order (correlation-ratio)
+  sensitivity; `saltelli_indices` / `study.saltelli_study` -> gold-standard
+  Saltelli **S1 + total-effect ST** (interactions). `study.multi_output_sensitivity`
+  sweeps several outputs over a Sobol design across seeds.
+- `study.posterior_calibrated_mc` chains history-match -> ABC posterior -> output
+  interval (parameter-uncertainty propagation). All written to
+  `VALIDATION_REPORT.md` via `run.py --validate`.
+
+## Models & engineered features
+
+Every option below is reachable from the CLI (`run.py`), the web console, and
+`RunConfig`. Defaults keep runs deterministic; opt-in features never change the
+default event stream.
+
+- **Calibrated profile** — `--profile calibrated` / `RunConfig.calibrated()`.
+  History-matched Holme–Kim (`plc`) graph (p=0.7) so every published-aggregate
+  benchmark lands within one tolerance band (implausibility I=1.0; see
+  `CALIBRATION_REPORT.md`). Keep its tuned scale for I=1.0.
+- **Benchmark target sets** — `--benchmark default|twitter_like|facebook_like` /
+  `RunConfig.benchmark`. Bundled *published aggregate* statistics (cited, no PII);
+  affects calibration scoring only, not the event stream.
+- **Moderation classifier** — `--classifier noise|trained` / `classifier_mode`.
+  `noise` = calibrated noise model (default). `trained` = a real pure-numpy
+  logistic-regression classifier (`content/ml_classifier.py`) trained on
+  category-signal content with **measured** held-out precision/recall.
+- **Dynamic social graph** — `--dynamic-graph` or `follow_rate` / `unfollow_rate`
+  / `churn_rate`. Daily follow (triadic closure) / unfollow / churn, emitted as
+  events, deterministic + bit-identically replayable. Default rates 0 = static.
+- **Network models** — `graph_kind = ba | plc | ws | sbm`. `plc` (Holme–Kim) adds
+  tunable clustering via triad prob `p`. Average clustering is exact for
+  n≤5000, a deterministic sampled estimate above that.
+- **Media synthesis** — `--media N` writes N real procedural PNG images plus one
+  animated-PNG (APNG) video to `out/<run>/media/` (`content/media.py`, offline,
+  zero-dep, deterministic). `set_image_backend()` plugs in an external model.
+- **Distributed / GPU** — `--workers N` or `run_replicates(executor=...)` (any
+  `concurrent.futures` executor: ProcessPool / Dask / Ray) for Monte Carlo;
+  `accel.py` routes the classifier's training matmuls to CuPy when a GPU is
+  present, else NumPy (GPU path is opt-in/unverified without a device).
 
 ## Replay & audit
 

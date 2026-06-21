@@ -45,6 +45,30 @@ python run.py            # CLI run, template mode — no LLM needed (deps must b
 python run.py --llm      # CLI run with a free local LLM (auto Ollama)
 ```
 
+### Start the app with *everything* included
+
+The **web console is the all-in-one entry point** — every feature (trained
+classifier, calibrated graph, named benchmarks, dynamic graph, Monte Carlo,
+media) is a control in the UI:
+
+```bash
+pip install -e .          # one-time: install deps (skip if already done)
+python run.py --web --llm # launches the studio + a free local LLM; pick options in the UI
+```
+
+Prefer one CLI run that turns **everything** on at once:
+
+```bash
+python run.py --llm --profile calibrated --classifier trained \
+              --benchmark twitter_like --dynamic-graph --replicates 20 --media 5
+```
+
+That runs: local-LLM content · history-matched calibrated graph · real trained
+moderation classifier · Twitter-like benchmark · follow/unfollow/churn graph
+evolution · 20-replicate Monte Carlo (Research mode) · real PNG + APNG media into
+`out/run/media/`. (Keep the `calibrated` profile's own scale for `I=1.0`; adding
+`--agents/--ticks` overrides the tuned calibration.)
+
 ### Web console
 
 `python run.py --web` starts a local **research studio** (Python stdlib server,
@@ -122,8 +146,10 @@ python run.py --media 5                           # also synthesize real PNG ima
   baseline channel, with a Newcombe CI, CUPED adjustment, a lift p-value,
   Benjamini–Hochberg FDR across campaigns, and ROAS/iROAS/CAC/LTV (synthetic).
 - **Validation:** `python run.py --validate` runs a BehaviorParams sensitivity
-  sweep + calibration (implausibility, diurnal-KS, ABC-posterior propagation) →
-  `VALIDATION_REPORT.md`.
+  sweep (Saltelli first-order S1 **and** total-effect ST, multi-output/multi-seed
+  Sobol) + calibration (implausibility, diurnal-KS, ABC-posterior propagation) →
+  `VALIDATION_REPORT.md`. A history-matched `--profile calibrated` puts every
+  benchmark metric in-band (`CALIBRATION_REPORT.md`).
 - **Transparency:** every run emits a DSA/§230/CN/FTC-style transparency tally
   (web export `?fmt=transparency`); policy packs carry statute citations and
   `legal_uncertainty` notes.

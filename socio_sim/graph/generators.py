@@ -1,4 +1,4 @@
-"""Social graph generators (Spec §3.2): BA, WS, SBM + homophily mixing.
+"""Social graph generators (Spec §3.2): BA, PLC (Holme–Kim), WS, SBM + homophily mixing.
 
 All generators take an explicit numpy Generator so graphs are reproducible
 from the run's seed tree.
