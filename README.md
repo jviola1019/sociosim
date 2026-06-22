@@ -18,6 +18,19 @@ analytics.
 > individual level; no personally identifiable information and no model
 > chain-of-thought is ever stored.
 
+## Architecture at a glance
+
+```mermaid
+flowchart LR
+    CFG["Config + SeedTree<br/>(deterministic RNG)"] --> WORLD["Graph + Personas"]
+    WORLD --> LOOP["Hourly tick loop:<br/>generate → classify → moderate<br/>→ rank → ads → engage"]
+    LOOP --> LOG["Audit log + Manifest<br/>(bit-identical replay)"]
+    LOG --> VAL["Analytics + Validation<br/>MC · calibration · backtest · measured benchmark"]
+```
+
+Full model definitions, per-tick data flow, and the validation ladder (with
+diagrams) are in **[docs/MODELS.md](docs/MODELS.md)**.
+
 ## Install
 
 SocioSim needs four runtime packages (numpy, networkx, scipy, pyyaml). Install
@@ -134,6 +147,8 @@ python run.py --media 5                           # also synthesize real PNG ima
 
 ## Documentation
 
+- **`docs/MODELS.md` — models & architecture (diagrams, full model definitions,
+  validation ladder)**
 - `docs/usage.md` — configuration, profiles, experiments, models & features
 - `docs/RESEARCH_EVIDENCE.md` — cited evidence base (marketing measurement,
   moderation/settings ranges, web-app security; ~130 sources)

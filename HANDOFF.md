@@ -3,6 +3,26 @@
 **Purpose:** live resume doc so this sprint continues across sessions/token cutoffs.
 Resuming? Read this, then `AUDIT_LOG.md`, then `CHANGELOG.md`. Branch: `feat/audit-p0-p1`.
 
+## SPRINT 7 — Rung 4 measured-on-benchmark + pro docs (user decision 2026-06-22)
+Reach the TOP lawful rung for the classifier + upgrade docs to professional w/
+diagrams + full model definitions. DONE+verified:
+- Datasets inserted (license-VERIFIED via HF API before bundling): Civil Comments
+  (CC0-1.0, toxicity) + Deysi spam-detection (Apache-2.0, spam). SMS-Spam REJECTED
+  (HF license 'unknown'). Balanced 1500/1500, PII-scrubbed (emails/URLs/phones/
+  @handles), 400-char cap, gzipped JSONL under data/benchmarks/moderation/;
+  provenance script scripts/fetch_moderation_benchmarks.py; package-data + wheel
+  ship verified.
+- validation/benchmark_eval.py: deterministic split + numpy LR -> MEASURED P/R/F1
+  + tie-corrected ROC-AUC. Results: toxicity F1=0.72/AUC=0.78; spam F1=0.98/AUC=
+  1.00 (baseline ~0.52). Provenance 'measured-on-benchmark' (top rung).
+- run.py --measure-classifier -> BENCHMARK_REPORT.md; DATA_MANIFEST entries
+  (verified license/PII/redistribution). Tests +4.
+- DOCS UPGRADE (user NOTE): docs/MODELS.md professional ref w/ 4 Mermaid diagrams
+  (architecture, per-tick flow, validation ladder) + full model-definition tables;
+  README architecture diagram + MODELS link; ladder docs reconciled.
+HONEST CEILING held: measures the CLASSIFIER COMPONENT on real licensed text; does
+NOT make the synthetic ABM predictive of a real platform; no real-person decisions.
+
 ## SPRINT 6 — research-only -> measured (validation ladder, user decision 2026-06-22)
 Climb from "research-only" toward "measured" WITHOUT crossing legal/ethics lines
 (no PII, no scraping, no real-person decisions, no point-prediction). DONE+verified:

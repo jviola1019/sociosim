@@ -191,6 +191,9 @@ def main():
                    help="out-of-sample backtest (calibrate on a train subset of "
                         "public aggregates, validate held-out metrics) + stylized-"
                         "facts validation, write BACKTEST_REPORT.md, and exit")
+    p.add_argument("--measure-classifier", action="store_true",
+                   help="measure the moderation classifier on bundled REAL licensed "
+                        "benchmarks (F1/ROC-AUC) -> BENCHMARK_REPORT.md, and exit")
     p.add_argument("--sens-samples", type=int, default=24,
                    help="LHS samples for --validate sensitivity (default 24)")
     p.add_argument("--media", type=int, default=0,
@@ -228,6 +231,20 @@ def main():
         print(f"Wrote BACKTEST_REPORT.md (out-of-sample test_pass={bt['test_pass']}, "
               f"I_test={bt['implausibility_test']:.2f}; stylized "
               f"{sf['n_pass']}/{sf['n_total']})")
+        return 0
+
+    if args.measure_classifier:
+        from socio_sim.validation.benchmark_eval import (evaluate_all,
+                                                         render_benchmark_report)
+        print("Measuring the moderation classifier on bundled REAL licensed "
+              "benchmarks (Civil Comments CC0; Deysi spam Apache-2.0)...")
+        res = evaluate_all(seed=args.seed)
+        (ROOT / "BENCHMARK_REPORT.md").write_text(
+            render_benchmark_report(res), encoding="utf-8")
+        for r in res:
+            print(f"  {r['name']:16s} ({r['task']}): F1={r['f1']:.3f} "
+                  f"ROC-AUC={r['auc']:.3f}")
+        print("Wrote BENCHMARK_REPORT.md")
         return 0
 
     if args.web:

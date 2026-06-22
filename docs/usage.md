@@ -179,7 +179,12 @@ sample`** < `measured-on-benchmark`. No claim may exceed its label.
   of-sample`): calibrate the graph on a TRAIN subset of a public-aggregate
   benchmark, then validate the **held-out** metrics fall within tolerance —
   generalization, not in-sample fit.
-- `python run.py --backtest` runs both and writes `BACKTEST_REPORT.md`.
+- **Measured on real benchmarks** (`validation.benchmark_eval`, provenance
+  `measured-on-benchmark`, the top rung): `python run.py --measure-classifier`
+  trains the classifier on a deterministic split of bundled, license-clean,
+  de-identified datasets and reports REAL precision/recall/F1/ROC-AUC — Civil
+  Comments toxicity (CC0) and Deysi spam (Apache-2.0) -> `BENCHMARK_REPORT.md`.
+- `python run.py --backtest` runs the aggregate backtest + stylized facts -> `BACKTEST_REPORT.md`.
 - Data governance for every dataset is recorded in `docs/DATA_MANIFEST.md`
   (aggregate/public only, no PII, no scraping). Real-person decisions / point-
   prediction of a specific platform are out of scope by design.

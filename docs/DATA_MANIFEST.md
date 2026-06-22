@@ -27,9 +27,26 @@ rules below, and be license-clean and free of personal data before use.
 | Twitter-like targets | `socio_sim/data/benchmarks/twitter_like.json` | microblog aggregate targets | Kwak et al. 2010; Myers et al. 2014 (cited in file) | **None** | as above |
 | Facebook-like targets | `socio_sim/data/benchmarks/facebook_like.json` | social-network aggregate targets | Ugander et al. 2011 (cited; degree-tail omitted — not power-law) | **None** | as above |
 
-All bundled data are **aggregate point targets with tolerances** — there are zero
-record-level rows. Verified by `tests/test_validation.py` and packaged into the
-wheel (`tests`/CI assert their presence).
+The benchmark *target* files above are **aggregate point targets with tolerances**
+— zero record-level rows. Verified by `tests/test_validation.py` and packaged.
+
+### Measured-classifier benchmarks (Rung 4 — real labeled text)
+These power `run.py --measure-classifier` (real precision/recall/F1/ROC-AUC; see
+`BENCHMARK_REPORT.md`). Both licenses permit redistribution + business/government
+use. Text was **PII-scrubbed** (emails/URLs/phones/@handles redacted) on top of
+each source's own de-identification, truncated to 400 chars, and a balanced
+sample bundled (1,500 positive / 1,500 negative). Fetched once via the
+HuggingFace Dataset Viewer API (official API, not scraping); provenance script:
+`scripts/fetch_moderation_benchmarks.py`.
+
+| Dataset | Path | Task | Source | License | PII? |
+|---|---|---|---|---|---|
+| Civil Comments | `socio_sim/data/benchmarks/moderation/civil_comments.jsonl.gz` | toxicity | Google/Jigsaw "Civil Comments" (`google/civil_comments`) | **CC0-1.0** (public domain) | De-identified comments; scrubbed; **no PII** |
+| Spam detection | `socio_sim/data/benchmarks/moderation/spam_detection.jsonl.gz` | spam | `Deysi/spam-detection-dataset` | **Apache-2.0** | Short messages; scrubbed; **no PII** |
+
+Licenses verified via the HF dataset API on insertion (`cardData.license` =
+`cc0-1.0` / `apache-2.0`). SMS-Spam (UCI) was rejected during selection because
+its HF license is `unknown` — it is **not** bundled.
 
 ## Candidate future datasets (NOT yet bundled — listed for governed addition)
 | Dataset | Why | Governance to satisfy first |
