@@ -75,7 +75,14 @@ async function loadMeta() {
   $("#engLabel").textContent = "Engine ready";
   $("#llmLabel").textContent = META.llm_available ? "LLM ready" : "LLM idle";
   const ps = $("#preset");
-  ps.innerHTML = Object.entries(META.presets).map(([k, p]) => `<option value="${k}">${esc(p.label)}</option>`).join("");
+  // group presets by category into <optgroup>s (Regulatory / Research / Business)
+  const cats = {};
+  for (const [k, p] of Object.entries(META.presets)) (cats[p.category || "General"] ||= []).push([k, p]);
+  const order = ["General", "Regulatory", "Research", "Business"];
+  ps.innerHTML = order.filter(c => cats[c]).map(c =>
+    `<optgroup label="${esc(c)}">` +
+    cats[c].map(([k, p]) => `<option value="${k}">${esc(p.label)}</option>`).join("") +
+    `</optgroup>`).join("");
   ps.value = "eu_dsa"; ps.addEventListener("change", () => applyPreset(ps.value));
   $("#rates").innerHTML = META.harmful_categories.concat(["ai_generated"]).map(c => { const v = META.defaults[c] ?? 0.02; return `<div class="rate"><label>${c.replace(/_/g, " ")}<b id="rl_${c}">${v.toFixed(3)}</b></label><input type="range" id="rate_${c}" min="0" max="0.3" step="0.005" value="${v}"></div>`; }).join("");
   $("#rates").addEventListener("input", e => { if (e.target.id.startsWith("rate_")) $("#rl_" + e.target.id.slice(5)).textContent = (+e.target.value).toFixed(3); });
@@ -125,9 +132,12 @@ function prettyField(k, v) {
   const lab = FIELD_LABELS[k] || k;
   return `${lab}: ${typeof v === "boolean" ? (v ? "on" : "off") : v}`;
 }
-function renderPresetSummary(f) {
+function renderPresetSummary(f, sources) {
   const box = $("#presetSummary"), ul = $("#presetSummaryList");
   const keys = Object.keys(f);
+  const src = $("#presetSources");
+  if (src) src.innerHTML = (sources && sources.length)
+    ? "Sources: " + sources.map(esc).join("; ") : "";
   if (!keys.length) { box.hidden = true; return; }  // "custom" preset
   ul.innerHTML = keys.map(k => `<li>${esc(prettyField(k, f[k]))}</li>`).join("");
   box.hidden = false;
@@ -138,7 +148,7 @@ function applyPreset(name) {
   if (f.jurisdictions) $$("#jurisdictions input").forEach(i => i.checked = f.jurisdictions.includes(i.value));
   currentRedTeam = f.red_team || [];
   Object.entries(f).forEach(([k, v]) => { if (k === "jurisdictions" || k === "red_team") return; if (k.startsWith("rate_")) { setVal(k, v); const b = $("#rl_" + k.slice(5)); if (b) b.textContent = (+v).toFixed(3); } else setVal(k, v); });
-  renderPresetSummary(f);  // visible "what this changes" (audit: presets felt inert)
+  renderPresetSummary(f, p.sources);  // visible "what this changes" + sources
 }
 $("#content_mode").addEventListener("change", e => $$("[data-llm]").forEach(el => el.hidden = e.target.value === "template"));
 $("#graph_kind").addEventListener("change", e => $$("[data-graph]").forEach(el => el.hidden = el.dataset.graph !== e.target.value));
