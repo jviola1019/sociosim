@@ -33,10 +33,31 @@ def test_measured_metrics_beat_baseline():
         assert r["f1"] > r["baseline_majority_acc"] - 0.5  # clearly learning
 
 
+def test_proper_scoring_beats_climatology_baseline():
+    for name in available_benchmarks():
+        r = evaluate_benchmark(name, seed=0)
+        # Brier/log-loss are proper scores (lower better); must beat the no-skill
+        # climatology baseline on REAL held-out labels (positive skill score).
+        assert r["brier"] < r["brier_baseline"], (name, r["brier"], r["brier_baseline"])
+        assert r["log_loss"] < r["log_loss_baseline"], name
+        assert r["brier_skill_score"] > 0.0, (name, r["brier_skill_score"])
+        assert 0.0 <= r["ece"] <= 1.0
+
+
+def test_proper_scoring_functions():
+    from socio_sim.validation.benchmark_eval import (brier_score,
+                                                     expected_calibration_error,
+                                                     log_loss)
+    assert brier_score([1, 0], [1.0, 0.0]) == 0.0          # perfect
+    assert brier_score([1, 0], [0.0, 1.0]) == 1.0          # worst
+    assert log_loss([1, 1], [0.999999, 0.999999]) < 1e-3   # confident+correct
+    assert expected_calibration_error([1, 0], [1.0, 0.0]) == 0.0
+
+
 def test_evaluation_is_deterministic():
     a = evaluate_benchmark("spam_detection", seed=0)
     b = evaluate_benchmark("spam_detection", seed=0)
-    assert a["f1"] == b["f1"] and a["auc"] == b["auc"]
+    assert a["f1"] == b["f1"] and a["auc"] == b["auc"] and a["brier"] == b["brier"]
 
 
 def test_roc_auc_known_cases():
