@@ -58,6 +58,12 @@ function wireTabs(navSel, attr, panelAttr) {
 }
 
 /* ---------- bootstrap ---------- */
+// POST headers incl. the per-session access token (CSRF/DNS-rebinding guard).
+function postHeaders() {
+  const h = { "Content-Type": "application/json" };
+  if (META && META.token) h["X-SocioSim-Token"] = META.token;
+  return h;
+}
 async function loadMeta() {
   try { META = await (await fetch("/api/meta")).json(); }
   catch (e) { const el = $("#engLabel"); el.textContent = "Engine offline"; el.classList.add("bad"); return; }
@@ -197,7 +203,7 @@ $("#cmpBtn")?.addEventListener("click", async () => {
   stage("running"); $("#runPhase").textContent = "comparing";
   $("#meterFill").style.width = "45%"; $("#runDetail").textContent = "baseline vs intervention (common random numbers)…";
   let res;
-  try { res = await (await fetch("/api/compare", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json(); }
+  try { res = await (await fetch("/api/compare", { method: "POST", headers: postHeaders(), body: JSON.stringify(body) })).json(); }
   catch (err) { return fail(String(err)); }
   if (res.error) return fail(res.error);
   cmpPolling = setInterval(() => pollCompare(res.job_id), 400);
@@ -225,7 +231,7 @@ $("#cfgForm").addEventListener("submit", async e => {
   e.preventDefault(); const body = collect();
   if (!body.jurisdictions.length) return fail("Select at least one jurisdiction pack (Moderation tab).");
   $("#runBtn").disabled = true; stage("running"); $("#meterFill").style.width = "0%"; $("#runPhase").textContent = "initializing"; $("#runDetail").textContent = "building world…";
-  let res; try { res = await (await fetch("/api/run", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json(); } catch (err) { return fail(String(err)); }
+  let res; try { res = await (await fetch("/api/run", { method: "POST", headers: postHeaders(), body: JSON.stringify(body) })).json(); } catch (err) { return fail(String(err)); }
   if (res.error) return fail(res.error); polling = setInterval(() => poll(res.job_id), 350);
 });
 async function poll(id) {

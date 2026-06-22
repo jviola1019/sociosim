@@ -10,14 +10,19 @@ local-LLM content mode, the server bootstraps Ollama on demand.
 
 from __future__ import annotations
 
+import hmac
+import ipaddress
 import json
 import math
+import secrets
+import socket
 import threading
 import time
 import uuid
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import urlparse
 
 import numpy as np
 
@@ -34,6 +39,52 @@ _CONTENT_TYPES = {".html": "text/html; charset=utf-8",
                   ".css": "text/css; charset=utf-8",
                   ".js": "text/javascript; charset=utf-8",
                   ".svg": "image/svg+xml"}
+
+#: Max JSON body accepted on POST (DoS guard; ASVS V5). 2 MB is ample for configs.
+MAX_BODY_BYTES = 2 * 1024 * 1024
+_LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]"}
+#: Response security headers set on EVERY response (OWASP Secure Headers; MDN).
+#: CSP allows the external app.js (script-src 'self') + inline styles the UI uses
+#: ('unsafe-inline' for style only) + data: images; frames denied (clickjacking).
+SECURITY_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; img-src 'self' data:; "
+        "style-src 'self' 'unsafe-inline'; script-src 'self'; "
+        "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; "
+        "object-src 'none'"),
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+}
+
+
+def _validate_llm_url(url: str) -> None:
+    """SSRF guard (OWASP A10 / CWE-918) for the user-supplied LLM base_url:
+    require http(s) and a loopback/private host; resolve-then-validate; block
+    public IPs and cloud metadata (169.254.169.254). Raises ValueError if unsafe.
+    Empty url (template mode) is a no-op."""
+    if not url:
+        return
+    p = urlparse(url)
+    if p.scheme not in ("http", "https"):
+        raise ValueError("llm_base_url scheme must be http or https")
+    host = p.hostname or ""
+    if host in _LOOPBACK_HOSTS:
+        return
+    try:
+        infos = socket.getaddrinfo(host, p.port or 80)
+    except OSError as exc:
+        raise ValueError(f"llm_base_url host not resolvable: {host}") from exc
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        # Block link-local (incl. cloud metadata 169.254.169.254), multicast and
+        # reserved FIRST — note ipaddress treats link-local as is_private.
+        if ip.is_link_local or ip.is_multicast or ip.is_reserved:
+            raise ValueError(
+                f"llm_base_url host {ip} is link-local/metadata/reserved — SSRF guard")
+        if not (ip.is_loopback or ip.is_private):
+            raise ValueError(
+                f"llm_base_url must point to a loopback/private host (got public {ip})")
 
 
 def safe_static_path(suffix: str):
@@ -171,6 +222,7 @@ def _build_config(body: dict) -> RunConfig:
         overrides["llm_model"] = str(body["llm_model"])
     if body.get("llm_base_url"):
         overrides["llm_base_url"] = str(body["llm_base_url"])
+    _validate_llm_url(overrides.get("llm_base_url", ""))   # SSRF guard (A10/CWE-918)
     return factory(**overrides).validate()
 
 
@@ -404,11 +456,16 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
+    def _security_headers(self):
+        for k, v in SECURITY_HEADERS.items():
+            self.send_header(k, v)
+
     def _send_json(self, payload, status=200):
         data = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
+        self._security_headers()
         self.end_headers()
         self.wfile.write(data)
 
@@ -421,8 +478,33 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type",
                          _CONTENT_TYPES.get(path.suffix, "application/octet-stream"))
         self.send_header("Content-Length", str(len(data)))
+        self._security_headers()
         self.end_headers()
         self.wfile.write(data)
+
+    def _origin_ok(self) -> bool:
+        """Reject cross-origin state-changing requests (CSRF / DNS-rebinding):
+        if an Origin/Referer is present it must be loopback. Non-browser clients
+        (no Origin) are allowed. Also pins Host to loopback."""
+        host = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip("[]")
+        if host and host not in _LOOPBACK_HOSTS:
+            return False
+        origin = self.headers.get("Origin") or self.headers.get("Referer")
+        if origin:
+            h = (urlparse(origin).hostname or "")
+            if h not in _LOOPBACK_HOSTS:
+                return False
+        return True
+
+    def _token_ok(self) -> bool:
+        """If the server set an access token (real `serve()`), require it on
+        state-changing POSTs (constant-time). Tests constructing Handler without
+        a token skip this; the Origin check still applies."""
+        token = getattr(self.server, "access_token", None)
+        if not token:
+            return True
+        sent = self.headers.get("X-SocioSim-Token", "")
+        return hmac.compare_digest(sent, token)
 
     def do_GET(self):
         route = self.path.split("?")[0]
@@ -432,6 +514,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({
                 "version": __version__,
                 "notice": RESEARCH_USE_NOTICE,
+                "token": getattr(self.server, "access_token", None),
                 "adversaries": list(ADVERSARIES),
                 "harmful_categories": list(HARMFUL_CATS),
                 "defaults": RunConfig().category_base_rates,
@@ -488,6 +571,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Disposition", f'attachment; filename="sociosim-{run_id}-{name}"')
         self.send_header("Content-Length", str(len(data)))
+        self._security_headers()
         self.end_headers()
         self.wfile.write(data)
 
@@ -496,7 +580,20 @@ class Handler(BaseHTTPRequestHandler):
         if route not in ("/api/run", "/api/compare"):
             self.send_error(404, "not found")
             return
+        if not self._origin_ok():                       # CSRF / DNS-rebinding guard
+            self._send_json({"error": "cross-origin request rejected"}, 403)
+            return
+        if not self._token_ok():                        # access-token guard
+            self._send_json({"error": "missing or invalid access token"}, 403)
+            return
+        ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip()
+        if ctype != "application/json":
+            self._send_json({"error": "Content-Type must be application/json"}, 415)
+            return
         length = int(self.headers.get("Content-Length", 0))
+        if length > MAX_BODY_BYTES:                     # DoS / oversized-body guard
+            self._send_json({"error": "request body too large"}, 413)
+            return
         try:
             body = json.loads(self.rfile.read(length) or b"{}")
         except json.JSONDecodeError:
@@ -526,6 +623,13 @@ class Handler(BaseHTTPRequestHandler):
 
 def serve(host="127.0.0.1", port=8765, open_browser=True):
     server = ThreadingHTTPServer((host, port), Handler)
+    # Per-session access token: defends state-changing POSTs against browser
+    # CSRF / DNS-rebinding even on loopback. Served via /api/meta (same-origin
+    # reads it; cross-origin pages cannot read the response) and required on POST.
+    server.access_token = secrets.token_urlsafe(32)
+    if host not in _LOOPBACK_HOSTS:
+        print(f"WARNING: binding {host} exposes the console beyond loopback — "
+              "use only on a trusted host/network.")
     url = f"http://{host}:{port}"
     print(f"SocioSim web console running at {url}")
     print("Research use only. Press Ctrl+C to stop.")
