@@ -187,6 +187,10 @@ def main():
     p.add_argument("--validate", action="store_true",
                    help="run a BehaviorParams sensitivity + calibration study, "
                         "write VALIDATION_REPORT.md, and exit")
+    p.add_argument("--backtest", action="store_true",
+                   help="out-of-sample backtest (calibrate on a train subset of "
+                        "public aggregates, validate held-out metrics) + stylized-"
+                        "facts validation, write BACKTEST_REPORT.md, and exit")
     p.add_argument("--sens-samples", type=int, default=24,
                    help="LHS samples for --validate sensitivity (default 24)")
     p.add_argument("--media", type=int, default=0,
@@ -208,6 +212,22 @@ def main():
             render_validation_report(study), encoding="utf-8")
         print(f"Wrote VALIDATION_REPORT.md  (implausibility I = "
               f"{study['calibration']['implausibility']:.2f}, cutoff 3.0)")
+        return 0
+
+    if args.backtest:
+        from socio_sim.validation.backtest import (leave_out_backtest,
+                                                   render_backtest_report)
+        from socio_sim.validation.stylized import evaluate_stylized_facts
+        prof = args.profile if args.profile in ("quick", "calibrated", "standard") else "quick"
+        print(f"Backtest: leave-out calibration on '{args.benchmark}' aggregates "
+              f"(profile={prof}) + stylized-facts validation...")
+        bt = leave_out_backtest(benchmark=args.benchmark, profile=prof, seed=args.seed)
+        sf = evaluate_stylized_facts()
+        (ROOT / "BACKTEST_REPORT.md").write_text(
+            render_backtest_report(bt, sf), encoding="utf-8")
+        print(f"Wrote BACKTEST_REPORT.md (out-of-sample test_pass={bt['test_pass']}, "
+              f"I_test={bt['implausibility_test']:.2f}; stylized "
+              f"{sf['n_pass']}/{sf['n_total']})")
         return 0
 
     if args.web:

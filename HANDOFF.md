@@ -3,6 +3,24 @@
 **Purpose:** live resume doc so this sprint continues across sessions/token cutoffs.
 Resuming? Read this, then `AUDIT_LOG.md`, then `CHANGELOG.md`. Branch: `feat/audit-p0-p1`.
 
+## SPRINT 6 — research-only -> measured (validation ladder, user decision 2026-06-22)
+Climb from "research-only" toward "measured" WITHOUT crossing legal/ethics lines
+(no PII, no scraping, no real-person decisions, no point-prediction). DONE+verified:
+- Validation ladder defined w/ provenance labels: synthetic-exploratory <
+  uncalibrated < calibration-consistent < stylized-fact-validated <
+  backtested-out-of-sample < measured-on-benchmark (docs/DATA_MANIFEST.md, usage.md).
+- S6.1 validation/stylized.py: 5 cited stylized facts (heavy-tail degree,
+  clustering>>random, cascade skew, participation inequality, diurnal) — 5/5 on
+  calibrated world; 3 tests.
+- S6.2 validation/backtest.py: leave-out out-of-sample backtest (calibrate graph
+  on TRAIN subset of public aggregates, validate HELD-OUT metrics) -> test_pass,
+  I_test=0.12 at quick scale; 3 tests.
+- S6.3 run.py --backtest -> BACKTEST_REPORT.md (committed); docs/DATA_MANIFEST.md
+  governance (aggregate/public only, no PII, no scraping; DSA Art.40 gate for real
+  microdata). Honest ceiling: aggregate/pattern agreement, NOT point-prediction;
+  agent behavioural magnitudes stay calibrated assumptions. Rung-4 (classifier on
+  real public benchmark) is the next gated step (needs explicit data decision).
+
 ## SPRINT 5 — UX/marketing/settings/security redesign (user decision 2026-06-21)
 USER DECISIONS: (1) Red Team tab -> **Full Business Marketing Suite** (subsections:
 Campaign Studio + A/B Experiment Lab + Audience & Brand-Safety), built on the

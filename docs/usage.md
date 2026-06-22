@@ -165,6 +165,25 @@ from socio_sim.validation.targets import load_targets, compute_observed
   interval (parameter-uncertainty propagation). All written to
   `VALIDATION_REPORT.md` via `run.py --validate`.
 
+### Validation ladder (research-only -> measured)
+SocioSim is honest about *how* validated a claim is. The provenance ladder:
+`synthetic-exploratory` < `uncalibrated` < `calibration-consistent` (I<3 vs
+published aggregates) < **`stylized-fact-validated`** < **`backtested-out-of-
+sample`** < `measured-on-benchmark`. No claim may exceed its label.
+
+- **Stylized facts** (`validation.stylized`, provenance `stylized-fact-validated`):
+  does the calibrated world reproduce documented empirical regularities? — heavy-
+  tailed degree, clustering >> random, right-skewed cascades, participation
+  inequality, diurnal cycle (each cited).
+- **Out-of-sample backtest** (`validation.backtest`, provenance `backtested-out-
+  of-sample`): calibrate the graph on a TRAIN subset of a public-aggregate
+  benchmark, then validate the **held-out** metrics fall within tolerance —
+  generalization, not in-sample fit.
+- `python run.py --backtest` runs both and writes `BACKTEST_REPORT.md`.
+- Data governance for every dataset is recorded in `docs/DATA_MANIFEST.md`
+  (aggregate/public only, no PII, no scraping). Real-person decisions / point-
+  prediction of a specific platform are out of scope by design.
+
 ## Models & engineered features
 
 Every option below is reachable from the CLI (`run.py`), the web console, and

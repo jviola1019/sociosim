@@ -124,6 +124,7 @@ python run.py --profile standard --jurisdictions US,EU,CN
 python run.py --agents 300 --ticks 72 --seed 7   # custom scale/seed
 python run.py --replicates 20                    # Research run: Monte Carlo 95% intervals
 python run.py --validate                         # sensitivity + calibration -> VALIDATION_REPORT.md
+python run.py --backtest                          # out-of-sample backtest + stylized facts -> BACKTEST_REPORT.md
 python run.py --profile calibrated               # history-matched (I=1.0, all metrics in-band)
 python run.py --classifier trained               # real trained moderation classifier (measured P/R)
 python run.py --benchmark twitter_like           # calibrate against a named published-aggregate set
@@ -136,6 +137,7 @@ python run.py --media 5                           # also synthesize real PNG ima
 - `docs/usage.md` — configuration, profiles, experiments, models & features
 - `docs/RESEARCH_EVIDENCE.md` — cited evidence base (marketing measurement,
   moderation/settings ranges, web-app security; ~130 sources)
+- `docs/DATA_MANIFEST.md` — data governance + validation ladder (provenance labels)
 - `SECURITY.md` — security posture & threat model (localhost console hardening)
 - `docs/ethics_and_limitations.md` — appropriate use, limitations, residual risks
 - `docs/legal_compliance.md` — how policy packs map to DSA, §230, CN labelling, FTC

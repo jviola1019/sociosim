@@ -14,6 +14,14 @@ list; this file tracks what remains open or newly surfaced.
 - **The default profile is still uncalibrated** (BA graph, I≈1.7, clustering
   below band) and BehaviorParams remain synthetic scenario knobs. Use the
   calibrated profile when calibration consistency matters.
+- **Now validated one rung higher** (`run.py --backtest`, `BACKTEST_REPORT.md`):
+  the calibrated world reproduces 5 cited **stylized facts** (heavy-tail degree,
+  clustering≫random, cascade skew, participation inequality, diurnal cycle) and
+  passes an **out-of-sample backtest** (calibrate on a train subset of public
+  aggregates → held-out metrics within tolerance, I_test≈0.12). Honest ceiling:
+  this is aggregate/pattern agreement, NOT point-prediction of a real platform;
+  agent behavioural magnitudes stay calibrated assumptions (no real-person
+  microdata — lawful by design; see `docs/DATA_MANIFEST.md`).
 - **Sensitivity is now multi-output, multi-seed, Sobol** (`multi_output_sensitivity`,
   report §1b): first-order indices for n_posts / harmful_exposure / welfare over a
   Sobol design, averaged across seeds with cross-seed sd. Residual: first-order
