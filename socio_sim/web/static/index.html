@@ -138,13 +138,18 @@
           </select></label>
         <label class="field llm" data-llm hidden><span class="lbl">Model</span><input type="text" id="llm_model" value="qwen2.5:0.5b" spellcheck="false"></label>
         <label class="field llm" data-llm hidden><span class="lbl">Server URL <i>blank = default</i></span><input type="text" id="llm_base_url" placeholder="http://localhost:11434" spellcheck="false"></label>
-        <label class="field"><span class="lbl">Moderation Classifier</span>
+        <label class="field" title="Noise = calibrated noise model (fast, set the operating point in Moderation). Trained = a real numpy classifier trained on category-signal text, with measured precision/recall.">
+          <span class="lbl">Moderation Classifier</span>
           <select id="classifier_mode">
             <option value="noise" selected>Noise model · calibrated, instant</option>
             <option value="trained">Trained · real numpy classifier (measured P/R)</option>
           </select></label>
         <hr>
         <span class="lbl">Content Prevalence <i>share of all content</i></span>
+        <p class="hint">Fraction of posts in each category. Real platforms run far
+          lower (e.g. hate ≈ 0.02% of views; Meta CSER) — the wider slider range
+          is for stress tests. Spam/fake accounts dominate volume; hate/self-harm
+          are rare but severe.</p>
         <div id="rates" class="rates"></div>
       </section>
 
@@ -158,15 +163,20 @@
         </div>
         <label class="switch"><input type="checkbox" id="ftc_enabled" checked><span class="track"></span><span class="switch-txt">FTC Disclosure Pack</span></label>
         <hr>
-        <span class="lbl">Classifier Operating Point</span>
-        <label class="field"><span class="lbl">Precision <b id="precVal" class="val">0.90</b></span><input type="range" id="classifier_precision" min="0.5" max="0.99" step="0.01" value="0.90"></label>
-        <label class="field"><span class="lbl">Recall <b id="recVal" class="val">0.85</b></span><input type="range" id="classifier_recall" min="0.5" max="0.99" step="0.01" value="0.85"></label>
+        <span class="lbl">Classifier Operating Point <i>real systems ≈ 0.77–0.92</i></span>
+        <label class="field" title="Precision: share of FLAGGED items that are truly violating (higher = fewer false positives). Hate-speech detectors ≈ 0.77–0.92 (2025 benchmarks).">
+          <span class="lbl">Precision <b id="precVal" class="val">0.90</b></span><input type="range" id="classifier_precision" min="0.5" max="0.99" step="0.01" value="0.90"></label>
+        <label class="field" title="Recall: share of TRUE violations the classifier catches (higher = fewer misses). Trades off against precision; ≈ 0.72–0.93.">
+          <span class="lbl">Recall <b id="recVal" class="val">0.85</b></span><input type="range" id="classifier_recall" min="0.5" max="0.99" step="0.01" value="0.85"></label>
         <hr>
         <span class="lbl">Human Review &amp; Appeals</span>
-        <label class="field"><span class="lbl">Reviewer Accuracy <b id="hraVal" class="val">0.92</b></span><input type="range" id="human_review_accuracy" min="0.5" max="1" step="0.01" value="0.92"></label>
+        <label class="field" title="Reviewer agreement with ground truth. Real inter-annotator agreement ≈ 0.70–0.85.">
+          <span class="lbl">Reviewer Accuracy <b id="hraVal" class="val">0.92</b></span><input type="range" id="human_review_accuracy" min="0.5" max="1" step="0.01" value="0.92"></label>
         <div class="duo">
-          <label class="field"><span class="lbl">Review Delay (ticks)</span><input type="number" id="human_review_delay_ticks" value="6" min="0"></label>
-          <label class="field"><span class="lbl">Appeal Grant (FP)</span><input type="number" id="appeal_grant_fp_rate" value="0.70" step="0.05" min="0" max="1"></label>
+          <label class="field" title="Hours from queue to a human decision (1 tick = 1 hour). Priority/trusted-flagger queues: hours; standard: hours–days (DSA Art. 16).">
+            <span class="lbl">Review Delay <i>hours</i></span><input type="number" id="human_review_delay_ticks" value="6" min="0"></label>
+          <label class="field" title="Share of false-positive appeals reinstated. DSA-wide reversal ≈ 30%; varies widely by platform/method.">
+            <span class="lbl">Appeal Grant (FP)</span><input type="number" id="appeal_grant_fp_rate" value="0.70" step="0.05" min="0" max="1"></label>
         </div>
       </section>
 
@@ -180,17 +190,17 @@
           </select></label>
         <div class="duo">
           <label class="field" title="Share of EU users who opt out of personalization (DSA right)."><span class="lbl">EU Opt-out</span><input type="number" id="eu_optout_rate" value="0.20" step="0.05" min="0" max="1"></label>
-          <label class="field" title="Exploration rate — chance of injecting an unseen author into the feed."><span class="lbl">Exploration ε</span><input type="number" id="exploration_epsilon" value="0.10" step="0.05" min="0" max="1"></label>
+          <label class="field" title="Exploration rate — chance of injecting an unseen author into the feed. Production recsys ε ≈ 0.01–0.10."><span class="lbl">Exploration ε</span><input type="number" id="exploration_epsilon" value="0.10" step="0.05" min="0" max="1"></label>
         </div>
         <label class="field"><span class="lbl">Feed Size</span><input type="number" id="feed_size" value="20" min="1"></label>
         <hr>
         <label class="switch"><input type="checkbox" id="ads_enabled" checked><span class="track"></span><span class="switch-txt">Advertising Enabled</span></label>
         <label class="switch"><input type="checkbox" id="ftc_compliance" checked><span class="track"></span><span class="switch-txt">FTC Disclosures on Creatives</span></label>
         <div class="duo">
-          <label class="field" title="Randomized-control holdout share for measuring incremental ad lift."><span class="lbl">RCT Holdout</span><input type="number" id="holdout_fraction" value="0.10" step="0.05" min="0" max="0.9"></label>
-          <label class="field"><span class="lbl">Freq Cap / Day</span><input type="number" id="ad_frequency_cap_per_day" value="4" min="1"></label>
+          <label class="field" title="Randomized-control holdout share for measuring incremental ad lift. 10% default, 10–20% preferred; size it in the Marketing A/B Lab."><span class="lbl">RCT Holdout</span><input type="number" id="holdout_fraction" value="0.10" step="0.05" min="0" max="0.9"></label>
+          <label class="field" title="Max ad impressions per user per day. Programmatic norm ≈ 3–7 (effective-frequency band)."><span class="lbl">Freq Cap / Day</span><input type="number" id="ad_frequency_cap_per_day" value="4" min="1"></label>
         </div>
-        <label class="field"><span class="lbl">Ad Slot Interval</span><input type="number" id="ad_slot_interval" value="5" min="1"></label>
+        <label class="field" title="Show one ad slot every N feed items (1 ad per N organic)."><span class="lbl">Ad Slot Interval <i>1 ad / N items</i></span><input type="number" id="ad_slot_interval" value="5" min="1"></label>
         <hr>
         <span class="lbl">Campaigns <i>blank = 3 default campaigns</i></span>
         <div id="campaigns" class="campaigns"></div>
