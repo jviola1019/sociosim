@@ -18,9 +18,16 @@ security [a28f9a6]) -> cited recommendations feed presets/settings/suite/securit
 SEGMENTS: S5.1 research(agents) · S5.2 cited+subsectioned presets + visible
 summary · S5.3 settings clarity/restructure · S5.4 Business Suite · S5.5 security
 hardening + SECURITY.md · S5.6 test+browser-verify+docs+commit.
-DONE: S5.2 partial — visible "what this preset changes" summary panel (commit 60,
-browser-verified). Models are accurate; this sprint is design/content/security.
-PENDING: rest of S5.2-S5.6 (research-dependent; agents in flight).
+SPRINT-5 DONE+verified (commits 60-65): S5.1 research (2 agents, ~130 cited
+sources) -> docs/RESEARCH_EVIDENCE.md; S5.2 cited+subsectioned presets (14:
+Regulatory/Research/Business) + visible "what changes"+Sources panel + adversaries
+FOLDED into presets (no standalone tab); S5.3 settings clarified (units + cited
+ranges as tooltips); S5.4 Business Marketing Suite (A/B power lab, unit economics,
+reach&freq, GARM brand-safety) replaces Red Team; S5.5 security hardening
+(token + Origin/Host + CSP/headers + body/CT limits + SSRF allow-list) + SECURITY.md
++ 8 tests. All browser-verified (0 console errors; folded red_team reaches run;
+calculators compute). Fixed real bug: marketing inputs' min/step blocked the form
+submit -> stripped constraints. 214 tests green; ruff clean.
 
 ## SPRINT 4 — fix ALL caveats (user decision 2026-06-19)
 DECISION: keep ALL guardrails (fully legal, no PII, no fabrication, research-only,

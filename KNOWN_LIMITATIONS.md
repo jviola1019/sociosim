@@ -55,8 +55,18 @@ list; this file tracks what remains open or newly surfaced.
 - Multi-tab studio is built: Overview/Feed/Charts/Network (interactive 3D
   force-graph)/Cascade replay/Fairness/Ads/Calibration/Compare (A/B)/Audit/Log,
   plus the `n_replicates` control, preset reset-then-apply, theme toggle, and a
-  campaign editor. Remaining UI polish: full a11y pass (slider aria-valuetext,
-  focus order, data tables) and provenance badges on individual content cards.
+  campaign editor.
+- **Presets** are cited + subsectioned (Regulatory/Research/Business) with a
+  visible "what this changes" + Sources panel on selection; red-team adversaries
+  are folded into presets (no standalone tab).
+- **Marketing** tab (replaced Red Team): A/B power/holdout lab, unit economics
+  (ROAS/CAC/LTV:CAC), reach & frequency, and GARM brand-safety — calculators
+  grounded in cited benchmarks (`docs/RESEARCH_EVIDENCE.md`).
+- **Settings** carry units + researched reference ranges as tooltips.
+- **Security:** hardened per `SECURITY.md` (token, Origin/Host check, CSP +
+  headers, body/Content-Type limits, SSRF allow-list on the LLM URL).
+- Remaining UI polish: full a11y pass (slider aria-valuetext, focus order, data
+  tables) and provenance badges on individual content cards.
 
 ## Formerly out-of-scope (spec §6) — now delivered, with honest caveats
 - **Real image/video synthesis:** deterministic procedural PNG **and a real

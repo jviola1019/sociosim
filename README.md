@@ -76,10 +76,14 @@ no extra install) at `http://127.0.0.1:8765` and opens your browser — a clean,
 light, editorial interface (Swiss-inspired restraint: generous whitespace,
 hairline rules, a single accent) with subtle motion (blur-in reveals, count-up
 metrics, sliding tab indicators). Settings are organised **by concept
-across tabs** — Scenario, Network, Content, Moderation, Feed & Ads, Red Team —
-with scenario **presets** (EU DSA, US §230, CN labelling, marketing experiment,
-misinformation stress test, fairness audit…) that populate everything as a
-starting point. Tune the run, click **Run Simulation** (it runs only on click),
+across tabs** — Scenario, Network, Content, Moderation, Feed & Ads, and
+**Marketing** (a business suite: A/B power/holdout lab, unit economics
+ROAS/CAC/LTV:CAC, reach & frequency, GARM brand-safety — grounded in cited
+benchmarks). Scenario **presets** are cited and subsectioned (Regulatory: EU DSA,
+US §230, CN labelling, FTC, NIST AI RMF · Research: misinfo stress, fairness
+audit, brigading · Business: incrementality A/B, brand launch, performance,
+brand-safety) and show a "what this changes" + Sources panel on selection.
+Tune the run, click **Run Simulation** (it runs only on click),
 watch the live progress meter, then explore the tabbed results:
 
 - **Overview** — metric cards with 95% confidence-interval bars.
@@ -129,7 +133,10 @@ python run.py --media 5                           # also synthesize real PNG ima
 
 ## Documentation
 
-- `docs/usage.md` — configuration, profiles, experiments
+- `docs/usage.md` — configuration, profiles, experiments, models & features
+- `docs/RESEARCH_EVIDENCE.md` — cited evidence base (marketing measurement,
+  moderation/settings ranges, web-app security; ~130 sources)
+- `SECURITY.md` — security posture & threat model (localhost console hardening)
 - `docs/ethics_and_limitations.md` — appropriate use, limitations, residual risks
 - `docs/legal_compliance.md` — how policy packs map to DSA, §230, CN labelling, FTC
 - `docs/nist_ai_rmf_map.md` — NIST AI RMF alignment
