@@ -2,7 +2,7 @@
 
 Policy stress tests, ad/FTC experiments, and the red-team adversary suite.
 Each factory returns configs (and campaign factories where relevant) ready
-for experiments.runner.compare or validation.montecarlo.
+for experiments.compare.compare or validation.montecarlo.
 """
 
 from __future__ import annotations

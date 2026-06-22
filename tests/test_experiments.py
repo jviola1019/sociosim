@@ -1,7 +1,7 @@
 
 from socio_sim.config import RunConfig
 from socio_sim.engine import Simulation
-from socio_sim.experiments.runner import compare
+from socio_sim.experiments.compare import compare
 from socio_sim.experiments.scenarios import (disclosure_evader_campaigns,
                                              policy_stress_eu_vs_us,
                                              red_team_suite)

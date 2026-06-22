@@ -431,7 +431,7 @@ def _run_compare(job_id: str, body: dict):
     that define the intervention arm; `compare_replicates` sets N."""
     job = _JOBS[job_id]
     try:
-        from socio_sim.experiments.runner import compare
+        from socio_sim.experiments.compare import compare
         from socio_sim.pipeline import _headline_metrics
         n = max(2, min(int(body.get("compare_replicates", 10) or 10), 100))
         job["phase"] = "comparing (baseline vs intervention)"
