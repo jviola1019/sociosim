@@ -36,7 +36,7 @@
       <button type="button" role="tab" data-tab="content">Content</button>
       <button type="button" role="tab" data-tab="moderation">Moderation</button>
       <button type="button" role="tab" data-tab="feedads">Feed &amp; Ads</button>
-      <button type="button" role="tab" data-tab="adversaries">Red Team</button>
+      <button type="button" role="tab" data-tab="marketing">Marketing</button>
     </nav>
 
     <form id="cfgForm" class="cfg-body">
@@ -197,11 +197,62 @@
         <p class="hint">Custom campaigns replace the defaults. Incremental lift uses the organic-baseline holdout (Newcombe CI + MDE).</p>
       </section>
 
-      <!-- ADVERSARIES -->
-      <section data-panel="adversaries" class="tabpanel">
-        <span class="lbl">Red-Team Adversaries <i>Spec §3.10</i></span>
-        <div class="chips col" id="redteam"></div>
-        <p class="hint">Each adds ~1% of agents running an adversarial behaviour — coordinated flagging, misinformation amplification, spam, auction gaming, or disclosure evasion.</p>
+      <!-- MARKETING — business suite (subsections) -->
+      <section data-panel="marketing" class="tabpanel">
+        <nav class="seg-tabs sub" id="mktTabs" role="tablist">
+          <button type="button" role="tab" data-mkt="ablab" class="on">A/B Lab</button>
+          <button type="button" role="tab" data-mkt="econ">Unit Economics</button>
+          <button type="button" role="tab" data-mkt="reach">Reach &amp; Frequency</button>
+          <button type="button" role="tab" data-mkt="safety">Brand Safety</button>
+        </nav>
+
+        <!-- A/B EXPERIMENT LAB -->
+        <div data-mktpanel="ablab" class="mktpanel on">
+          <p class="hint">Power an incremental-lift RCT before you run it. Sizing at <b>80% power, α=0.05</b> (Cohen 1988); incrementality needs an RCT holdout, not last-touch (Gordon et al. 2019).</p>
+          <div class="duo">
+            <label class="field"><span class="lbl">Baseline conversion %</span><input type="number" id="ab_base" value="2.0"></label>
+            <label class="field"><span class="lbl">Min. detectable lift % <i>relative</i></span><input type="number" id="ab_mde" value="10"></label>
+          </div>
+          <div class="duo">
+            <label class="field"><span class="lbl">Audience size</span><input type="number" id="ab_aud" value="100000"></label>
+            <label class="field"><span class="lbl">Holdout %</span><input type="number" id="ab_hold" value="10"></label>
+          </div>
+          <div id="ab_out" class="mkt-readout"></div>
+          <p class="hint">Holdout 10% default, 10–20% preferred (derive from this power calc). Reality: ad RCTs are hard to power — sales variance is high (Lewis &amp; Rao 2015).</p>
+        </div>
+
+        <!-- UNIT ECONOMICS -->
+        <div data-mktpanel="econ" class="mktpanel">
+          <p class="hint">ROAS, CAC and LTV:CAC with cited guidance. These are <b>business inputs</b>, not measured returns — pair with an incrementality test.</p>
+          <div class="duo">
+            <label class="field"><span class="lbl">Ad spend ($)</span><input type="number" id="ec_spend" value="10000"></label>
+            <label class="field"><span class="lbl">Attributed revenue ($)</span><input type="number" id="ec_rev" value="30000"></label>
+          </div>
+          <div class="duo">
+            <label class="field"><span class="lbl">Conversions</span><input type="number" id="ec_conv" value="600"></label>
+            <label class="field"><span class="lbl">Customer LTV ($)</span><input type="number" id="ec_ltv" value="120"></label>
+          </div>
+          <div id="ec_out" class="mkt-readout"></div>
+          <p class="hint">Guidance: ROAS "good" ≈ 2:1–4:1 (set by margins); LTV:CAC ≥ 3:1, best ~5:1, CAC payback &lt; 12 mo (Skok ~2010). Median e-commerce ROAS ≈ 2:1.</p>
+        </div>
+
+        <!-- REACH & FREQUENCY -->
+        <div data-mktpanel="reach" class="mktpanel">
+          <p class="hint">Plan exposure. Effective frequency ≈ 3 (Krugman 1972 — disputed 1–3); programmatic caps ≈ 3–7 / user / window.</p>
+          <div class="duo">
+            <label class="field"><span class="lbl">Impressions</span><input type="number" id="rf_impr" value="500000"></label>
+            <label class="field"><span class="lbl">Unique reach</span><input type="number" id="rf_reach" value="120000"></label>
+          </div>
+          <label class="field"><span class="lbl">Target effective frequency</span><input type="number" id="rf_eff" value="3"></label>
+          <div id="rf_out" class="mkt-readout"></div>
+        </div>
+
+        <!-- BRAND SAFETY -->
+        <div data-mktpanel="safety" class="mktpanel">
+          <p class="hint">WFA/GARM Brand Safety Floor + Suitability — the 11 categories advertisers avoid (block at the Floor; tier the rest High/Med/Low).</p>
+          <ul id="garmList" class="garm"></ul>
+          <p class="hint">After a run, the <b>Ads</b> tab reports ad exposure near harmful content (ad-adjacency). Map suitability via the IAB Content Taxonomy; verify with an MRC-accredited vendor.</p>
+        </div>
       </section>
     </form>
 

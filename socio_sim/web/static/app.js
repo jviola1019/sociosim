@@ -5,6 +5,9 @@ const fmt = (x, d = 4) => (x == null || Number.isNaN(x)) ? "—" : Number(x).toF
 const pct = (x, d = 2) => (x == null || Number.isNaN(x)) ? "—" : (100 * x).toFixed(d) + "%";
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 let META = null, polling = null, currentRunId = null;
+// Red-team adversaries are now set ONLY via presets (folded in); held as state
+// and shown in the preset "what changes" summary, not a standalone tab.
+let currentRedTeam = [];
 
 /* ---------- seeded generative imagery (deterministic, offline) ---------- */
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -76,7 +79,7 @@ async function loadMeta() {
   ps.value = "eu_dsa"; ps.addEventListener("change", () => applyPreset(ps.value));
   $("#rates").innerHTML = META.harmful_categories.concat(["ai_generated"]).map(c => { const v = META.defaults[c] ?? 0.02; return `<div class="rate"><label>${c.replace(/_/g, " ")}<b id="rl_${c}">${v.toFixed(3)}</b></label><input type="range" id="rate_${c}" min="0" max="0.3" step="0.005" value="${v}"></div>`; }).join("");
   $("#rates").addEventListener("input", e => { if (e.target.id.startsWith("rate_")) $("#rl_" + e.target.id.slice(5)).textContent = (+e.target.value).toFixed(3); });
-  $("#redteam").innerHTML = META.adversaries.map(a => `<label class="chip"><input type="checkbox" value="${a}"><b>${a.replace(/_/g, " ")}</b></label>`).join("");
+  renderGarm(); wireMarketing(); recalcMarketing();
   applyPreset("eu_dsa"); refreshHistory();
 }
 
@@ -95,7 +98,7 @@ const FIELD_DEFAULTS = {
 };
 function resetDefaults() {
   $$("#jurisdictions input").forEach(i => i.checked = i.value === "EU");
-  $$("#redteam input").forEach(i => i.checked = false);
+  currentRedTeam = [];
   Object.entries(FIELD_DEFAULTS).forEach(([k, v]) => setVal(k, v));
   (META.harmful_categories.concat(["ai_generated"])).forEach(c => {
     const v = META.defaults[c] ?? 0.02; setVal("rate_" + c, v);
@@ -133,7 +136,7 @@ function applyPreset(name) {
   const p = META.presets[name]; if (!p) return; $("#presetDesc").textContent = p.desc; const f = p.fields;
   resetDefaults();  // clean slate, then apply this preset's overrides (S1)
   if (f.jurisdictions) $$("#jurisdictions input").forEach(i => i.checked = f.jurisdictions.includes(i.value));
-  if (f.red_team) $$("#redteam input").forEach(i => i.checked = f.red_team.includes(i.value));
+  currentRedTeam = f.red_team || [];
   Object.entries(f).forEach(([k, v]) => { if (k === "jurisdictions" || k === "red_team") return; if (k.startsWith("rate_")) { setVal(k, v); const b = $("#rl_" + k.slice(5)); if (b) b.textContent = (+v).toFixed(3); } else setVal(k, v); });
   renderPresetSummary(f);  // visible "what this changes" (audit: presets felt inert)
 }
@@ -148,6 +151,83 @@ $$("input[name=profile]").forEach(r => r.addEventListener("change", e => {
   }
 }));
 ["homophily_rewire_fraction", "classifier_precision", "classifier_recall", "human_review_accuracy", "follow_rate", "unfollow_rate", "churn_rate"].forEach(id => { const lab = { homophily_rewire_fraction: "homoVal", classifier_precision: "precVal", classifier_recall: "recVal", human_review_accuracy: "hraVal", follow_rate: "folVal", unfollow_rate: "unfVal", churn_rate: "chuVal" }[id]; const el = $("#" + id); if (el) el.addEventListener("input", e => $("#" + lab).textContent = (+e.target.value).toFixed(2)); });
+
+/* ---------- marketing business suite ---------- */
+// WFA/GARM Brand Safety Floor + Suitability — 11 categories (+ Misinformation).
+const GARM_CATEGORIES = [
+  "Adult & explicit sexual content", "Arms & ammunition",
+  "Crime & harmful acts / human-rights violations",
+  "Death, injury or military conflict", "Online piracy",
+  "Hate speech & acts of aggression", "Obscenity & profanity",
+  "Illegal drugs / tobacco / alcohol", "Spam or harmful content",
+  "Terrorism", "Debated sensitive social issues", "Misinformation",
+];
+function renderGarm() {
+  const el = $("#garmList"); if (el) el.innerHTML = GARM_CATEGORIES.map(c => `<li>${esc(c)}</li>`).join("");
+}
+// A/B incremental-lift power calc: required N/arm for two proportions at
+// 80% power, α=0.05 two-sided (z=1.959964 / 0.841621).
+function abCalc() {
+  const out = $("#ab_out"); if (!out) return;
+  const p1 = (+$("#ab_base").value) / 100, r = (+$("#ab_mde").value) / 100;
+  const aud = +$("#ab_aud").value, hold = (+$("#ab_hold").value) / 100;
+  if (!(p1 > 0 && p1 < 1 && r > 0 && aud > 0 && hold > 0 && hold < 1)) {
+    out.innerHTML = '<div class="mkt-verdict bad">Enter valid inputs.</div>'; return;
+  }
+  const p2 = Math.min(p1 * (1 + r), 0.999999), pbar = (p1 + p2) / 2;
+  const num = 1.959964 * Math.sqrt(2 * pbar * (1 - pbar)) + 0.841621 * Math.sqrt(p1 * (1 - p1) + p2 * (1 - p2));
+  const nPer = Math.ceil((num * num) / Math.pow(p2 - p1, 2));
+  const control = Math.floor(aud * hold), treat = Math.floor(aud * (1 - hold));
+  const powered = control >= nPer;
+  out.innerHTML =
+    `<div class="mkt-row"><span>Required sample / arm</span><b>${nPer.toLocaleString()}</b></div>` +
+    `<div class="mkt-row"><span>Control arm (holdout)</span><b>${control.toLocaleString()}</b></div>` +
+    `<div class="mkt-row"><span>Treatment arm</span><b>${treat.toLocaleString()}</b></div>` +
+    `<div class="mkt-verdict ${powered ? "ok" : "bad"}">${powered
+      ? "✓ Adequately powered to detect this lift"
+      : "✗ Under-powered — need " + nPer.toLocaleString() + "/arm; raise audience, MDE, or holdout"}</div>`;
+}
+function econCalc() {
+  const out = $("#ec_out"); if (!out) return;
+  const spend = +$("#ec_spend").value, rev = +$("#ec_rev").value;
+  const conv = +$("#ec_conv").value, ltv = +$("#ec_ltv").value;
+  const roas = spend > 0 ? rev / spend : NaN, cac = conv > 0 ? spend / conv : NaN;
+  const ratio = (cac > 0 && ltv > 0) ? ltv / cac : NaN;
+  const rc = roas >= 4 ? "ok" : roas >= 2 ? "warn" : "bad";
+  const qc = ratio >= 3 ? "ok" : ratio >= 1 ? "warn" : "bad";
+  out.innerHTML =
+    `<div class="mkt-row"><span>ROAS</span><b class="${rc}">${isFinite(roas) ? roas.toFixed(2) + ":1" : "—"}</b></div>` +
+    `<div class="mkt-row"><span>CAC</span><b>${isFinite(cac) ? "$" + cac.toFixed(2) : "—"}</b></div>` +
+    `<div class="mkt-row"><span>LTV:CAC</span><b class="${qc}">${isFinite(ratio) ? ratio.toFixed(2) + ":1" : "—"}</b></div>` +
+    `<div class="mkt-verdict ${qc}">${isFinite(ratio)
+      ? (ratio >= 3 ? "✓ Healthy unit economics (≥3:1)" : ratio >= 1 ? "△ Marginal — below the 3:1 guideline" : "✗ Unsustainable — CAC exceeds LTV")
+      : "Enter LTV + conversions for LTV:CAC"}</div>`;
+}
+function reachCalc() {
+  const out = $("#rf_out"); if (!out) return;
+  const impr = +$("#rf_impr").value, reach = +$("#rf_reach").value, eff = +$("#rf_eff").value;
+  const freq = reach > 0 ? impr / reach : NaN;
+  const effReach = isFinite(freq) ? Math.round(reach * Math.min(1, freq / eff)) : NaN;
+  const cls = !isFinite(freq) ? "bad" : freq < eff ? "warn" : freq > 7 ? "warn" : "ok";
+  out.innerHTML =
+    `<div class="mkt-row"><span>Average frequency</span><b class="${cls}">${isFinite(freq) ? freq.toFixed(2) : "—"}</b></div>` +
+    `<div class="mkt-row"><span>Approx. effective reach (≥${eff})</span><b>${isFinite(effReach) ? effReach.toLocaleString() : "—"}</b></div>` +
+    `<div class="mkt-verdict ${cls}">${isFinite(freq)
+      ? (freq < eff ? "△ Below target effective frequency (" + eff + ")" : freq > 7 ? "△ High frequency (>7) — fatigue/waste risk; cap 3–7" : "✓ Within the 3–7 effective-frequency band")
+      : "Enter impressions + reach"}</div>`;
+}
+function recalcMarketing() { abCalc(); econCalc(); reachCalc(); }
+function wireMarketing() {
+  const nav = $("#mktTabs"); if (!nav) return;
+  $$("button", nav).forEach(btn => btn.addEventListener("click", () => {
+    $$("button", nav).forEach(b => b.classList.toggle("on", b === btn));
+    $$("[data-mktpanel]").forEach(p => p.classList.toggle("on", p.dataset.mktpanel === btn.dataset.mkt));
+  }));
+  ["ab_base", "ab_mde", "ab_aud", "ab_hold", "ec_spend", "ec_rev", "ec_conv",
+   "ec_ltv", "rf_impr", "rf_reach", "rf_eff"].forEach(id => {
+    const el = $("#" + id); if (el) el.addEventListener("input", recalcMarketing);
+  });
+}
 
 /* ---------- campaign editor (S3) ---------- */
 function campaignRow(c = {}) {
@@ -182,7 +262,7 @@ function collect() {
     content_mode: v("content_mode"), classifier_mode: v("classifier_mode"), llm_model: v("llm_model"), llm_base_url: v("llm_base_url"), jurisdictions: checked("#jurisdictions"), ftc_enabled: chk("ftc_enabled"),
     classifier_precision: num("classifier_precision"), classifier_recall: num("classifier_recall"), human_review_accuracy: num("human_review_accuracy"), human_review_delay_ticks: num("human_review_delay_ticks"), appeal_grant_fp_rate: num("appeal_grant_fp_rate"),
     feed_strategy: v("feed_strategy"), eu_optout_rate: num("eu_optout_rate"), exploration_epsilon: num("exploration_epsilon"), feed_size: num("feed_size"),
-    ads_enabled: chk("ads_enabled"), ftc_compliance: chk("ftc_compliance"), holdout_fraction: num("holdout_fraction"), ad_frequency_cap_per_day: num("ad_frequency_cap_per_day"), ad_slot_interval: num("ad_slot_interval"), red_team: checked("#redteam"),
+    ads_enabled: chk("ads_enabled"), ftc_compliance: chk("ftc_compliance"), holdout_fraction: num("holdout_fraction"), ad_frequency_cap_per_day: num("ad_frequency_cap_per_day"), ad_slot_interval: num("ad_slot_interval"), red_team: currentRedTeam,
   };
   (META.harmful_categories.concat(["ai_generated"])).forEach(c => body["rate_" + c] = num("rate_" + c));
   const campaigns = collectCampaigns();
