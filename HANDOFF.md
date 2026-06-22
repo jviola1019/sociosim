@@ -3,7 +3,21 @@
 **Purpose:** live resume doc so this sprint continues across sessions/token cutoffs.
 Resuming? Read this, then `AUDIT_LOG.md`, then `CHANGELOG.md`. Branch: `feat/audit-p0-p1`.
 
-## SPRINT 7 — Rung 4 measured-on-benchmark + pro docs (user decision 2026-06-22)
+## SPRINT 8 — architecture clarify + marketing/government lens + settings audit (user 2026-06-22)
+DONE+verified:
+- S8.1 Renamed experiments/runner.py -> compare.py (kills run.py/runner.py confusion);
+  deleted regenerable build artifacts (the real "duplicate files"); dead-module scan
+  = zero unreferenced. No behavior change.
+- S8.2 analytics/lens.py: run_lens() tags every setting (government/marketing/core),
+  emits a lens banner + output-interpretation in the report ("Run lens & output
+  interpretation") AND the web payload; UI shows a lens banner (active badges +
+  what the output means) + per-tab lens dots + legend. Browser-verified (0 console
+  errors): banner shows Government+Marketing active + interpretation line. +4 tests.
+- S8.3 Data-driven settings audit (Saltelli total-effect + OAT effect screen):
+  NO dead/redundant knobs; knobs are LENS-SPECIFIC (organic->government,
+  ad->marketing); only impression_fatigue is low-influence (ST~0.09) -> flagged
+  advanced (behavior.py note + MODELS.md §6); no deletions/merges; candidate future
+  additions documented. Determinism unaffected (lens is reporting-only).
 Reach the TOP lawful rung for the classifier + upgrade docs to professional w/
 diagrams + full model definitions. DONE+verified:
 - Datasets inserted (license-VERIFIED via HF API before bundling): Civil Comments

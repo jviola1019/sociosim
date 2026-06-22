@@ -27,6 +27,7 @@ from urllib.parse import urlparse
 import numpy as np
 
 from socio_sim import RESEARCH_USE_NOTICE, __version__
+from socio_sim.analytics.lens import run_lens
 from socio_sim.analytics.metrics import cascade_sizes, cascade_tree
 from socio_sim.config import ADVERSARIES, CATEGORIES, RunConfig
 from socio_sim.llm_bootstrap import ensure_model, ensure_server, server_up
@@ -391,6 +392,7 @@ def _run_job(job_id: str, body: dict):
             "charts": _chart_data(result, a.summary),
             "feed": _sample_feed(result),
             "report_md": a.report_md,
+            "lens": run_lens(cfg.to_dict(), a.summary),
             "manifest": result.manifest.__dict__,
             "config": cfg.to_dict(),
             "observed": a.observed,

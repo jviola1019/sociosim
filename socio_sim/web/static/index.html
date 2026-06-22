@@ -31,13 +31,14 @@
   <!-- ============ CONFIG ============ -->
   <aside class="panel config">
     <nav class="seg-tabs" id="cfgTabs" role="tablist">
-      <button type="button" role="tab" data-tab="scenario" class="on">Scenario</button>
-      <button type="button" role="tab" data-tab="network">Network</button>
-      <button type="button" role="tab" data-tab="content">Content</button>
-      <button type="button" role="tab" data-tab="moderation">Moderation</button>
-      <button type="button" role="tab" data-tab="feedads">Feed &amp; Ads</button>
-      <button type="button" role="tab" data-tab="marketing">Marketing</button>
+      <button type="button" role="tab" data-tab="scenario" data-lens="core" class="on">Scenario</button>
+      <button type="button" role="tab" data-tab="network" data-lens="core">Network</button>
+      <button type="button" role="tab" data-tab="content" data-lens="core">Content</button>
+      <button type="button" role="tab" data-tab="moderation" data-lens="government">Moderation</button>
+      <button type="button" role="tab" data-tab="feedads" data-lens="marketing">Feed &amp; Ads</button>
+      <button type="button" role="tab" data-tab="marketing" data-lens="marketing">Marketing</button>
     </nav>
+    <p class="lens-legend" aria-hidden="true"><span class="lens-dot government"></span>Government / Regulatory <span class="lens-dot marketing"></span>Marketing <span class="lens-dot core"></span>Core</p>
 
     <form id="cfgForm" class="cfg-body">
       <!-- SCENARIO -->
@@ -299,6 +300,7 @@
         <div>
           <h2 class="reveal">Run Report</h2>
           <p class="mono dim small" id="runMeta"></p>
+          <div id="runLens" class="run-lens" hidden></div>
         </div>
         <div class="rhead-actions">
           <div class="seal" id="seal"><b class="dot"></b><span id="sealTxt">—</span></div>

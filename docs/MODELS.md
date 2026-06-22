@@ -126,7 +126,38 @@ is PII-scrubbed and governed in `docs/DATA_MANIFEST.md`.
 
 ---
 
-## 6. Guardrails & governance
+## 6. Settings audit (data-driven) & the two lenses
+
+Every configurable knob was audited for usefulness/efficiency using **multi-output
+Saltelli total-effect sensitivity** (behaviour params) and a **one-at-a-time
+effect-size screen** (config knobs). Findings:
+
+- **No dead or redundant knobs.** Every knob measurably moves outputs; none is a
+  duplicate of another (each influential knob drives a *distinct* output —
+  posting prob → volume, flag scale → moderation, engagement → exposure, share →
+  cascades).
+- **Knobs are lens-specific** — which is why the UI/report now tag them:
+  - *Government / Regulatory lens*: jurisdiction packs, classifier operating
+    point, human review, appeals, EU opt-out → drive the **compliance/safety**
+    output (harmful-exposure, moderation P/R, appeals, transparency).
+  - *Marketing lens*: ads, holdout, frequency cap, ad-slot interval, campaigns →
+    drive the **incrementality/ROI** output (iROAS, ROAS, CAC). These show ~0
+    effect on *organic* metrics precisely because they act on the ad surface —
+    not uselessness, but lens-specificity.
+  - *Core*: graph, homophily, feed mechanics, scale — shared substrate.
+- **One low-influence knob:** `impression_fatigue` (BehaviorParam) has total-
+  effect an order of magnitude below the others across all outputs → flagged
+  **low-influence / advanced** (kept, since it is a real mechanism and a valid
+  lever in high-volume regimes, but de-emphasised; do not calibrate first).
+- **No deletions/merges** were warranted; **candidate future additions** (only if
+  a use-case demands and they prove statistically significant): an explicit
+  proactive-detection-rate knob and a trusted-flagger-priority toggle (DSA Art.
+  22) — currently implicit in the classifier/behaviour params.
+
+The active lens(es) and a plain-language reading of the ending output are printed
+in every run report ("Run lens & output interpretation") and the web run banner.
+
+## 7. Guardrails & governance
 
 - **Determinism**: same config + seed → identical event-stream hash (never regress).
 - **Data**: aggregate/public/de-identified only; no PII; no scraping; DSA Art. 40

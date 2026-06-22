@@ -67,6 +67,19 @@ function postHeaders() {
   if (META && META.token) h["X-SocioSim-Token"] = META.token;
   return h;
 }
+// Run-lens banner: which decision lens (Government / Marketing) is active + what
+// the ending output means (mirrors the report's "Run lens" section).
+function renderLens(lens) {
+  const el = $("#runLens"); if (!el) return;
+  if (!lens) { el.hidden = true; return; }
+  const badge = (on, cls, label) =>
+    `<span class="lens-badge ${cls} ${on ? "on" : "off"}">${label}: ${on ? "active" : "off"}</span>`;
+  const fmt2 = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+  el.innerHTML = badge(lens.government_active, "government", "Government / Regulatory")
+    + badge(lens.marketing_active, "marketing", "Marketing")
+    + '<ul class="lens-lines">' + (lens.lines || []).map(l => `<li>${fmt2(l)}</li>`).join("") + "</ul>";
+  el.hidden = false;
+}
 async function loadMeta() {
   try { META = await (await fetch("/api/meta")).json(); }
   catch (e) { const el = $("#engLabel"); el.textContent = "Engine offline"; el.classList.add("bad"); return; }
@@ -492,6 +505,7 @@ function render(r) {
   const s = r.summary, m = r.manifest, mod = s.moderation, ap = s.appeals, he = s.harmful_exposure, w = s.welfare;
   const modeTag = r.mode === "research" ? ` · research ×${r.n_replicates} (mc-replicated CIs)` : " · preview (within-run CIs)";
   $("#runMeta").innerHTML = `cfg ${m.config_hash.slice(0, 10)} · seed ${m.root_seed} · ${r.n_events} events · ${r.elapsed_s}s · packs ${Object.keys(m.pack_versions).join(",")}` + modeTag + (r.content_mode !== "template" ? ` · ${r.content_mode}: ${r.n_llm_calls} calls / ${r.n_degradations} degraded` : "");
+  renderLens(r.lens);
   $("#footHash").textContent = "stream " + m.stream_hash.slice(0, 16);
   const seal = $("#seal"); seal.className = "seal";
   if (!r.replay.checked) $("#sealTxt").textContent = "replay skipped";

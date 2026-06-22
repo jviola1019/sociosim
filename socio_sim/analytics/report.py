@@ -4,6 +4,7 @@ interval; the research-only disclaimer is embedded in every report."""
 from __future__ import annotations
 
 from socio_sim import RESEARCH_USE_NOTICE
+from socio_sim.analytics.lens import render_lens_md
 from socio_sim.logs.manifest import Manifest
 
 
@@ -28,6 +29,7 @@ def render(summary: dict, manifest: Manifest) -> str:
         f"- Policy packs: {manifest.pack_versions}",
         f"- Event-stream hash: `{manifest.stream_hash}`",
         "",
+        *render_lens_md(manifest.config, summary),
         "## Uncertainty provenance",
         "- Intervals below are **single-run**: within-run bootstrap (harmful "
         "exposure, welfare), analytic Wilson score (moderation precision/recall, "
