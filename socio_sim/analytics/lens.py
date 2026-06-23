@@ -50,12 +50,24 @@ def run_lens(config: dict, summary: dict) -> dict:
                f"{mod['precision']:.2f} / recall {mod['recall']:.2f} · appeals + "
                f"transparency tally")
 
+    # Marketing headline numbers (so the marketing view shows ROI data, not just
+    # prose) — best-lift campaign from the run's ad metrics.
+    ads_sum = summary.get("ads") or {}
+    mkt_rows = [m for m in ads_sum.values() if isinstance(m, dict)]
+    mkt_out = ""
+    if ads and mkt_rows:
+        best = max(ads_sum.items(),
+                   key=lambda kv: (kv[1].get("lift", 0.0) if isinstance(kv[1], dict) else 0.0))
+        cid, m = best
+        mkt_out = (f"top campaign '{cid}' incremental lift {m.get('lift', float('nan')):.4f} · "
+                   f"CTR {m.get('ctr', float('nan')):.4f} · ROI {m.get('roi', float('nan')):.2f}")
+
     lines = [
         f"**Government / Regulatory lens — ACTIVE** ({', '.join(packs) or 'none'}). "
         f"Output to read: {gov_out}.",
-        ("**Marketing lens — ACTIVE** (advertising on). Output to read: incremental "
-         "ad lift vs the organic-baseline RCT holdout (iROAS) + ROAS/CAC/LTV per "
-         "campaign — see the Ads tab / 'Ad campaigns' report section."
+        (f"**Marketing lens — ACTIVE** (advertising on). Output to read: {mkt_out or 'incremental lift / ROAS per campaign'} "
+         "— see the Ads tab / 'Ad campaigns' report section (incremental lift vs the "
+         "organic-baseline RCT holdout)."
          if ads else "**Marketing lens — off** (advertising disabled)."),
         ("Switching a **Government** setting (jurisdiction pack, classifier "
          "operating point, human review, appeals) changes the COMPLIANCE/SAFETY "
@@ -63,7 +75,8 @@ def run_lens(config: dict, summary: dict) -> dict:
          "campaigns) changes the INCREMENTALITY/ROI output."),
     ]
     return {"government_active": True, "marketing_active": ads,
-            "packs": packs, "lines": lines, "government_output": gov_out}
+            "packs": packs, "lines": lines,
+            "government_output": gov_out, "marketing_output": mkt_out}
 
 
 def render_lens_md(config: dict, summary: dict) -> list:

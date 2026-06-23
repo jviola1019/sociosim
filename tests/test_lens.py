@@ -33,6 +33,19 @@ def test_report_contains_lens_and_interpretation():
     assert "Marketing lens" in a.report_md
 
 
+def test_lens_surfaces_separate_government_and_marketing_data():
+    a = run_and_analyze(RunConfig.test(jurisdictions=("EU",), ads_enabled=True),
+                        verify_replay=False)
+    lens = run_lens(a.result.config.to_dict(), a.summary)
+    # government view shows compliance numbers; marketing view shows ROI numbers
+    assert "moderation precision" in lens["government_output"]
+    assert "campaign" in lens["marketing_output"] and "lift" in lens["marketing_output"]
+    # ads off -> no marketing numbers
+    b = run_and_analyze(RunConfig.test(jurisdictions=("US",), ads_enabled=False),
+                        verify_replay=False)
+    assert run_lens(b.result.config.to_dict(), b.summary)["marketing_output"] == ""
+
+
 def test_every_setting_tagged_to_a_known_lens():
     assert set(SETTING_LENS.values()) <= {"government", "marketing", "core"}
     for key in ("jurisdictions", "ads_enabled", "graph_kind"):
