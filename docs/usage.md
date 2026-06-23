@@ -136,7 +136,7 @@ markdown = render(summary, result.manifest)
 ## Experiments (baseline vs intervention, CRN-paired)
 
 ```python
-from socio_sim.experiments.runner import compare
+from socio_sim.experiments.compare import compare
 from socio_sim.experiments.scenarios import policy_stress_eu_vs_us
 
 baseline, intervention = policy_stress_eu_vs_us("quick")

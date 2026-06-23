@@ -143,7 +143,15 @@ python run.py --classifier trained               # real trained moderation class
 python run.py --benchmark twitter_like           # calibrate against a named published-aggregate set
 python run.py --dynamic-graph                    # daily follow/unfollow/churn graph evolution
 python run.py --media 5                           # also synthesize real PNG images + an APNG video
+python run.py --measure-classifier               # measured F1/ROC-AUC/Brier on real benchmarks -> BENCHMARK_REPORT.md
+python run.py --replicates 20 --workers 4        # parallel Monte Carlo replicates (identical to sequential)
+python run.py --validate --sens-samples 32       # larger sensitivity design
 ```
+
+Infrastructure flags: `--web` (browser console), `--port N` / `--bind HOST`
+(server address; default `127.0.0.1` — only bind `0.0.0.0` on a trusted host),
+`--no-open` (don't auto-open the browser), `--host` (Ollama host:port), `--out DIR`
+(output directory; default `out/run`).
 
 ## Documentation
 
