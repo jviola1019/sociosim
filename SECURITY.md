@@ -44,6 +44,18 @@ console beyond loopback and is supported only on a trusted host/container — th
 access token and headers still apply but TLS and network ACLs become your
 responsibility.
 
+## Verification (Sprint 9)
+- **No committed secrets** — full tracked-tree scan (api keys / tokens / passwords
+  / private keys / AWS / `sk-`/`ghp_` patterns) finds only parameter names, env
+  reads, and docs. The web access token is **runtime-generated**
+  (`secrets.token_urlsafe(32)`), the Anthropic key is read from `ANTHROPIC_API_KEY`
+  env only (never stored/committed), and no `.env`/`.pem`/credential files are
+  tracked.
+- **Accessibility (WCAG 2.1 / ADA):** `lang` set; every control has an accessible
+  label (incl. prevalence sliders); images carry alt text; results region is
+  `aria-live` + `role=status`; keyboard `:focus-visible` indicator on all
+  interactive elements; reduced-motion fallbacks. Browser-verified.
+
 ## Reporting
 This is research software (not production). For issues, open a GitHub issue;
 do not include sensitive data (the simulator stores none — synthetic only).

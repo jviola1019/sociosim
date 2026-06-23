@@ -90,7 +90,7 @@ async function loadMeta() {
     cats[c].map(([k, p]) => `<option value="${k}">${esc(p.label)}</option>`).join("") +
     `</optgroup>`).join("");
   ps.value = "eu_dsa"; ps.addEventListener("change", () => applyPreset(ps.value));
-  $("#rates").innerHTML = META.harmful_categories.concat(["ai_generated"]).map(c => { const v = META.defaults[c] ?? 0.02; return `<div class="rate"><label>${c.replace(/_/g, " ")}<b id="rl_${c}">${v.toFixed(3)}</b></label><input type="range" id="rate_${c}" min="0" max="0.3" step="0.005" value="${v}"></div>`; }).join("");
+  $("#rates").innerHTML = META.harmful_categories.concat(["ai_generated"]).map(c => { const v = META.defaults[c] ?? 0.02; const lbl = c.replace(/_/g, " "); return `<div class="rate"><label for="rate_${c}">${lbl}<b id="rl_${c}">${v.toFixed(3)}</b></label><input type="range" id="rate_${c}" aria-label="${lbl} content prevalence (share of all content)" min="0" max="0.3" step="0.005" value="${v}"></div>`; }).join("");
   $("#rates").addEventListener("input", e => { if (e.target.id.startsWith("rate_")) $("#rl_" + e.target.id.slice(5)).textContent = (+e.target.value).toFixed(3); });
   renderGarm(); wireMarketing(); recalcMarketing();
   applyPreset("eu_dsa"); refreshHistory();
