@@ -225,6 +225,13 @@ input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.12); }
 .opanel h4 { font-size: 15px; margin: 0 0 14px; color: var(--ink); }
 .opanel h4:not(:first-child) { margin-top: var(--s4); }
 
+/* creative A/B verdict + wider campaign rows */
+.ab-verdict { margin: 0 0 12px; padding: 9px 12px; border-radius: var(--r); font-size: 12px; line-height: 1.5; }
+.ab-verdict.ok { color: #0a7f3f; background: rgba(16,160,80,.10); }
+.ab-verdict.warn { color: #9a6700; background: rgba(200,140,0,.10); }
+.camp-row { flex-wrap: wrap; }
+.camp-row .cf-seg, .camp-row .cf-mkt { min-width: 84px; }
+
 /* real PNG ad creatives */
 .creative { position: relative; }
 .creative-img { display: block; width: 100%; height: auto; border-radius: var(--r) var(--r) 0 0; object-fit: cover; }

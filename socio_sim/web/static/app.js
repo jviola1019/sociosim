@@ -246,13 +246,19 @@ function wireMarketing() {
 }
 
 /* ---------- campaign editor (S3) ---------- */
+const AGE_SEGMENTS = ["all", "13-17", "18-24", "25-34", "35-49", "50-64", "65+"];
 function campaignRow(c = {}) {
   const d = document.createElement("div"); d.className = "camp-row";
-  d.innerHTML = `<input class="cf-adv" placeholder="Advertiser" value="${esc(c.advertiser || "")}">`
-    + `<input class="cf-bid" type="number" step="0.1" min="0" title="bid" value="${c.bid ?? 2}">`
-    + `<input class="cf-bud" type="number" step="1" min="0" title="budget" value="${c.budget ?? 100}">`
-    + `<input class="cf-ctr" type="number" step="0.001" min="0" max="1" title="base CTR" value="${c.base_ctr ?? 0.012}">`
-    + `<input class="cf-cvr" type="number" step="0.01" min="0" max="1" title="base CVR" value="${c.base_cvr ?? 0.05}">`
+  const segOpts = AGE_SEGMENTS.map(s => `<option value="${s}"${(c.segment || "all") === s ? " selected" : ""}>${s === "all" ? "All ages" : s}</option>`).join("");
+  const mktOpts = ['<option value="any">Any market</option>']
+    .concat([...Array(8).keys()].map(t => `<option value="${t}"${String(c.market) === String(t) ? " selected" : ""}>Topic ${t}</option>`)).join("");
+  d.innerHTML = `<input class="cf-adv" placeholder="Advertiser" aria-label="advertiser" value="${esc(c.advertiser || "")}">`
+    + `<input class="cf-bid" type="number" step="0.1" min="0" title="bid per impression" aria-label="bid" value="${c.bid ?? 2}">`
+    + `<input class="cf-bud" type="number" step="1" min="0" title="budget" aria-label="budget" value="${c.budget ?? 100}">`
+    + `<input class="cf-ctr" type="number" step="0.001" min="0" max="1" title="base CTR" aria-label="base CTR" value="${c.base_ctr ?? 0.012}">`
+    + `<input class="cf-cvr" type="number" step="0.01" min="0" max="1" title="base CVR" aria-label="base CVR" value="${c.base_cvr ?? 0.05}">`
+    + `<select class="cf-seg" title="audience segment" aria-label="audience segment">${segOpts}</select>`
+    + `<select class="cf-mkt" title="market / topic" aria-label="market topic">${mktOpts}</select>`
     + `<button type="button" class="cf-del" title="remove" aria-label="remove campaign">×</button>`;
   d.querySelector(".cf-del").addEventListener("click", () => d.remove());
   return d;
@@ -265,6 +271,7 @@ function collectCampaigns() {
     advertiser: r.querySelector(".cf-adv").value || "Advertiser",
     bid: +r.querySelector(".cf-bid").value, budget: +r.querySelector(".cf-bud").value,
     base_ctr: +r.querySelector(".cf-ctr").value, base_cvr: +r.querySelector(".cf-cvr").value,
+    segment: r.querySelector(".cf-seg").value, market: r.querySelector(".cf-mkt").value,
   }));
 }
 
@@ -588,7 +595,20 @@ function renderAds(ads) {
     return `<div class="adcard" style="animation-delay:${i * 50}ms"><div class="creative"><img class="creative-img" src="/api/creative?key=${key}&w=400&h=200" alt="Generated ad creative for campaign ${esc(a.campaign_id)}" loading="lazy" width="400" height="200"><span class="disc">#ad</span><a class="dl-creative" href="/api/creative?key=${key}&w=1024&h=512" download="creative-${key}.png" title="Download full-size creative">download</a></div><div class="ad-body"><div class="adname">${esc(a.campaign_id)}</div><div class="adstat"><span>CTR <b>${fmt(a.ctr, 4)}</b></span><span>lift <b>${fmt(a.lift, 4)}</b></span><span>${a.impressions} impr</span></div></div></div>`;
   }).join("");
   const table = `<table class="read"><thead><tr><th>campaign</th><th>impr</th><th>CTR</th><th>CTR 95% CI</th><th>lift</th><th>spend</th><th>ROI</th></tr></thead><tbody>${ads.map(a => `<tr><td>${esc(a.campaign_id)}</td><td class="num">${a.impressions}</td><td class="num">${fmt(a.ctr, 4)}</td><td class="num">${fmt(a.ctr_ci[0], 4)}–${fmt(a.ctr_ci[1], 4)}</td><td class="num">${fmt(a.lift, 4)}</td><td class="num">${fmt(a.spend, 2)}</td><td class="num">${fmt(a.roi, 2)}</td></tr>`).join("")}</tbody></table>`;
-  $("#ads").innerHTML = `<div class="ads-grid">${grid}</div>${table}`;
+  // Creative A/B verdict — wired to the incrementality engine's lift CIs (Newcombe)
+  let ab = "";
+  if (ads.length >= 2) {
+    const ranked = [...ads].filter(a => a.lift != null).sort((a, b) => (b.lift || 0) - (a.lift || 0));
+    if (ranked.length >= 2) {
+      const top = ranked[0], second = ranked[1];
+      const sep = top.lift_ci && second.lift_ci && top.lift_ci[0] > second.lift_ci[1];
+      const win = top.lift_significant && sep;
+      ab = `<div class="ab-verdict ${win ? "ok" : "warn"}"><b>Creative A/B:</b> ${win
+        ? `<b>${esc(top.campaign_id)}</b> wins — incremental lift ${fmt(top.lift, 4)} [${fmt(top.lift_ci[0], 4)}, ${fmt(top.lift_ci[1], 4)}], p=${fmt(top.lift_pvalue, 3)}; its CI clears the runner-up.`
+        : `no significant winner yet — best lift ${fmt(top.lift, 4)} but confidence intervals overlap or sit below the minimum detectable effect (MDE ${fmt(top.mde, 4)}). Increase audience, holdout, or run more replicates.`}</div>`;
+    }
+  }
+  $("#ads").innerHTML = `${ab}<div class="ads-grid">${grid}</div>${table}`;
 }
 
 /* ---------- export + history ---------- */

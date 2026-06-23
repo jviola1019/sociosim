@@ -207,6 +207,23 @@ def test_campaigns_fn_builds_factory_from_specs():
     assert app._campaigns_fn({}) is None and app._campaigns_fn({"campaigns": []}) is None
 
 
+def test_campaign_segment_market_map_to_targeting():
+    """Creative-studio segment/market fields map into engine Campaign.targeting
+    so each variant reaches a real audience (a genuine A/B by segment/market)."""
+    fn = app._campaigns_fn({"campaigns": [
+        {"id": "a", "advertiser": "A", "bid": 3, "budget": 500,
+         "segment": "18-24", "market": "2"},
+        {"id": "b", "advertiser": "B", "bid": 3, "budget": 500,
+         "segment": "all", "market": "any"}]})
+    cfg = app._build_config({"profile": "test", "jurisdictions": ["EU"]})
+    camps = fn(cfg)
+    assert camps[0].targeting == {"age_groups": ["18-24"], "topics": [2]}
+    assert camps[1].targeting == {}                      # 'all'/'any' -> untargeted
+    from socio_sim.engine import Simulation
+    Simulation(app._build_config({"profile": "test", "n_agents": 120, "n_ticks": 12,
+                                  "jurisdictions": ["EU"]})).run()  # arms run
+
+
 def test_safe_static_path_blocks_traversal():
     """Static serving must contain requests within the static dir."""
     assert app.safe_static_path("app.js") is not None

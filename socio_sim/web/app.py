@@ -237,6 +237,19 @@ def _campaigns_fn(body: dict):
     clean = []
     for s in specs:
         try:
+            # Creative-studio targeting: a 'segment' (audience age group) and
+            # 'market' (topic/vertical) map into the engine's Campaign.targeting,
+            # so each variant reaches a real audience -> a genuine A/B by segment.
+            targeting = {}
+            seg = str(s.get("segment", "") or "")
+            if seg and seg.lower() != "all":
+                targeting["age_groups"] = [seg]
+            mkt = s.get("market", "")
+            if mkt not in (None, "", "any"):
+                try:
+                    targeting["topics"] = [int(mkt)]
+                except (TypeError, ValueError):
+                    pass
             clean.append(dict(
                 id=str(s.get("id") or f"camp{len(clean) + 1}"),
                 advertiser=str(s.get("advertiser") or "Advertiser"),
@@ -245,6 +258,7 @@ def _campaigns_fn(body: dict):
                 base_ctr=float(s.get("base_ctr", 0.012)),
                 base_cvr=float(s.get("base_cvr", 0.05)),
                 conversion_value=float(s.get("conversion_value", 1.0)),
+                targeting=targeting,
             ))
         except (TypeError, ValueError):
             continue
