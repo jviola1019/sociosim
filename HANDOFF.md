@@ -3,6 +3,27 @@
 **Purpose:** live resume doc so this sprint continues across sessions/token cutoffs.
 Resuming? Read this, then `AUDIT_LOG.md`, then `CHANGELOG.md`. Branch: `feat/audit-p0-p1`.
 
+## SPRINT 9 — measured accuracy + creative studio + verification (user 2026-06-22; multi-segment)
+User chose: Rung-5 real-outcome scoring · FULL creative studio · AGGRESSIVE knob
+restructure · honest README · + verify security/key-leakage + ADA + gov-vs-marketing
+differentiated data/graphs. DONE so far (commits 71-73):
+- S9.1 Proper scoring on measured classifier: Brier/log-loss/ECE + Brier-Skill vs
+  climatology baseline on REAL data (toxicity BSS 0.23, spam 0.95; well-calibrated);
+  honest scope (beats no-skill baseline, not real-market). BENCHMARK_REPORT updated.
+- S9.2 REAL PNG ad creatives: /api/creative endpoint (media.synth_image, seeded by
+  campaign/segment/market, bounded dims, headers) replaces SVG placeholders; <img>
+  with ADA alt + download; removed dead creativeSVG. Browser-verified.
+- S9.V1 Security/key-leakage scan CLEAN (runtime token, env-only Anthropic key, no
+  secrets/.env tracked) — SECURITY.md Verification section.
+- S9.V2 ADA/WCAG fixes: all controls labeled, aria-live+role=status results, global
+  :focus-visible. Browser-verified.
+QUEUED (not yet done): S9.3 creative studio (campaign editor segment/market/variant
+fields + per-variant A/B creatives wired to incrementality via variant=campaign-arm);
+S9.4 aggressive knob restructure (data-driven, determinism re-baseline) + gov-vs-
+marketing differentiated dashboards/graphs (lens-aware output tabs); S9.5 honest
+README "what this is useful for" + full per-setting/preset REALISM audit (vs
+RESEARCH_EVIDENCE) + docs + suite + push. Marketing = within-jurisdiction/intl scale.
+
 ## SPRINT 8 — architecture clarify + marketing/government lens + settings audit (user 2026-06-22)
 DONE+verified:
 - S8.1 Renamed experiments/runner.py -> compare.py (kills run.py/runner.py confusion);
