@@ -17,12 +17,25 @@ differentiated data/graphs. DONE so far (commits 71-73):
   secrets/.env tracked) — SECURITY.md Verification section.
 - S9.V2 ADA/WCAG fixes: all controls labeled, aria-live+role=status results, global
   :focus-visible. Browser-verified.
-QUEUED (not yet done): S9.3 creative studio (campaign editor segment/market/variant
-fields + per-variant A/B creatives wired to incrementality via variant=campaign-arm);
-S9.4 aggressive knob restructure (data-driven, determinism re-baseline) + gov-vs-
-marketing differentiated dashboards/graphs (lens-aware output tabs); S9.5 honest
-README "what this is useful for" + full per-setting/preset REALISM audit (vs
-RESEARCH_EVIDENCE) + docs + suite + push. Marketing = within-jurisdiction/intl scale.
+SPRINT 9 COMPLETE (commits 71-78, pushed PR#2):
+- S9.3 DONE: creative studio — campaign segment(age)/market(topic) selects ->
+  Campaign.targeting (real audience A/B; untargeted 413 impr vs 25-34 arm 8 impr),
+  per-variant REAL PNG creatives, + Ads-tab A/B verdict wired to engine lift CIs
+  (honest "significant winner" only if top CI clears runner-up). Browser-verified.
+- S9.4b DONE: gov-vs-marketing differentiated dashboards (lens marketing_output
+  numbers + output-tab lens dots: Fairness/Audit=gov, Ads=marketing).
+- S9.5 DONE: honest README "what this is (and isn't) useful for"; realism audit =
+  cited presets (S5) + researched tooltips (S5) + Saltelli/effect audit (MODELS §6).
+- S9.V1/V2 DONE: security/key-leakage CLEAN; ADA/WCAG fixes; consistency audit
+  (fixed stale runner import + documented all CLI flags).
+- S9.4a (aggressive knob restructure): NOT done by DESIGN — data-driven audit shows
+  NO redundant/dead knobs (lens-specific); aggressive deletion would be a REDUCTION
+  the user warned against. impression_fatigue stays flagged-advanced. Decision documented.
+OPS NOTE: killed 28 leaked web-server processes (every `run.py --web` spawns a
+venv+WindowsApps-shim pair; pkill -f "run.py --web" does NOT kill them on Windows —
+use PowerShell Get-CimInstance Win32_Process | Stop-Process). A stale zombie server
+caused a false "empty ads" failure (ran pre-token/old-targets code); code was always
+correct. ALWAYS kill servers via CIM by PID after browser checks.
 
 ## SPRINT 8 — architecture clarify + marketing/government lens + settings audit (user 2026-06-22)
 DONE+verified:
