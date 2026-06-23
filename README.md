@@ -18,6 +18,38 @@ analytics.
 > individual level; no personally identifiable information and no model
 > chain-of-thought is ever stored.
 
+## What this is (and isn't) useful for
+
+Honest scope — what SocioSim genuinely supports, and what it does not:
+
+**Useful for**
+- **Trust-&-safety / policy research & education:** a transparent, deterministic
+  sandbox to explore how moderation policy (EU DSA, US §230, CN AI-labelling, FTC),
+  feed ranking, and advertising interact — every output carries a confidence
+  interval and a provenance label.
+- **Counterfactual scenario stress-testing:** compare regulatory regimes or
+  marketing strategies as "what-if" worlds (A/B compare with common random
+  numbers), with Monte-Carlo uncertainty — for analysts in government or business.
+- **A working reference for measurement methodology:** auditable implementations
+  of ad **incrementality** (RCT holdout + Newcombe CI + CUPED + BH-FDR + MDE),
+  **calibration** (history-matching / ABC, in-band on published aggregates),
+  **sensitivity** (Saltelli S1+total-effect), and a **moderation classifier
+  measured on real licensed benchmarks** (F1/ROC-AUC/Brier/log-loss).
+- **Marketing planning at jurisdiction / international scale:** the Marketing suite
+  (A/B power, unit economics, reach/frequency, GARM brand-safety) operates *within*
+  the active jurisdiction packs (a single regime, or all three for an international
+  view).
+
+**NOT useful / out of scope (by design + law)**
+- Not a predictor of any real platform, person, or event — agent behaviour is a
+  *calibrated assumption*, not measured truth (only the classifier component is
+  measured on real data). Outputs are projections, not forecasts.
+- Not for targeting/ranking real individuals, enforcement decisions, or
+  surveillance. No real-person data/PII; research use only.
+
+Every claim is bounded by its provenance label (`docs/MODELS.md` §5–6); nothing
+here is asserted beyond what the code measures.
+
 ## Architecture at a glance
 
 ```mermaid
