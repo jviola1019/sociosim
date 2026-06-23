@@ -27,13 +27,6 @@ function meshSVG(seed, w, h, hueBias) {
   for (let i = 0; i < 4; i++) blobs += `<circle cx="${r() * w}" cy="${r() * h}" r="${30 + r() * 70}" fill="hsla(${[base, h2, h3][i % 3]},85%,${64 + r() * 16}%,.55)"/>`;
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="bg${seedFrom(seed)}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${base},68%,72%)"/><stop offset="1" stop-color="hsl(${h2},62%,58%)"/></linearGradient><filter id="b${seedFrom(seed)}"><feGaussianBlur stdDeviation="22"/></filter></defs><rect width="${w}" height="${h}" fill="url(#bg${seedFrom(seed)})"/><g filter="url(#b${seedFrom(seed)})">${blobs}</g></svg>`;
 }
-function creativeSVG(seed, initial, w, h) {
-  const r = mulberry32(seedFrom("ad" + seed));
-  const base = PALETTE[Math.floor(r() * PALETTE.length)], h2 = (base + 50 + r() * 90) % 360;
-  let geo = "";
-  for (let i = 0; i < 3; i++) { const t = r(); geo += t < .5 ? `<circle cx="${r() * w}" cy="${r() * h}" r="${20 + r() * 50}" fill="none" stroke="hsla(0,0%,100%,.4)" stroke-width="${1 + r() * 3}"/>` : `<rect x="${r() * w}" y="${r() * h}" width="${30 + r() * 80}" height="${30 + r() * 80}" rx="10" fill="hsla(${h2},90%,80%,.3)" transform="rotate(${r() * 90} ${r() * w} ${r() * h})"/>`; }
-  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="ad${seedFrom(seed)}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${base},74%,56%)"/><stop offset="1" stop-color="hsl(${h2},70%,44%)"/></linearGradient></defs><rect width="${w}" height="${h}" fill="url(#ad${seedFrom(seed)})"/>${geo}<text x="${w / 2}" y="${h / 2 + 18}" text-anchor="middle" font-family="-apple-system,Segoe UI,sans-serif" font-size="56" font-weight="700" fill="hsla(0,0%,100%,.92)">${esc(initial)}</text></svg>`;
-}
 
 /* ---------- count-up ---------- */
 function countUp(el) {
@@ -591,8 +584,8 @@ function renderFeed(feed) {
 function renderAds(ads) {
   if (!ads.length) { $("#ads").innerHTML = `<p class="dim small">Advertising disabled or no impressions recorded.</p>`; return; }
   const grid = ads.map((a, i) => {
-    const init = (a.campaign_id || "?").replace(/[^a-z]/gi, "").slice(0, 1).toUpperCase() || "A";
-    return `<div class="adcard" style="animation-delay:${i * 50}ms"><div class="creative">${creativeSVG(a.campaign_id, init, 400, 200)}<span class="disc">#ad</span></div><div class="ad-body"><div class="adname">${esc(a.campaign_id)}</div><div class="adstat"><span>CTR <b>${fmt(a.ctr, 4)}</b></span><span>lift <b>${fmt(a.lift, 4)}</b></span><span>${a.impressions} impr</span></div></div></div>`;
+    const key = encodeURIComponent(a.campaign_id || "ad");
+    return `<div class="adcard" style="animation-delay:${i * 50}ms"><div class="creative"><img class="creative-img" src="/api/creative?key=${key}&w=400&h=200" alt="Generated ad creative for campaign ${esc(a.campaign_id)}" loading="lazy" width="400" height="200"><span class="disc">#ad</span><a class="dl-creative" href="/api/creative?key=${key}&w=1024&h=512" download="creative-${key}.png" title="Download full-size creative">download</a></div><div class="ad-body"><div class="adname">${esc(a.campaign_id)}</div><div class="adstat"><span>CTR <b>${fmt(a.ctr, 4)}</b></span><span>lift <b>${fmt(a.lift, 4)}</b></span><span>${a.impressions} impr</span></div></div></div>`;
   }).join("");
   const table = `<table class="read"><thead><tr><th>campaign</th><th>impr</th><th>CTR</th><th>CTR 95% CI</th><th>lift</th><th>spend</th><th>ROI</th></tr></thead><tbody>${ads.map(a => `<tr><td>${esc(a.campaign_id)}</td><td class="num">${a.impressions}</td><td class="num">${fmt(a.ctr, 4)}</td><td class="num">${fmt(a.ctr_ci[0], 4)}–${fmt(a.ctr_ci[1], 4)}</td><td class="num">${fmt(a.lift, 4)}</td><td class="num">${fmt(a.spend, 2)}</td><td class="num">${fmt(a.roi, 2)}</td></tr>`).join("")}</tbody></table>`;
   $("#ads").innerHTML = `<div class="ads-grid">${grid}</div>${table}`;

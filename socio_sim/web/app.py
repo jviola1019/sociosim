@@ -545,6 +545,8 @@ class Handler(BaseHTTPRequestHandler):
                     self._send_json({"error": "unknown run"}, 404)
                 else:
                     self._send_json({"result": payload, "meta": _STORE.meta(run_id)})
+        elif route == "/api/creative":
+            self._send_creative()
         elif route.startswith("/static/"):
             target = safe_static_path(route[len("/static/"):])
             if target is None:
@@ -553,6 +555,31 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_file(target)
         else:
             self.send_error(404, "not found")
+
+    def _send_creative(self):
+        """Serve a REAL, deterministic PNG ad creative (media.synth_image),
+        seeded by the ?key= string so it varies by campaign/segment/market.
+        Bounded dimensions (DoS guard)."""
+        import zlib
+        from urllib.parse import parse_qs, urlparse
+
+        from socio_sim.content.media import synth_image
+        q = parse_qs(urlparse(self.path).query)
+        key = (q.get("key", ["ad"])[0] or "ad")[:200]
+        try:
+            w = min(max(int(q.get("w", ["320"])[0]), 16), 1024)
+            h = min(max(int(q.get("h", ["200"])[0]), 16), 1024)
+        except ValueError:
+            self.send_error(400, "bad dimensions")
+            return
+        data = synth_image(zlib.crc32(key.encode("utf-8")), w, h)
+        self.send_response(200)
+        self.send_header("Content-Type", "image/png")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "public, max-age=86400")
+        self._security_headers()
+        self.end_headers()
+        self.wfile.write(data)
 
     def _export_run(self, run_id: str):
         from urllib.parse import parse_qs, urlparse

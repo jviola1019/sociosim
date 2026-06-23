@@ -149,6 +149,28 @@ def test_live_server_runs_simulation_end_to_end():
         server.shutdown()
 
 
+def test_creative_endpoint_serves_real_bounded_png():
+    """/api/creative returns a real deterministic PNG, dimensions clamped."""
+    import struct
+    from http.server import ThreadingHTTPServer
+    import threading
+    port = _free_port()
+    server = ThreadingHTTPServer(("127.0.0.1", port), app.Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{port}"
+    try:
+        r = urllib.request.urlopen(f"{base}/api/creative?key=brand-general&w=300&h=150")
+        data = r.read()
+        assert r.headers.get("Content-Type") == "image/png"
+        assert data[:8] == b"\x89PNG\r\n\x1a\n"
+        assert struct.unpack(">II", data[16:24]) == (300, 150)   # IHDR dims
+        # oversized request is clamped (DoS guard)
+        big = urllib.request.urlopen(f"{base}/api/creative?key=x&w=9999&h=9999").read()
+        assert struct.unpack(">II", big[16:24]) == (1024, 1024)
+    finally:
+        server.shutdown()
+
+
 def test_sbm_block_sizes_match_n_agents():
     """SBM must size its blocks to the agent count, not a hardcoded 1000."""
     cfg = app._build_config({"profile": "test", "graph_kind": "sbm",
