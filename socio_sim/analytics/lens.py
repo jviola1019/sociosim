@@ -51,10 +51,13 @@ def run_lens(config: dict, summary: dict) -> dict:
     ads = bool(config.get("ads_enabled", False))
     packs = [f"{j}·{PACK_NAMES.get(j, j)}" for j in juris] + (["FTC"] if ftc else [])
 
+    def _n(x, d=2):  # format a possibly-NaN metric cleanly ("n/a" not "nan")
+        return f"{x:.{d}f}" if isinstance(x, (int, float)) and x == x else "n/a"
+
     he = summary["harmful_exposure"]["rate"]
     mod = summary["moderation"]
-    gov_out = (f"harmful-exposure {he:.4f}/impression · moderation precision "
-               f"{mod['precision']:.2f} / recall {mod['recall']:.2f} · appeals + "
+    gov_out = (f"harmful-exposure {_n(he, 4)}/impression · moderation precision "
+               f"{_n(mod['precision'])} / recall {_n(mod['recall'])} · appeals + "
                f"transparency tally")
 
     # Marketing headline numbers (so the marketing view shows ROI data, not just
@@ -66,8 +69,8 @@ def run_lens(config: dict, summary: dict) -> dict:
         best = max(ads_sum.items(),
                    key=lambda kv: (kv[1].get("lift", 0.0) if isinstance(kv[1], dict) else 0.0))
         cid, m = best
-        mkt_out = (f"top campaign '{cid}' incremental lift {m.get('lift', float('nan')):.4f} · "
-                   f"CTR {m.get('ctr', float('nan')):.4f} · ROI {m.get('roi', float('nan')):.2f}")
+        mkt_out = (f"top campaign '{cid}' incremental lift {_n(m.get('lift'), 4)} · "
+                   f"CTR {_n(m.get('ctr'), 4)} · ROI {_n(m.get('roi'))}")
 
     lines = [
         f"**Government / Regulatory lens — ACTIVE** ({', '.join(packs) or 'none'}). "
