@@ -63,6 +63,32 @@ def test_us_mode_minors_can_be_served():
     assert ads.run_auction(agent_id=minor_id(personas), tick=1) is not None
 
 
+def test_eu_sensitive_targeting_strip_is_logged():
+    camp = [Campaign(id="sens", advertiser="S", bid=5.0, budget=1000,
+                     targeting={"ideology": "left"})]
+    ads, log, personas, _ = setup(("EU",), campaigns=camp, holdout_fraction=0.0)
+    assert ads.run_auction(agent_id=adult_id(personas), tick=7) is not None
+    strips = [e for e in log.by_kind("ad_auction")
+              if e["data"].get("action") == "strip_targeting"]
+    assert strips
+    assert strips[0]["tick"] == 7
+    assert strips[0]["data"]["rule_id"] == "EU-ADS-SENS-1"
+
+
+def test_eu_sensitive_strip_event_is_not_counted_as_paid_impression():
+    camp = [Campaign(id="sens", advertiser="S", bid=5.0, budget=1000,
+                     targeting={"ideology": "left"})]
+    ads, log, personas, _ = setup(("EU",), campaigns=camp, holdout_fraction=0.0)
+    assert ads.run_auction(agent_id=adult_id(personas), tick=7) is not None
+    priced = [e for e in log.by_kind("ad_auction") if "price" in e["data"]]
+    strips = [e for e in log.by_kind("ad_auction")
+              if e["data"].get("action") == "strip_targeting"]
+    assert len(priced) == 1 and strips
+    m = measure_campaign(log, camp[0], ads, n_agents=100)
+    assert m["impressions"] == 1
+    assert m["spend"] == priced[0]["data"]["price"]
+
+
 def test_frequency_cap_binds():
     ads, _, personas, state = setup(holdout_fraction=0.0,
                                     ad_frequency_cap_per_day=2)
@@ -117,6 +143,33 @@ def test_click_and_conversion_events_logged():
             ads.simulate_response(aid, creative, tick=t)
     assert log.by_kind("ad_click")
     assert log.by_kind("ad_conversion")
+
+
+def test_ad_conversion_logged_at_actual_tick_and_horizon_limited():
+    class FixedLatency:
+        def __init__(self, draw):
+            self.draw = draw
+        def geometric(self, p):
+            return self.draw
+
+    camp = [Campaign(id="lat", advertiser="L", bid=5.0, budget=1000,
+                     base_ctr=1.0, base_cvr=1.0)]
+    ads, log, personas, _ = setup(campaigns=camp, holdout_fraction=0.0)
+    ads.latency_rng = FixedLatency(3)  # latency = 2 ticks
+    creative = ads.run_auction(adult_id(personas), tick=5)
+    ads.simulate_response(adult_id(personas), creative, tick=5)
+    conv = log.by_kind("ad_conversion")[-1]
+    assert conv["tick"] == 7
+    assert conv["data"]["impression_tick"] == 5
+
+    ads2, log2, personas2, _ = setup(campaigns=[Campaign(id="late", advertiser="L",
+                                         bid=5.0, budget=1000,
+                                         base_ctr=1.0, base_cvr=1.0)],
+                                     holdout_fraction=0.0, n_ticks=6)
+    ads2.latency_rng = FixedLatency(3)  # tick 5 + 2 falls beyond horizon
+    creative2 = ads2.run_auction(adult_id(personas2), tick=5)
+    ads2.simulate_response(adult_id(personas2), creative2, tick=5)
+    assert not log2.by_kind("ad_conversion")
 
 
 def test_beta_interval_covers_truth():

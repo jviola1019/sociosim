@@ -1,5 +1,9 @@
-"""Markdown report rendering (Spec §3.8). Every metric carries its 95%
-interval; the research-only disclaimer is embedded in every report."""
+"""Markdown report rendering (Spec §3.8).
+
+Headline rates carry uncertainty intervals; descriptive diagnostics are labelled
+as point/count summaries. The research-only disclaimer is embedded in every
+report.
+"""
 
 from __future__ import annotations
 
@@ -13,7 +17,7 @@ def _ci(pair) -> str:
     return f"[{lo:.4f}, {hi:.4f}] (95%)"
 
 
-def render(summary: dict, manifest: Manifest) -> str:
+def render(summary: dict, manifest: Manifest, mc: dict | None = None) -> str:
     mod = summary["moderation"]
     app = summary["appeals"]
     notices = summary["notices"]
@@ -38,6 +42,20 @@ def render(summary: dict, manifest: Manifest) -> str:
         "across replicates. Run the research (multi-replicate) mode for "
         "mc-replicated intervals.",
         "",
+    ]
+    if mc:
+        finite_n = max((d.get("n_replicates", 0) for d in mc.values()), default=0)
+        lines.extend([
+            "## Monte Carlo intervals",
+            f"- Provenance: **mc-replicated** ({finite_n} replicates where finite)",
+        ])
+        for name, d in sorted(mc.items()):
+            lo, hi = d["ci"]
+            lines.append(
+                f"- {name.replace('_', ' ')}: median {d['median']:.4f}, "
+                f"95% [{lo:.4f}, {hi:.4f}]")
+        lines.append("")
+    lines.extend([
         "## Volume",
         f"- Posts: {summary['n_posts']} | Impressions: {summary['n_impressions']}"
         f" | Engagements: {summary['n_engagements']}",
@@ -69,7 +87,7 @@ def render(summary: dict, manifest: Manifest) -> str:
         f"- Mean {summary['welfare']['mean']:.4f}, CI {_ci(summary['welfare']['ci'])}",
         "",
         "## Fairness diagnostics (moderation FPR/FNR by author group)",
-    ]
+    ])
     for key, groups in summary["fairness"].items():
         lines.append(f"### {key}")
         for g, d in sorted(groups.items()):
@@ -93,7 +111,8 @@ def render(summary: dict, manifest: Manifest) -> str:
             f"lift {m['lift']:.4f} CI {_ci(m['lift_ci'])} "
             f"(exposed {m['n_exposed']}, holdout {m['n_holdout']})")
         lines.append(
-            f"  - incrementality: CUPED-lift {m['lift_cuped']:.4f} | "
+            f"  - incrementality: {m.get('estimand', 'eligible-opportunity ITT')} | "
+            f"CUPED-lift {m['lift_cuped']:.4f} | "
             f"p={m['lift_pvalue']:.3f} ({sig}, BH-FDR) | MDE {m['mde']:.4f} | "
             f"ROAS {m['roas']:.2f} | iROAS {m['iroas']:.2f} | CAC {m['cac']:.2f} | "
             f"LTV {m['ltv']:.2f} | attribution {m['attribution_window_ticks']}t "
@@ -104,4 +123,8 @@ def render(summary: dict, manifest: Manifest) -> str:
     g = summary["graph"]
     lines.append(f"- n={g['n']} m={g['m']} clustering={g['clustering']:.4f} "
                  f"degree mean/max {g['degree_mean']:.1f}/{g['degree_max']:.0f}")
+    if "initial" in g and "final" in g:
+        gi = g["initial"]
+        lines.append(f"- Dynamic graph: values above are final topology; initial "
+                     f"m={gi['m']} clustering={gi['clustering']:.4f}")
     return "\n".join(lines)

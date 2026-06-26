@@ -25,6 +25,7 @@ EVENT_KINDS = {
     "moderation",
     "notice",
     "appeal",
+    "ad_opportunity",
     "ad_auction",
     "ad_click",
     "ad_conversion",
@@ -44,13 +45,13 @@ def _canonical(event: dict) -> str:
 class EventLog:
     """In-memory event list with optional append-only JSONL persistence."""
 
-    def __init__(self, path: str | Path | None = None):
+    def __init__(self, path: str | Path | None = None, *, append: bool = False):
         self.events: list[dict] = []
         self._path = Path(path) if path else None
         self._fh = None
         if self._path:
             self._path.parent.mkdir(parents=True, exist_ok=True)
-            self._fh = open(self._path, "a", encoding="utf-8")
+            self._fh = open(self._path, "a" if append else "w", encoding="utf-8")
 
     def append(self, tick: int, kind: str, actor_id: int, content_id: str | None,
                data: dict | None = None) -> dict:

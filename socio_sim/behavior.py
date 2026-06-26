@@ -24,9 +24,8 @@ class BehaviorParams:
     # Moderation interaction
     p_flag_scale: float = 0.30             # user-flag prob = p_flag_scale * moderation_attitude
     # Attention / fatigue
-    # impression_fatigue is LOW-INFLUENCE (advanced): Saltelli total-effect ~0.09,
-    # an order of magnitude below the other knobs across all outputs (settings
-    # audit, docs/MODELS.md §6) — kept as a valid lever but don't calibrate first.
+    # Advanced knob: influence is regime/sample dependent. Keep it explicit and
+    # sensitivity-tested; do not treat older small-N influence rankings as final.
     impression_fatigue: float = 0.005      # fatigue added per impression seen
     fatigue_decay_per_tick: float = 0.05   # multiplicative fatigue decay each tick
     # Feed candidate window / exploration

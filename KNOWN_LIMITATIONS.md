@@ -25,15 +25,15 @@ list; this file tracks what remains open or newly surfaced.
 - **Now validated one rung higher** (`run.py --backtest`, `BACKTEST_REPORT.md`):
   the calibrated world reproduces 5 cited **stylized facts** (heavy-tail degree,
   clustering≫random, cascade skew, participation inequality, diurnal cycle) and
-  passes an **out-of-sample backtest** (calibrate on a train subset of public
-  aggregates → held-out metrics within tolerance, I_test≈0.12). Honest ceiling:
+  passes a **held-out aggregate backtest** (calibrate on a train subset of public aggregates -> held-out metrics within tolerance, I_test approx 0.12). Honest ceiling:
   this is aggregate/pattern agreement, NOT point-prediction of a real platform;
   agent behavioural magnitudes stay calibrated assumptions (no real-person
   microdata — lawful by design; see `docs/DATA_MANIFEST.md`).
-- **Sensitivity is now multi-output, multi-seed, Sobol** (`multi_output_sensitivity`,
-  report §1b): first-order indices for n_posts / harmful_exposure / welfare over a
-  Sobol design, averaged across seeds with cross-seed sd. Residual: first-order
-  only (no total-effect/higher-order indices); bounds are still ±50% of defaults.
+- **Sensitivity is now multi-output, multi-seed, Sobol + Saltelli ST**
+  (`multi_output_sensitivity`, report §1b; `saltelli_study`, report §1c):
+  first-order indices for n_posts / harmful_exposure / welfare over a Sobol
+  design, plus total-effect indices for `n_posts`. Residual: higher-order
+  interaction decomposition is not reported; bounds are still ±50% of defaults.
 - **ABC posterior is propagated to outputs** (`posterior_calibrated_mc`, report
   §2b): history-match → ABC posterior → output interval (parameter-uncertainty,
   not single-run noise). Residual: this runs in the validation study; the default
@@ -56,11 +56,17 @@ list; this file tracks what remains open or newly surfaced.
   triadic-closure/random model, not fit to a measured rewiring process.
 
 ## Marketing
-- Incrementality is valid (organic baseline + Newcombe/Beta CI + CUPED + BH-FDR);
+- Incrementality is implemented for scenario diagnostics (organic baseline +
+  eligible-opportunity ITT denominator, Newcombe/Beta CI, CUPED + BH-FDR);
   dose-response by frequency and an attribution-window model **are** implemented,
   and the UI has a campaign editor. ROAS/iROAS/CAC/LTV remain **synthetic** —
   they depend on conversion_value / ltv_multiplier assumptions, so treat the
   money figures as scenario inputs, not measured returns.
+
+- The current lift metric is an **eligible-opportunity ITT** diagnostic: the
+  denominator is the randomized opportunity frame logged before holdout
+  suppression; paid impressions and spend remain priced-auction only. This is
+  still synthetic scenario evidence, not real-market incrementality.
 
 ## Regulatory
 - Policy packs are research approximations with statute citations and

@@ -2,31 +2,31 @@
 
 > Provenance: **synthetic exploratory**. Behaviour parameters are not empirically calibrated; this report records their sensitivity and the run's distance from published aggregate benchmarks. It is NOT evidence that the simulator predicts real behaviour.
 
-Profile `test` · 200 agents × 48 ticks · seed 42.
+Profile `quick` · 1000 agents × 168 ticks · seed 42.
 
 ## 1. Sensitivity of posts/agent to BehaviorParams
-First-order variance-based indices (LHS, n=16; output mean 0.8872, sd 0.2467).
+First-order variance-based indices (LHS, n=24; output mean 3.7007, sd 1.0632).
 
 | BehaviorParam | first-order index S1 |
 |---|---|
-| `p_post_given_active` | 0.988 |
-| `p_flag_scale` | 0.766 |
-| `p_share_given_engaged` | 0.639 |
-| `impression_fatigue` | 0.317 |
-| `engagement_base` | 0.203 |
+| `p_post_given_active` | 0.986 |
+| `engagement_base` | 0.687 |
+| `impression_fatigue` | 0.526 |
+| `p_share_given_engaged` | 0.512 |
+| `p_flag_scale` | 0.360 |
 
 Interpretation: parameters with high S1 dominate this output and MUST be calibrated (or their dependent claims flagged uncalibrated) before use. Low-S1 parameters are safe to leave at documented defaults.
 
 ## 1b. Multi-output sensitivity (Sobol design, multi-seed)
-First-order indices for 3 outputs over a Sobol design (n=16) averaged across 3 seeds (mean ± sd of S1 across seeds).
+First-order indices for 3 outputs over a Sobol design (n=32) averaged across 3 seeds (mean ± sd of S1 across seeds).
 
 | BehaviorParam | n_posts | harmful_exposure_rate | welfare_mean |
 |---|---|---|---|
-| `engagement_base` | 0.766±0.008 | 0.354±0.122 | 0.574±0.088 |
-| `impression_fatigue` | 0.953±0.007 | 0.541±0.197 | 0.476±0.242 |
-| `p_flag_scale` | 0.104±0.115 | 0.443±0.224 | 0.614±0.023 |
-| `p_post_given_active` | 0.986±0.003 | 0.754±0.054 | 0.542±0.147 |
-| `p_share_given_engaged` | 0.098±0.094 | 0.389±0.158 | 0.500±0.164 |
+| `engagement_base` | 0.098±0.072 | 0.393±0.102 | 0.729±0.067 |
+| `impression_fatigue` | 0.779±0.026 | 0.547±0.075 | 0.339±0.145 |
+| `p_flag_scale` | 0.762±0.025 | 0.610±0.063 | 0.358±0.090 |
+| `p_post_given_active` | 0.979±0.005 | 0.409±0.041 | 0.277±0.063 |
+| `p_share_given_engaged` | 0.778±0.025 | 0.383±0.100 | 0.610±0.135 |
 
 ## 1c. Saltelli first-order + TOTAL-effect indices
 Gold-standard variance-based sensitivity for `n_posts` (A/B/AB_i design, 56 model runs, N=8). ST ≥ S1; ST≈0 ⇒ the parameter can be fixed.
@@ -34,27 +34,27 @@ Gold-standard variance-based sensitivity for `n_posts` (A/B/AB_i design, 56 mode
 | BehaviorParam | S1 (first-order) | ST (total-effect) |
 |---|---|---|
 | `engagement_base` | 0.000 | 0.001 |
-| `impression_fatigue` | 0.052 | 0.002 |
-| `p_flag_scale` | 0.102 | 0.006 |
-| `p_post_given_active` | 0.642 | 0.473 |
-| `p_share_given_engaged` | 0.000 | 0.008 |
+| `impression_fatigue` | 0.000 | 0.001 |
+| `p_flag_scale` | 0.028 | 0.000 |
+| `p_post_given_active` | 0.669 | 0.524 |
+| `p_share_given_engaged` | 0.000 | 0.024 |
 
 ## 2. Calibration vs published benchmarks
-Implausibility **I = 1.80** (history-matching cutoff 3.0; I<3 = not implausible).
-Diurnal distribution KS gap = 0.048 (0 = posting-hour distribution matches the diurnal curve exactly).
+Implausibility **I = 1.67** (history-matching cutoff 3.0; I<3 = not implausible).
+Diurnal distribution KS gap = 0.010 (0 = posting-hour distribution matches the diurnal curve exactly).
 
 | Target | observed | benchmark | tolerance | within tol? |
 |---|---|---|---|---|
-| degree_tail_exponent | 3.4007 | 2.5 | 0.5 | NO |
-| clustering | 0.1122 | 0.2 | 0.1 | yes |
-| diurnal_peak_hour | 20.0000 | 17 | 2 | NO |
+| degree_tail_exponent | 2.9029 | 2.5 | 0.5 | yes |
+| clustering | 0.0385 | 0.2 | 0.1 | NO |
+| diurnal_peak_hour | 17.0000 | 17 | 2 | yes |
 | diurnal_trough_hour | 4.0000 | 5 | 2 | yes |
-| posts_per_agent_day | 0.4500 | 0.5 | 0.35 | yes |
-| ad_ctr | 0.0075 | 0.01 | 0.008 | yes |
-| appeal_grant_rate | n/a | 0.25 | 0.15 | — |
+| posts_per_agent_day | 0.5230 | 0.5 | 0.35 | yes |
+| ad_ctr | 0.0107 | 0.01 | 0.008 | yes |
+| appeal_grant_rate | 0.0000 | 0.25 | 0.15 | NO |
 
 ## 2b. Parameter-uncertainty propagation (ABC posterior -> output)
-Calibrated `posts_per_agent_day` over 8 accepted parameter sets (provenance: abc-posterior-propagated): median 0.4975, 95% [0.4229, 0.5999].
+Calibrated `posts_per_agent_day` over 12 accepted parameter sets (provenance: abc-posterior-propagated): median 0.5073, 95% [0.4010, 0.5986].
 
 ## 3. Limitations
 - Bounds are +/-50% of defaults, not empirically derived.

@@ -204,13 +204,20 @@
         <label class="field" title="Show one ad slot every N feed items (1 ad per N organic)."><span class="lbl">Ad Slot Interval <i>1 ad / N items</i></span><input type="number" id="ad_slot_interval" value="5" min="1"></label>
         <hr>
         <span class="lbl">Campaigns <i>blank = 3 default campaigns</i></span>
+        <div class="camp-head" aria-hidden="true">
+          <span>Advertiser</span><span>Bid</span><span>Budget</span><span>CTR</span>
+          <span>CVR</span><span>Value</span><span>LTVx</span><span>Window</span>
+          <span>Segment</span><span>Market</span><span></span>
+        </div>
         <div id="campaigns" class="campaigns"></div>
         <button type="button" id="addCampaign" class="pill" style="margin-top:8px">+ Add campaign</button>
         <p class="hint">Custom campaigns replace the defaults. Incremental lift uses the organic-baseline holdout (Newcombe CI + MDE).</p>
       </section>
 
       <!-- MARKETING — business suite (subsections) -->
-      <section data-panel="marketing" class="tabpanel">
+      <section id="marketing" data-panel="marketing" class="tabpanel">
+        <h2>Marketing Decision Suite</h2>
+        <p class="hint" id="marketingScope">Planning calculators below are local readouts and do not change a simulation run. Simulation inputs live in Feed &amp; Ads and Campaigns.</p>
         <nav class="seg-tabs sub" id="mktTabs" role="tablist">
           <button type="button" role="tab" data-mkt="ablab" class="on">A/B Lab</button>
           <button type="button" role="tab" data-mkt="econ">Unit Economics</button>
@@ -222,12 +229,12 @@
         <div data-mktpanel="ablab" class="mktpanel on">
           <p class="hint">Power an incremental-lift RCT before you run it. Sizing at <b>80% power, α=0.05</b> (Cohen 1988); incrementality needs an RCT holdout, not last-touch (Gordon et al. 2019).</p>
           <div class="duo">
-            <label class="field"><span class="lbl">Baseline conversion %</span><input type="number" id="ab_base" value="2.0"></label>
-            <label class="field"><span class="lbl">Min. detectable lift % <i>relative</i></span><input type="number" id="ab_mde" value="10"></label>
+            <label class="field calc-field"><span class="lbl">Baseline conversion %</span><input type="number" id="ab_base" value="2.0" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
+            <label class="field calc-field"><span class="lbl">Min. detectable lift % <i>relative</i></span><input type="number" id="ab_mde" value="10" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
           </div>
           <div class="duo">
-            <label class="field"><span class="lbl">Audience size</span><input type="number" id="ab_aud" value="100000"></label>
-            <label class="field"><span class="lbl">Holdout %</span><input type="number" id="ab_hold" value="10"></label>
+            <label class="field calc-field"><span class="lbl">Audience size</span><input type="number" id="ab_aud" value="100000" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
+            <label class="field calc-field"><span class="lbl">Holdout %</span><input type="number" id="ab_hold" value="10" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
           </div>
           <div id="ab_out" class="mkt-readout"></div>
           <p class="hint">Holdout 10% default, 10–20% preferred (derive from this power calc). Reality: ad RCTs are hard to power — sales variance is high (Lewis &amp; Rao 2015).</p>
@@ -237,12 +244,12 @@
         <div data-mktpanel="econ" class="mktpanel">
           <p class="hint">ROAS, CAC and LTV:CAC with cited guidance. These are <b>business inputs</b>, not measured returns — pair with an incrementality test.</p>
           <div class="duo">
-            <label class="field"><span class="lbl">Ad spend ($)</span><input type="number" id="ec_spend" value="10000"></label>
-            <label class="field"><span class="lbl">Attributed revenue ($)</span><input type="number" id="ec_rev" value="30000"></label>
+            <label class="field calc-field"><span class="lbl">Ad spend ($)</span><input type="number" id="ec_spend" value="10000" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
+            <label class="field calc-field"><span class="lbl">Attributed revenue ($)</span><input type="number" id="ec_rev" value="30000" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
           </div>
           <div class="duo">
-            <label class="field"><span class="lbl">Conversions</span><input type="number" id="ec_conv" value="600"></label>
-            <label class="field"><span class="lbl">Customer LTV ($)</span><input type="number" id="ec_ltv" value="120"></label>
+            <label class="field calc-field"><span class="lbl">Conversions</span><input type="number" id="ec_conv" value="600" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
+            <label class="field calc-field"><span class="lbl">Customer LTV ($)</span><input type="number" id="ec_ltv" value="120" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
           </div>
           <div id="ec_out" class="mkt-readout"></div>
           <p class="hint">Guidance: ROAS "good" ≈ 2:1–4:1 (set by margins); LTV:CAC ≥ 3:1, best ~5:1, CAC payback &lt; 12 mo (Skok ~2010). Median e-commerce ROAS ≈ 2:1.</p>
@@ -252,10 +259,10 @@
         <div data-mktpanel="reach" class="mktpanel">
           <p class="hint">Plan exposure. Effective frequency ≈ 3 (Krugman 1972 — disputed 1–3); programmatic caps ≈ 3–7 / user / window.</p>
           <div class="duo">
-            <label class="field"><span class="lbl">Impressions</span><input type="number" id="rf_impr" value="500000"></label>
-            <label class="field"><span class="lbl">Unique reach</span><input type="number" id="rf_reach" value="120000"></label>
+            <label class="field calc-field"><span class="lbl">Impressions</span><input type="number" id="rf_impr" value="500000" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
+            <label class="field calc-field"><span class="lbl">Unique reach</span><input type="number" id="rf_reach" value="120000" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
           </div>
-          <label class="field"><span class="lbl">Target effective frequency</span><input type="number" id="rf_eff" value="3"></label>
+          <label class="field calc-field"><span class="lbl">Target effective frequency</span><input type="number" id="rf_eff" value="3" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
           <div id="rf_out" class="mkt-readout"></div>
         </div>
 
@@ -349,7 +356,7 @@
 </main>
 
 <div class="drawer-scrim" id="histScrim" hidden></div>
-<aside class="drawer" id="histDrawer" hidden aria-label="Run history">
+<aside class="drawer" id="histDrawer" hidden role="dialog" aria-modal="true" aria-label="Run history">
   <div class="drawer-head"><h3>Run History</h3><button type="button" id="histClose" class="pill" aria-label="Close">Close</button></div>
   <p class="hint">Every completed run is saved to a local SQLite database — reopen, export, or remove past runs.</p>
   <div class="hist-list" id="histList"></div>

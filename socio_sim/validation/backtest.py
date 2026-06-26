@@ -1,10 +1,10 @@
-"""Out-of-sample backtest (Rung 3 on the validation ladder).
+"""Held-out aggregate backtest (Rung 3 on the validation ladder).
 
 Calibrate the graph on a TRAIN subset of the bundled published-aggregate
 benchmark, then validate that the HELD-OUT metrics fall within tolerance —
-metrics that were never used to choose the parameter. This is a genuine
-out-of-sample generalization check (provenance ``backtested-out-of-sample``),
-distinct from in-sample calibration.
+metrics that were never used to choose the parameter. This is a held-out
+aggregate sanity check (provenance ``held-out-aggregate``), distinct from
+in-sample calibration; it is not a broad platform-generalization proof.
 
 Uses ONLY bundled public AGGREGATE targets (cited, no individual-level data; see
 docs/DATA_MANIFEST.md). Offline, deterministic, no scraping. The same harness
@@ -24,12 +24,12 @@ from socio_sim.engine import Simulation
 from socio_sim.validation.calibrate import implausibility
 from socio_sim.validation.targets import compute_observed, load_targets
 
-PROVENANCE = "backtested-out-of-sample"
+PROVENANCE = "held-out-aggregate"
 _PROFILES = {"test": RunConfig.test, "quick": RunConfig.quick,
              "standard": RunConfig.standard, "calibrated": RunConfig.calibrated}
 
-#: Default held-out metrics: NOT driven by the calibration knob (graph triad p),
-#: so passing them out-of-sample is a real generalization signal.
+#: Default held-out metrics: a small held-out aggregate check. Passing these is
+#: useful face validity, not proof of generalization to a specific platform.
 DEFAULT_HOLDOUT = ("degree_tail_exponent", "diurnal_peak_hour")
 
 
@@ -81,18 +81,18 @@ def render_backtest_report(bt: dict, stylized: dict) -> str:
     lines = [
         "# SocioSim Backtest & Stylized-Facts Report",
         "",
-        "> Provenance: **backtested-out-of-sample** + **stylized-fact-validated**. "
+        "> Provenance: **held-out-aggregate** + **stylized-fact-validated**. "
         "Calibration uses only bundled PUBLISHED AGGREGATE targets (no individual-"
         "level data; see `docs/DATA_MANIFEST.md`). This validates AGGREGATE / PATTERN "
         "agreement with real systems — NOT point-prediction of any specific platform "
         "or person (Rung 2–3 of the validation ladder; see `docs/usage.md`).",
         "",
-        f"## 1. Out-of-sample backtest — `{bt['benchmark']}` (profile `{bt['profile']}`)",
+        f"## 1. Held-out aggregate backtest — `{bt['benchmark']}` (profile `{bt['profile']}`)",
         f"Calibrated graph triad p = **{bt['chosen_p']}** on the TRAIN metrics "
         f"({', '.join(bt['train_metrics'])}); implausibility I_train = "
         f"{_fmt(bt['implausibility_train'], 2)}.",
         "",
-        f"Held-out metrics — never used to choose p — scored out-of-sample "
+        f"Held-out metrics — never used to choose p — scored as aggregate sanity checks "
         f"(I_test = {_fmt(bt['implausibility_test'], 2)}): "
         f"**{'PASS' if bt['test_pass'] else 'FAIL'}**.",
         "",

@@ -1,6 +1,7 @@
 import json
 import time
 import urllib.request
+from pathlib import Path
 
 import numpy as np
 
@@ -167,6 +168,12 @@ def test_creative_endpoint_serves_real_bounded_png():
         # oversized request is clamped (DoS guard)
         big = urllib.request.urlopen(f"{base}/api/creative?key=x&w=9999&h=9999").read()
         assert struct.unpack(">II", big[16:24]) == (1024, 1024)
+        a = urllib.request.urlopen(f"{base}/api/creative?key=brand-a&w=1024&h=512").read()
+        b = urllib.request.urlopen(f"{base}/api/creative?key=brand-b&w=1024&h=512").read()
+        assert struct.unpack(">II", a[16:24]) == (1024, 512)
+        assert a != b
+        assert urllib.request.urlopen(
+            f"{base}/api/creative?key=brand-a&w=1024&h=512").read() == a
     finally:
         server.shutdown()
 
@@ -183,6 +190,12 @@ def test_sbm_block_sizes_match_n_agents():
     assert sum(cfg2.graph_params["block_sizes"]) == cfg2.n_agents
 
 
+def test_build_config_preserves_web_replicate_count():
+    cfg = app._build_config({"profile": "test", "jurisdictions": ["EU"],
+                             "n_replicates": 7})
+    assert cfg.n_replicates == 7
+
+
 def test_sbm_config_runs_end_to_end():
     """An SBM config must actually build (graph node count == n_agents)."""
     from socio_sim.engine import Simulation
@@ -194,17 +207,52 @@ def test_sbm_config_runs_end_to_end():
 def test_campaigns_fn_builds_factory_from_specs():
     fn = app._campaigns_fn({"campaigns": [
         {"id": "a", "advertiser": "A", "bid": 4.0, "budget": 500,
-         "base_ctr": 0.02, "base_cvr": 0.06},
+         "base_ctr": 0.02, "base_cvr": 0.06, "conversion_value": 7,
+         "ltv_multiplier": 4, "attribution_window_ticks": 24},
         {"id": "b", "advertiser": "B", "bid": 2.0, "budget": 200}]})
     assert fn is not None
     cfg = app._build_config({"profile": "test", "jurisdictions": ["EU"]})
     camps = fn(cfg)
     assert [c.id for c in camps] == ["a", "b"]
     assert camps[0].bid == 4.0 and camps[0].base_ctr == 0.02
+    assert camps[0].conversion_value == 7
+    assert camps[0].ltv_multiplier == 4
+    assert camps[0].attribution_window_ticks == 24
     # fresh objects each call (independent budgets for Monte Carlo)
     assert fn(cfg)[0] is not camps[0]
     # no/empty spec -> default campaigns
     assert app._campaigns_fn({}) is None and app._campaigns_fn({"campaigns": []}) is None
+
+
+def test_campaign_specs_are_normalized_for_persistence():
+    clean = app._normalize_campaign_specs({"campaigns": [
+        {"id": "a", "advertiser": "A", "bid": "4", "budget": "500",
+         "segment": "25-34", "market": "2", "conversion_value": "6"}]})
+    assert clean[0]["id"] == "a"
+    assert clean[0]["targeting"] == {"age_groups": ["25-34"], "topics": [2]}
+    assert clean[0]["conversion_value"] == 6.0
+
+
+def test_bundled_atlas_assets_exist_and_are_unignored():
+    root = Path(__file__).resolve().parents[1]
+    assets = root / "socio_sim" / "web" / "static" / "assets"
+    assert (assets / "feed-atlas-v3.png").is_file()
+    assert (assets / "ad-atlas-v3.png").is_file()
+    assert len(list(assets.glob("feed-cover-v3-*.png"))) == 12
+    assert len(list(assets.glob("ad-creative-v3-*.png"))) == 12
+    gitignore = (root / ".gitignore").read_text(encoding="utf-8")
+    assert "!socio_sim/web/static/assets/*.png" in gitignore
+
+
+def test_dynamic_graph_chart_data_uses_final_degree_hist():
+    from socio_sim.analytics.metrics import summarize_run
+    from socio_sim.config import RunConfig
+    from socio_sim.engine import Simulation
+    cfg = RunConfig.test(jurisdictions=("EU",), n_ticks=72,
+                         follow_rate=0.1, unfollow_rate=0.1, churn_rate=0.04)
+    result = Simulation(cfg).run()
+    charts = app._chart_data(result, summarize_run(result))
+    assert charts["degree_hist"] == result.graph_stats["final"]["degree_hist"]
 
 
 def test_campaign_segment_market_map_to_targeting():
@@ -307,6 +355,9 @@ def test_compare_endpoint_returns_crn_paired_deltas():
         assert result["intervention_jurisdictions"] == ["EU"]
         c = result["compare"]
         assert "harmful_exposure_rate" in c
+        assert "ad_impressions" in c
+        assert "ad_ctr" in c
+        assert "ad_lift_itt" in c
         m = c["harmful_exposure_rate"]
         assert "delta_median" in m and "delta_ci" in m
         assert "NaN" not in json.dumps(result)

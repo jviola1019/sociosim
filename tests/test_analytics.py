@@ -164,3 +164,15 @@ def test_report_states_uncertainty_provenance():
     md = render(summarize_run(result), result.manifest)
     low = md.lower()
     assert "provenance" in low or "not monte carlo" in low or "single-run" in low
+
+
+def test_dynamic_graph_report_uses_final_topology():
+    cfg = RunConfig.test(jurisdictions=("EU",), n_ticks=72,
+                         follow_rate=0.1, unfollow_rate=0.1, churn_rate=0.04)
+    result = Simulation(cfg).run()
+    summary = summarize_run(result)
+    assert result.graph_stats["initial"]
+    assert result.graph_stats["final"]
+    assert summary["graph"]["m"] == result.graph_stats["final"]["m"]
+    md = render(summary, result.manifest)
+    assert "values above are final topology" in md

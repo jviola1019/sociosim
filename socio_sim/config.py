@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields as dataclass_fields
 
 from socio_sim.behavior import BehaviorParams
 
@@ -169,6 +169,12 @@ class RunConfig:
         d = dict(d)
         d["jurisdictions"] = tuple(d.get("jurisdictions", ("US",)))
         d["red_team"] = tuple(d.get("red_team", ()))
+        for key in ("category_base_rates", "classifier_targets"):
+            val = d.get(key)
+            if isinstance(val, dict):
+                ordered = {c: val[c] for c in CATEGORIES if c in val}
+                ordered.update({k: val[k] for k in sorted(val) if k not in ordered})
+                d[key] = ordered
         beh = d.get("behavior")
         if isinstance(beh, dict):       # rebuild nested dataclass from manifest
             d["behavior"] = BehaviorParams(**beh)
@@ -203,6 +209,12 @@ class RunConfig:
             fail("content_mode", f"must be one of {sorted(VALID_CONTENT_MODES)}")
         if self.classifier_mode not in VALID_CLASSIFIER_MODES:
             fail("classifier_mode", f"must be one of {sorted(VALID_CLASSIFIER_MODES)}")
+        if self.content_mode in {"ollama", "openai_compatible"} and self.llm_base_url:
+            from socio_sim.security import validate_llm_url
+            try:
+                validate_llm_url(self.llm_base_url)
+            except ValueError as exc:
+                fail("llm_base_url", str(exc))
         from socio_sim.validation.targets import available_benchmarks
         if self.benchmark not in available_benchmarks():
             fail("benchmark", f"must be one of {available_benchmarks()}")
@@ -227,4 +239,21 @@ class RunConfig:
             for k in ("precision", "recall"):
                 if not (0.0 < t.get(k, -1) <= 1.0):
                     fail("classifier_targets", f"{cat}.{k} must be in (0, 1]")
+        probability_fields = {
+            "p_post_given_active", "p_share_given_engaged", "p_flag_scale",
+            "fatigue_decay_per_tick", "engagement_base", "spammer_post_prob",
+            "amplifier_misinfo_prob", "brigade_flag_prob",
+        }
+        nonnegative_fields = {
+            "impression_fatigue", "recent_window_ticks",
+            "exploration_pool_size", "trusted_review_delay_ticks",
+        }
+        for f in dataclass_fields(self.behavior):
+            value = getattr(self.behavior, f.name)
+            if f.name in probability_fields and not (0.0 <= float(value) <= 1.0):
+                fail("behavior", f"{f.name} must be in [0, 1]")
+            if f.name in nonnegative_fields and float(value) < 0.0:
+                fail("behavior", f"{f.name} must be non-negative")
+        if self.behavior.amplifier_stance_gain < 0.0:
+            fail("behavior", "amplifier_stance_gain must be non-negative")
         return self

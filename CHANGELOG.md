@@ -5,6 +5,20 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
 ## [Unreleased] — audit P0/P1 remediation
 
 ### Added
+- **Audit-3 web/corporate remediation:** realistic v2 feed/ad PNG assets plus
+  split 3:2 feed covers and 2:1 ad creatives; `/api/creative` now serves
+  deterministic realistic dashboard creatives for 2:1 requests. Added
+  `ad_opportunity` events so campaign lift uses eligible-opportunity ITT
+  denominators while paid impressions/spend remain priced-auction only. MC
+  intervals are persisted into `report.md`, behavior params are validated, and
+  compare includes ad/disclosure headline deltas. Determinism baselines were
+  intentionally re-locked because the event stream now includes the new audit
+  events.
+- **Audit-3 UI/security readiness:** preset switching resets all run-affecting
+  form state, trained classifier mode disables precision/recall target sliders,
+  compare mode clears stale tabs, exports use header-authenticated fetches
+  instead of query-token URLs, remote `/api/creative` is token-protected, and the
+  history drawer has dialog/focus handling.
 - **Audit-2 quant/marketing strengthening:** CUPED-adjusted lift (covariate =
   each agent's latent baseline propensity; Deng et al. 2013), a two-proportion
   lift p-value, and Benjamini-Hochberg FDR across campaigns (`lift_significant`)

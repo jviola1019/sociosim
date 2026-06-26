@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -67,6 +68,7 @@ def bootstrap_ollama(model: str, host: str):
 # Simulation run
 # --------------------------------------------------------------------------
 def run_sim(cfg: RunConfig, n_replicates: int = 1, workers: int = 1, media: int = 0):
+    cfg = replace(cfg, n_replicates=n_replicates)
     mode = "Research" if n_replicates > 1 else "Preview"
     extra = f", {n_replicates} replicates" if n_replicates > 1 else ""
     print(f"\nRunning {cfg.n_agents} agents x {cfg.n_ticks} hourly ticks "
@@ -188,8 +190,8 @@ def main():
                    help="run a BehaviorParams sensitivity + calibration study, "
                         "write VALIDATION_REPORT.md, and exit")
     p.add_argument("--backtest", action="store_true",
-                   help="out-of-sample backtest (calibrate on a train subset of "
-                        "public aggregates, validate held-out metrics) + stylized-"
+                   help="held-out aggregate backtest (calibrate on a train subset "
+                        "of public aggregates, validate held-out metrics) + stylized-"
                         "facts validation, write BACKTEST_REPORT.md, and exit")
     p.add_argument("--measure-classifier", action="store_true",
                    help="measure the moderation classifier on bundled REAL licensed "
@@ -222,13 +224,13 @@ def main():
                                                    render_backtest_report)
         from socio_sim.validation.stylized import evaluate_stylized_facts
         prof = args.profile if args.profile in ("quick", "calibrated", "standard") else "quick"
-        print(f"Backtest: leave-out calibration on '{args.benchmark}' aggregates "
+        print(f"Backtest: held-out aggregate calibration on '{args.benchmark}' aggregates "
               f"(profile={prof}) + stylized-facts validation...")
         bt = leave_out_backtest(benchmark=args.benchmark, profile=prof, seed=args.seed)
         sf = evaluate_stylized_facts()
         (ROOT / "BACKTEST_REPORT.md").write_text(
             render_backtest_report(bt, sf), encoding="utf-8")
-        print(f"Wrote BACKTEST_REPORT.md (out-of-sample test_pass={bt['test_pass']}, "
+        print(f"Wrote BACKTEST_REPORT.md (held-out test_pass={bt['test_pass']}, "
               f"I_test={bt['implausibility_test']:.2f}; stylized "
               f"{sf['n_pass']}/{sf['n_total']})")
         return 0

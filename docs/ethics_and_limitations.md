@@ -38,11 +38,13 @@ common random numbers.
 
 1. Agent behaviour is rule-based with simple belief dynamics; no strategic
    reasoning or long-memory effects.
-2. Media items are simulated as typed metadata (no actual image/video
-   synthesis); CN labelling logic operates on metadata fields.
-3. Classifiers are calibrated noise models (configurable precision/recall),
-   not real content models — adequate for FP/FN cost analysis, not for
-   evaluating real classifiers.
+2. Media items carry typed metadata for policy logic, and optional real
+   deterministic PNG/APNG media can be synthesized for previews/demos; CN
+   labelling logic operates on the metadata fields.
+3. The default classifier is a calibrated noise model (configurable
+   precision/recall). An opt-in transparent numpy classifier is measured on
+   bundled, license-clean real benchmarks; that validates the classifier
+   component, not the synthetic ABM as a real-platform predictor.
 4. Built-in calibration targets are coarse published aggregates with wide
    tolerances; conclusions sensitive to them should be re-run against your
    own anonymised data via the targets loader.

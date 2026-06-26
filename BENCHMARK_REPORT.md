@@ -4,16 +4,16 @@
 
 | benchmark | task | license | n_test | F1 | ROC-AUC | Brier | log-loss | ECE |
 |---|---|---|---|---|---|---|---|---|
-| civil_comments | toxicity | CC0-1.0 | 600 | 0.720 | 0.783 | 0.192 | 0.574 | 0.049 |
-| spam_detection | spam | Apache-2.0 | 600 | 0.982 | 0.998 | 0.013 | 0.052 | 0.021 |
+| civil_comments | toxicity | CC0-1.0 | 600 | 0.736 | 0.805 | 0.181 | 0.544 | 0.040 |
+| spam_detection | spam | Apache-2.0 | 600 | 0.990 | 0.999 | 0.011 | 0.045 | 0.020 |
 
 ### Proper scoring vs a climatology baseline (Brier Skill Score)
 Brier/log-loss are proper scoring rules (lower = better); the baseline is the no-skill *climatology* forecast (constant = training prevalence). Brier Skill Score = 1 − Brier/Brier_baseline (> 0 means the model beats climatology on REAL held-out data).
 
 | benchmark | Brier | Brier_climatology | Brier Skill Score | log-loss | log-loss_climatology |
 |---|---|---|---|---|---|
-| civil_comments | 0.192 | 0.250 | 0.231 | 0.574 | 0.693 |
-| spam_detection | 0.013 | 0.250 | 0.947 | 0.052 | 0.694 |
+| civil_comments | 0.181 | 0.250 | 0.275 | 0.544 | 0.693 |
+| spam_detection | 0.011 | 0.250 | 0.958 | 0.045 | 0.693 |
 
 ## Honest scope
 - These are REAL measured metrics on real public benchmarks — usable by businesses/governments under the datasets' licenses (CC0-1.0, Apache-2.0).

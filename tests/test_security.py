@@ -2,6 +2,7 @@
 access token, body/content-type limits, and the SSRF allow-list on llm_base_url."""
 
 import json
+import http.client
 import socket
 import threading
 import urllib.error
@@ -52,6 +53,10 @@ def test_security_headers_on_every_response():
         assert r.headers.get("X-Content-Type-Options") == "nosniff"
         assert r.headers.get("X-Frame-Options") == "DENY"
         assert r.headers.get("Referrer-Policy") == "no-referrer"
+        with pytest.raises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(base + "/nope")
+        assert e.value.code == 404
+        assert "default-src 'self'" in e.value.headers.get("Content-Security-Policy", "")
     finally:
         srv.shutdown()
 
@@ -80,6 +85,120 @@ def test_cross_origin_post_rejected():
         srv.shutdown()
 
 
+def test_get_rejects_non_loopback_host_header():
+    srv, base = _boot()
+    try:
+        req = urllib.request.Request(base + "/api/meta", headers={"Host": "evil.example"})
+        with pytest.raises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(req)
+        assert e.value.code == 403
+    finally:
+        srv.shutdown()
+
+
+def test_delete_requires_token_when_server_sets_one(tmp_path, monkeypatch):
+    monkeypatch.setattr(app, "_STORE", app.RunStore(tmp_path / "db.sqlite"))
+    app._STORE.save("r1", {
+        "summary": {"harmful_exposure": {}, "moderation": {}},
+        "config": {"jurisdictions": ["EU"], "n_agents": 1, "n_ticks": 1},
+        "manifest": {"config_hash": "cfg", "stream_hash": "stream"},
+        "content_mode": "template",
+        "n_events": 0,
+        "elapsed_s": 0.0,
+        "implausibility": 0.0,
+        "replay": {"ok": True},
+    })
+    srv, base = _boot(token="s3cret-token")
+    try:
+        req = urllib.request.Request(base + "/api/runs/r1", method="DELETE")
+        with pytest.raises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(req)
+        assert e.value.code == 403
+        req = urllib.request.Request(
+            base + "/api/runs/r1", method="DELETE",
+            headers={"X-SocioSim-Token": "s3cret-token"})
+        assert json.loads(urllib.request.urlopen(req).read())["deleted"] is True
+    finally:
+        srv.shutdown()
+
+
+def test_remote_mode_protects_history_gets(tmp_path, monkeypatch):
+    monkeypatch.setattr(app, "_STORE", app.RunStore(tmp_path / "db.sqlite"))
+    app._STORE.save("r1", {
+        "summary": {"harmful_exposure": {}, "moderation": {}},
+        "config": {"jurisdictions": ["EU"], "n_agents": 1, "n_ticks": 1},
+        "manifest": {"config_hash": "cfg", "stream_hash": "stream"},
+        "content_mode": "template",
+        "n_events": 0,
+        "elapsed_s": 0.0,
+        "implausibility": 0.0,
+        "replay": {"ok": True},
+    })
+    srv, base = _boot(token="s3cret-token")
+    srv.expose_token = False
+    try:
+        meta = json.loads(urllib.request.urlopen(base + "/api/meta").read())
+        assert meta["token"] is None and meta["token_required"] is True
+        with pytest.raises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(base + "/api/runs")
+        assert e.value.code == 403
+        req = urllib.request.Request(base + "/api/runs",
+                                     headers={"X-SocioSim-Token": "s3cret-token"})
+        assert json.loads(urllib.request.urlopen(req).read())["count"] == 1
+        with pytest.raises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(base + "/api/runs/r1/export?fmt=json&token=s3cret-token")
+        assert e.value.code == 403
+        req = urllib.request.Request(
+            base + "/api/runs/r1/export?fmt=json",
+            headers={"X-SocioSim-Token": "s3cret-token"})
+        assert json.loads(urllib.request.urlopen(req).read())["config"]
+    finally:
+        srv.shutdown()
+
+
+def test_remote_mode_protects_creative_endpoint():
+    srv, base = _boot(token="s3cret-token")
+    srv.expose_token = False
+    try:
+        with pytest.raises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(base + "/api/creative?key=x&w=1024&h=512")
+        assert e.value.code == 403
+        req = urllib.request.Request(
+            base + "/api/creative?key=x&w=1024&h=512",
+            headers={"X-SocioSim-Token": "s3cret-token"})
+        r = urllib.request.urlopen(req)
+        assert r.headers.get("Content-Type") == "image/png"
+        assert r.read(8) == b"\x89PNG\r\n\x1a\n"
+    finally:
+        srv.shutdown()
+
+
+def test_non_loopback_serve_requires_explicit_allowed_hosts(monkeypatch):
+    class DummyServer:
+        instances = []
+
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            DummyServer.instances.append(self)
+
+        def serve_forever(self):
+            return None
+
+        def shutdown(self):
+            return None
+
+    monkeypatch.setattr(app, "ThreadingHTTPServer", DummyServer)
+    monkeypatch.setenv("SOCIOSIM_ACCESS_TOKEN", "remote-token")
+    monkeypatch.delenv("SOCIOSIM_ALLOWED_HOSTS", raising=False)
+    with pytest.raises(RuntimeError, match="SOCIOSIM_ALLOWED_HOSTS"):
+        app.serve(host="0.0.0.0", port=9876, open_browser=False)
+
+    monkeypatch.setenv("SOCIOSIM_ALLOWED_HOSTS", "console.example,10.0.0.5")
+    app.serve(host="0.0.0.0", port=9876, open_browser=False)
+    assert DummyServer.instances[-1].allowed_hosts == {"console.example", "10.0.0.5"}
+    assert DummyServer.instances[-1].expose_token is False
+
+
 def test_wrong_content_type_415():
     srv, base = _boot()
     try:
@@ -99,6 +218,31 @@ def test_body_too_large_413(monkeypatch):
         srv.shutdown()
 
 
+def test_invalid_content_length_rejected():
+    srv, base = _boot()
+    host, port = base.replace("http://", "").split(":")
+    try:
+        conn = http.client.HTTPConnection(host, int(port), timeout=2)
+        conn.putrequest("POST", "/api/run")
+        conn.putheader("Content-Type", "application/json")
+        conn.putheader("Content-Length", "abc")
+        conn.endheaders()
+        resp = conn.getresponse()
+        assert resp.status == 400
+        conn.close()
+
+        conn = http.client.HTTPConnection(host, int(port), timeout=2)
+        conn.putrequest("POST", "/api/run")
+        conn.putheader("Content-Type", "application/json")
+        conn.putheader("Content-Length", "-1")
+        conn.endheaders()
+        resp = conn.getresponse()
+        assert resp.status == 400
+        conn.close()
+    finally:
+        srv.shutdown()
+
+
 def test_ssrf_guard_on_llm_base_url():
     app._validate_llm_url("")                                   # template mode: ok
     app._validate_llm_url("http://127.0.0.1:11434")             # loopback: ok
@@ -109,6 +253,13 @@ def test_ssrf_guard_on_llm_base_url():
         app._validate_llm_url("http://169.254.169.254/latest")  # cloud metadata
     with pytest.raises(ValueError):
         app._validate_llm_url("http://example.com")             # public host
+
+
+def test_ssrf_guard_requires_private_host_allowlist(monkeypatch):
+    with pytest.raises(ValueError, match="SOCIOSIM_LLM_ALLOWED_HOSTS"):
+        app._validate_llm_url("http://192.168.1.10:11434")
+    monkeypatch.setenv("SOCIOSIM_LLM_ALLOWED_HOSTS", "192.168.1.10")
+    app._validate_llm_url("http://192.168.1.10:11434")
 
 
 def test_build_config_rejects_ssrf_llm_url():

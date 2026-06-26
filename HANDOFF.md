@@ -72,6 +72,10 @@ HONEST CEILING held: measures the CLASSIFIER COMPONENT on real licensed text; do
 NOT make the synthetic ABM predictive of a real platform; no real-person decisions.
 
 ## SPRINT 6 — research-only -> measured (validation ladder, user decision 2026-06-22)
+Audit-3 correction note (2026-06-26): current active docs/runtime label this
+rung `held-out-aggregate`; the historical phrase "backtested-out-of-sample"
+below is retained only as sprint history, not as a current predictive claim.
+
 Climb from "research-only" toward "measured" WITHOUT crossing legal/ethics lines
 (no PII, no scraping, no real-person decisions, no point-prediction). DONE+verified:
 - Validation ladder defined w/ provenance labels: synthetic-exploratory <

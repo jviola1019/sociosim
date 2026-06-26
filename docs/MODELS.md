@@ -89,7 +89,7 @@ event-stream hash** from its manifest (`logs/replay.py`, locked by
 | Sensitivity | `validation/sensitivity.py`, `study.py` | first-order + **Saltelli total-effect ST** (multi-output, Sobol, multi-seed) | — |
 | ABC → output | `validation/study.py` | parameter-uncertainty interval | `abc-posterior-propagated` |
 | Stylized facts | `validation/stylized.py` | reproduces documented regularities | `stylized-fact-validated` |
-| Out-of-sample backtest | `validation/backtest.py` | held-out aggregates within tolerance | `backtested-out-of-sample` |
+| Held-out aggregate backtest | `validation/backtest.py` | held-out aggregates within tolerance | `held-out-aggregate` |
 | Measured benchmark | `validation/benchmark_eval.py` | real F1 / ROC-AUC on licensed data | `measured-on-benchmark` |
 
 ### Validation ladder (how "measured" a claim is)
@@ -97,7 +97,7 @@ event-stream hash** from its manifest (`logs/replay.py`, locked by
 ```mermaid
 flowchart LR
     R0["synthetic-<br/>exploratory"] --> R1["uncalibrated"] --> R2["calibration-<br/>consistent<br/>(I&lt;3)"]
-    R2 --> R3["stylized-fact-<br/>validated"] --> R4["backtested-<br/>out-of-sample"] --> R5["measured-on-<br/>benchmark"]
+    R2 --> R3["stylized-fact-<br/>validated"] --> R4["held-out<br/>aggregate"] --> R5["measured-on-<br/>benchmark"]
     R5 --> STOP["⛔ real-person decisions /<br/>point-prediction<br/>(out of scope by law + ethics)"]
     style R5 fill:#d8f5d8,stroke:#0a7f3f
     style STOP fill:#fde2e1,stroke:#b42318
@@ -128,14 +128,14 @@ is PII-scrubbed and governed in `docs/DATA_MANIFEST.md`.
 
 ## 6. Settings audit (data-driven) & the two lenses
 
-Every configurable knob was audited for usefulness/efficiency using **multi-output
-Saltelli total-effect sensitivity** (behaviour params) and a **one-at-a-time
-effect-size screen** (config knobs). Findings:
+Configurable knobs are audited using **multi-output Saltelli total-effect
+sensitivity** (behaviour params) and a **one-at-a-time effect-size screen**
+(config knobs). Findings are evidence-weighted rather than absolute:
 
-- **No dead or redundant knobs.** Every knob measurably moves outputs; none is a
-  duplicate of another (each influential knob drives a *distinct* output —
-  posting prob → volume, flag scale → moderation, engagement → exposure, share →
-  cascades).
+- **No currently exposed knob is intentionally decorative.** Each knob is wired
+  to a model mechanism or local calculator, but some effects are lens-specific,
+  sample-size-dependent, or visible only in certain regimes. The UI now marks
+  local planning calculators separately from simulation settings.
 - **Knobs are lens-specific** — which is why the UI/report now tag them:
   - *Government / Regulatory lens*: jurisdiction packs, classifier operating
     point, human review, appeals, EU opt-out → drive the **compliance/safety**
@@ -145,10 +145,10 @@ effect-size screen** (config knobs). Findings:
     effect on *organic* metrics precisely because they act on the ad surface —
     not uselessness, but lens-specificity.
   - *Core*: graph, homophily, feed mechanics, scale — shared substrate.
-- **One low-influence knob:** `impression_fatigue` (BehaviorParam) has total-
-  effect an order of magnitude below the others across all outputs → flagged
-  **low-influence / advanced** (kept, since it is a real mechanism and a valid
-  lever in high-volume regimes, but de-emphasised; do not calibrate first).
+- **Influence varies by report/sample:** `impression_fatigue` is treated as an
+  advanced behaviour knob. Prior small sensitivity reports were not stable enough
+  to justify absolute "low-influence everywhere" wording; use the latest
+  sensitivity run and estimator uncertainty before ranking calibration priority.
 - **No deletions/merges** were warranted; **candidate future additions** (only if
   a use-case demands and they prove statistically significant): an explicit
   proactive-detection-rate knob and a trusted-flagger-priority toggle (DSA Art.

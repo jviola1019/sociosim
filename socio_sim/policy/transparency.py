@@ -24,11 +24,15 @@ def transparency_report(log: EventLog, engine: PolicyEngine) -> dict:
     """
     rule_meta = {r["rule_id"]: r for p in engine.packs for r in p["rules"]}
     moderation = log.by_kind("moderation")
+    ad_policy = [
+        e for e in log.by_kind("ad_auction")
+        if e["data"].get("action") == "strip_targeting"
+    ]
     notices = log.by_kind("notice")
     appeals = log.by_kind("appeal")
 
     by_cat: dict = {}
-    for e in moderation:
+    for e in moderation + ad_policy:
         if "action" not in e["data"]:
             continue  # human-review records carry no action; counted below
         meta = rule_meta.get(e["data"].get("rule_id"), {})
@@ -53,7 +57,7 @@ def transparency_report(log: EventLog, engine: PolicyEngine) -> dict:
     retention = [int(r.get("retention_months", 0)) for r in rule_meta.values()]
 
     # Rights-impact: are enforcement actions appealable? are removals noticed?
-    actioned = [e for e in moderation if "action" in e["data"]]
+    actioned = [e for e in moderation + ad_policy if "action" in e["data"]]
     appealable = sum(1 for e in actioned
                      if rule_meta.get(e["data"].get("rule_id"), {}).get("appeal_allowed"))
     removals = [e for e in actioned if e["data"].get("action") == "remove"]

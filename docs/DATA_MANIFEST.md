@@ -58,6 +58,6 @@ its HF license is `unknown` — it is **not** bundled.
 ## Validation-ladder provenance labels
 `synthetic-exploratory` < `uncalibrated` < `calibration-consistent` (I<3 vs
 aggregates) < **`stylized-fact-validated`** (reproduces documented regularities)
-< **`backtested-out-of-sample`** (held-out aggregates within tolerance) <
+< **`held-out-aggregate`** (held-out aggregates within tolerance) <
 `measured-on-benchmark` (component measured on a real public dataset — gated by
 the row above). No claim may exceed its label.

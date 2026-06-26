@@ -21,6 +21,8 @@ def test_research_mode_produces_mc_percentile_intervals():
     a = run_and_analyze(_cfg(), n_replicates=4, verify_replay=False)
     assert a.mc is not None
     assert "harmful_exposure_rate" in a.mc
+    assert "## Monte Carlo intervals" in a.report_md
+    assert "mc-replicated" in a.report_md
     for name, d in a.mc.items():
         assert d["provenance"] == "mc-replicated", name
         assert d["ci"][0] <= d["median"] <= d["ci"][1], name

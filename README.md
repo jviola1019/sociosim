@@ -9,8 +9,9 @@ analytics.
 > ## ⚠️ Research use only
 >
 > SocioSim produces **counterfactual projections under stated assumptions**, not
-> predictions of real-world behaviour. Every output carries confidence intervals
-> and must be interpreted as a stress test, never as truth.
+> predictions of real-world behaviour. Headline rates/effects carry confidence
+> intervals and provenance; descriptive diagnostics are point/count summaries.
+> Interpret every result as a stress test, never as truth.
 >
 > **Prohibited uses:** targeting or ranking real individuals; predicting real
 > protests or events; generating enforcement decisions; optimising real-world
@@ -25,8 +26,8 @@ Honest scope — what SocioSim genuinely supports, and what it does not:
 **Useful for**
 - **Trust-&-safety / policy research & education:** a transparent, deterministic
   sandbox to explore how moderation policy (EU DSA, US §230, CN AI-labelling, FTC),
-  feed ranking, and advertising interact — every output carries a confidence
-  interval and a provenance label.
+  feed ranking, and advertising interact — headline outputs carry uncertainty
+  intervals and provenance labels.
 - **Counterfactual scenario stress-testing:** compare regulatory regimes or
   marketing strategies as "what-if" worlds (A/B compare with common random
   numbers), with Monte-Carlo uncertainty — for analysts in government or business.
@@ -92,9 +93,9 @@ python run.py --llm      # CLI run with a free local LLM (auto Ollama)
 
 ### Start the app with *everything* included
 
-The **web console is the all-in-one entry point** — every feature (trained
-classifier, calibrated graph, named benchmarks, dynamic graph, Monte Carlo,
-media) is a control in the UI:
+The **web console is the all-in-one entry point** for configuration and analysis
+controls (trained classifier, calibrated graph, named benchmarks, dynamic graph,
+Monte Carlo). CLI-only media export remains available through `--media`:
 
 ```bash
 pip install -e .          # one-time: install deps (skip if already done)
@@ -133,21 +134,21 @@ watch the live progress meter, then explore the tabbed results:
 
 - **Overview** — metric cards with 95% confidence-interval bars.
 - **Feed** — a sampled slice of generated content as cards, each with a **unique,
-  deterministically generated cover image and avatar** (seeded SVG art, offline),
+  deterministic cover image and avatar** (fictional v3 feed atlas + seeded SVG avatar, offline),
   persona, category tags, and moderation outcome.
 - **Charts** — diurnal posting, degree distribution, activity timeline, cascade
   sizes (hand-built SVG that draws in).
 - **Network** — sampled social-graph topology (top hubs + edges, force-directed,
   coloured by ideology). Set **Monte Carlo Replicates > 1** for a Research run
   with mc-replicated intervals.
-- **Fairness**, **Ads** (each campaign rendered with a **unique generated ad
+- **Fairness**, **Ads** (each campaign rendered with a **unique fictional v3 ad
   creative**), **Calibration** (benchmark whisker plot), **Log**.
 
 Every run is saved to a local SQLite **run database** — open **History** to
 reopen, export (Markdown / JSON), or delete past runs; history persists across
 restarts. Selecting the local LLM content mode auto-starts Ollama on demand —
-no separate setup. Generated imagery is procedural SVG seeded by content id, so
-it is unique per item, fully offline, and reproducible.
+no separate setup. Generated feed/ad imagery uses project-bound bitmap atlases
+plus deterministic keys, so it is visually richer, fully offline, and reproducible.
 
 ### CLI
 
@@ -169,7 +170,7 @@ python run.py --profile standard --jurisdictions US,EU,CN
 python run.py --agents 300 --ticks 72 --seed 7   # custom scale/seed
 python run.py --replicates 20                    # Research run: Monte Carlo 95% intervals
 python run.py --validate                         # sensitivity + calibration -> VALIDATION_REPORT.md
-python run.py --backtest                          # out-of-sample backtest + stylized facts -> BACKTEST_REPORT.md
+python run.py --backtest                          # held-out aggregate backtest + stylized facts -> BACKTEST_REPORT.md
 python run.py --profile calibrated               # history-matched (I=1.0, all metrics in-band)
 python run.py --classifier trained               # real trained moderation classifier (measured P/R)
 python run.py --benchmark twitter_like           # calibrate against a named published-aggregate set
@@ -181,7 +182,8 @@ python run.py --validate --sens-samples 32       # larger sensitivity design
 ```
 
 Infrastructure flags: `--web` (browser console), `--port N` / `--bind HOST`
-(server address; default `127.0.0.1` — only bind `0.0.0.0` on a trusted host),
+(server address; default `127.0.0.1`; non-loopback bind requires
+`SOCIOSIM_ACCESS_TOKEN` + `SOCIOSIM_ALLOWED_HOSTS` and trusted network controls),
 `--no-open` (don't auto-open the browser), `--host` (Ollama host:port), `--out DIR`
 (output directory; default `out/run`).
 
@@ -225,7 +227,7 @@ Infrastructure flags: `--web` (browser console), `--port N` / `--bind HOST`
 
 ## Default run profiles (evidence-based)
 
-| Profile    | Agents | Horizon | Ticks  | Replicates | Notes |
+| Profile    | Agents | Horizon | Ticks  | Profile `n_replicates` | Notes |
 |------------|--------|---------|--------|------------|-------|
 | standard   | 10,000 | 28 days | hourly | 100        | default scale |
 | quick      | 1,000  | 7 days  | hourly | 20         | fast iteration |
@@ -234,3 +236,5 @@ Infrastructure flags: `--web` (browser console), `--port N` / `--bind HOST`
 
 Scale defaults are grounded in published ABM/LLM-simulation literature and ad
 experimentation practice; see the design spec for citations.
+The CLI and web console run Preview mode (`--replicates 1`) unless you explicitly
+request a Research run with `--replicates N` / Monte Carlo Replicates > 1.

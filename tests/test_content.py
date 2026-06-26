@@ -7,6 +7,7 @@ from socio_sim.config import RunConfig
 from socio_sim.content.claude_adapter import ClaudeAdapter
 from socio_sim.content.classify import NoisyClassifier, confusion
 from socio_sim.content.generate import TemplateGenerator
+from socio_sim.content.items import ContentItem
 from socio_sim.rng import SeedTree
 
 
@@ -92,9 +93,44 @@ def test_claude_adapter_cache_and_fallback(tmp_path):
     assert item.text
     assert degradations
     # Inject cache and confirm cached text is used (no network ever)
-    key = adapter.prompt_key(author_id=2, personas=p, tick=0)
+    class FixedBase:
+        def generate(self, author_id, personas, tick):
+            return ContentItem(id="fixed", author_id=author_id, tick=tick,
+                               media_type="text", topic=2, stance=0.1, text="template")
+
+    adapter_key = ClaudeAdapter(base=FixedBase(), cache_path=cache, api_key=None,
+                                on_degradation=lambda r: None)
+    key = adapter_key.prompt_key(author_id=2, personas=p, tick=0, topic=2, stance=0.1)
     cache.write_text(json.dumps({key: "cached post text"}), encoding="utf-8")
-    adapter2 = ClaudeAdapter(base=gen, cache_path=cache, api_key=None,
+    adapter2 = ClaudeAdapter(base=FixedBase(), cache_path=cache, api_key=None,
                              on_degradation=lambda r: None)
     item2 = adapter2.generate(author_id=2, personas=p, tick=0)
     assert item2.text == "cached post text"
+
+
+def test_claude_cache_key_includes_model_topic_and_tick(tmp_path):
+    gen, _ = make_gen()
+    p = personas()
+    adapter = ClaudeAdapter(base=gen, cache_path=tmp_path / "llm_cache.json",
+                            api_key=None, model="model-a")
+    same = adapter.prompt_key(author_id=1, personas=p, tick=0, topic=2, stance=0.1)
+    assert same == adapter.prompt_key(author_id=1, personas=p, tick=0, topic=2, stance=0.1)
+    assert same != adapter.prompt_key(author_id=1, personas=p, tick=24, topic=2, stance=0.1)
+    assert same != adapter.prompt_key(author_id=1, personas=p, tick=0, topic=3, stance=0.1)
+    other_model = ClaudeAdapter(base=gen, cache_path=tmp_path / "llm_cache.json",
+                                api_key=None, model="model-b")
+    assert same != other_model.prompt_key(author_id=1, personas=p, tick=0,
+                                          topic=2, stance=0.1)
+
+
+def test_engine_runs_with_claude_mode_without_key(tmp_path, monkeypatch):
+    from socio_sim.engine import Simulation
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    cfg = RunConfig.test(n_agents=50, n_ticks=6, content_mode="claude",
+                         llm_cache_path=str(tmp_path / "claude_cache.json"),
+                         out_dir=str(tmp_path))
+    result = Simulation(cfg).run()
+    assert result.log.by_kind("post")
+    degradations = result.log.by_kind("degradation")
+    assert degradations
+    assert "template text used" in degradations[0]["data"]["reason"]

@@ -1,11 +1,11 @@
 # SocioSim Backtest & Stylized-Facts Report
 
-> Provenance: **backtested-out-of-sample** + **stylized-fact-validated**. Calibration uses only bundled PUBLISHED AGGREGATE targets (no individual-level data; see `docs/DATA_MANIFEST.md`). This validates AGGREGATE / PATTERN agreement with real systems — NOT point-prediction of any specific platform or person (Rung 2–3 of the validation ladder; see `docs/usage.md`).
+> Provenance: **held-out-aggregate** + **stylized-fact-validated**. Calibration uses only bundled PUBLISHED AGGREGATE targets (no individual-level data; see `docs/DATA_MANIFEST.md`). This validates AGGREGATE / PATTERN agreement with real systems — NOT point-prediction of any specific platform or person (Rung 2–3 of the validation ladder; see `docs/usage.md`).
 
-## 1. Out-of-sample backtest — `default` (profile `quick`)
+## 1. Held-out aggregate backtest — `default` (profile `quick`)
 Calibrated graph triad p = **0.6** on the TRAIN metrics (ad_ctr, appeal_grant_rate, clustering, diurnal_trough_hour, posts_per_agent_day); implausibility I_train = 1.00.
 
-Held-out metrics — never used to choose p — scored out-of-sample (I_test = 0.12): **PASS**.
+Held-out metrics — never used to choose p — scored as aggregate sanity checks (I_test = 0.12): **PASS**.
 
 | held-out metric | observed | target ± tol | z | within? |
 |---|---|---|---|---|

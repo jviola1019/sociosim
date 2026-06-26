@@ -9,14 +9,14 @@ channel) update these constants in the same commit, with a note in CHANGELOG.md.
 from socio_sim.config import RunConfig
 from socio_sim.engine import Simulation
 
-# Baselines re-locked after the DSA Art. 22 trusted-flagger priority review
-# (trusted-flagger escalations get a shorter review deadline, shifting review
-# timing). Earlier intentional regens (feed perf redesign, P2 baseline channel)
-# are in git history. Run-to-run determinism and replay still hold (verified).
+# Baselines re-locked after adding ad_opportunity audit events for eligible-
+# opportunity ITT ad lift. Earlier intentional regens (trusted flagger priority,
+# feed perf redesign, P2 baseline channel) are in git history. Run-to-run
+# determinism and replay still hold (verified).
 BASELINE_STREAM_HASHES = {
-    "EU": "b50e70fb0831119e148bbf82d115a39ab8ac8933fbb1584471b5a36d3e4104d0",
-    "US": "c3d3b6894d9e08fca6a62be07d16fec3f4871e5f85d4e3396549bfcd75827585",
-    "CN": "7519aae688c9634d319c8a80ef2c3c532c569b2f7d833b06d3d7afb4f1c4b7b8",
+    "EU": "c4b47514eca0ec19a9ce64fa8db7bf32d7fe95efd24a87bedf46cdc027484da1",
+    "US": "17385aee9b481b220d81091688828a859deb34def56cecf603173f8797e035af",
+    "CN": "793de5c9103df65448272adb083c0808bc7c0d8f29ff4b09b58deaf8d77cfdeb",
 }
 
 

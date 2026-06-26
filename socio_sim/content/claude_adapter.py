@@ -23,8 +23,9 @@ MODEL = "claude-haiku-4-5-20251001"  # cheapest adequate model for persona posts
 _PROMPT_TEMPLATE = (
     "Write one short social media post (max 40 words) about {topic} with a "
     "{tone} tone. Persona: {age} year-old, ideology {ideo:+.1f} on a -1..1 "
-    "scale. Output only the post text."
+    "scale. Simulation day {day}. Output only the post text."
 )
+_CN_LABEL_PREFIX = "[AI-generated content] "
 
 
 class ClaudeAdapter:
@@ -47,16 +48,20 @@ class ClaudeAdapter:
             except ImportError:
                 self._client = None
 
-    def prompt_key(self, author_id: int, personas, tick: int) -> str:
-        prompt = self._prompt(author_id, personas)
-        return hashlib.sha256(prompt.encode()).hexdigest()
+    def prompt_key(self, author_id: int, personas, tick: int, topic: int = 0,
+                   stance: float = 0.0) -> str:
+        prompt = self._prompt(author_id, personas, topic, tick, stance)
+        return hashlib.sha256(f"claude|{self.MODEL}|{prompt}".encode()).hexdigest()
 
-    def _prompt(self, author_id: int, personas) -> str:
+    def _prompt(self, author_id: int, personas, topic: int, tick: int,
+                stance: float) -> str:
+        tone = "optimistic" if stance > 0.25 else ("skeptical" if stance < -0.25 else "measured")
         return _PROMPT_TEMPLATE.format(
-            topic=TOPICS[0],  # refined per-item below; key uses persona only
-            tone="casual",
+            topic=TOPICS[topic % len(TOPICS)],
+            tone=tone,
             age=personas.age_group[author_id],
             ideo=float(personas.ideology[author_id, 0]),
+            day=tick // 24,
         )
 
     def cache_hash(self) -> str | None:
@@ -66,15 +71,15 @@ class ClaudeAdapter:
 
     def generate(self, author_id: int, personas, tick: int) -> ContentItem:
         item = self.base.generate(author_id, personas, tick)
-        key = self.prompt_key(author_id, personas, tick)
+        key = self.prompt_key(author_id, personas, tick, item.topic, item.stance)
         if key in self._cache:
-            item.text = self._cache[key]
+            item.text = (_CN_LABEL_PREFIX if item.explicit_label else "") + self._cache[key]
             return item
         if self._client is None:
             self.on_degradation("no API key or anthropic package; template text used")
             return item
         try:
-            prompt = self._prompt(author_id, personas)
+            prompt = self._prompt(author_id, personas, item.topic, tick, item.stance)
             resp = self._client.messages.create(
                 model=self.MODEL, max_tokens=80,
                 messages=[{"role": "user", "content": prompt}],
@@ -84,7 +89,7 @@ class ClaudeAdapter:
             self.cache_path.parent.mkdir(parents=True, exist_ok=True)
             self.cache_path.write_text(
                 json.dumps(self._cache, sort_keys=True), encoding="utf-8")
-            item.text = text
+            item.text = (_CN_LABEL_PREFIX if item.explicit_label else "") + text
             return item
         except Exception as exc:  # degrade loudly, keep the run going
             self.on_degradation(f"LLM call failed: {exc!r}; template text used")

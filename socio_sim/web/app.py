@@ -11,18 +11,17 @@ local-LLM content mode, the server bootstraps Ollama on demand.
 from __future__ import annotations
 
 import hmac
-import ipaddress
 import json
 import math
+import os
 import secrets
-import socket
 import threading
 import time
 import uuid
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import numpy as np
 
@@ -33,17 +32,19 @@ from socio_sim.config import ADVERSARIES, CATEGORIES, RunConfig
 from socio_sim.llm_bootstrap import ensure_model, ensure_server, server_up
 from socio_sim.pipeline import run_and_analyze
 from socio_sim.presets import PRESETS
+from socio_sim.security import LOOPBACK_HOSTS, validate_llm_url
 from socio_sim.web.store import RunStore
 
 STATIC_DIR = Path(__file__).parent / "static"
 _CONTENT_TYPES = {".html": "text/html; charset=utf-8",
                   ".css": "text/css; charset=utf-8",
                   ".js": "text/javascript; charset=utf-8",
-                  ".svg": "image/svg+xml"}
+                  ".svg": "image/svg+xml",
+                  ".png": "image/png"}
 
 #: Max JSON body accepted on POST (DoS guard; ASVS V5). 2 MB is ample for configs.
 MAX_BODY_BYTES = 2 * 1024 * 1024
-_LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]"}
+_LOOPBACK_HOSTS = LOOPBACK_HOSTS
 #: Response security headers set on EVERY response (OWASP Secure Headers; MDN).
 #: CSP allows the external app.js (script-src 'self') + inline styles the UI uses
 #: ('unsafe-inline' for style only) + data: images; frames denied (clickjacking).
@@ -52,40 +53,14 @@ SECURITY_HEADERS = {
         "default-src 'self'; img-src 'self' data:; "
         "style-src 'self' 'unsafe-inline'; script-src 'self'; "
         "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; "
-        "object-src 'none'"),
+        "object-src 'none'; form-action 'self'"),
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
 }
 
 
-def _validate_llm_url(url: str) -> None:
-    """SSRF guard (OWASP A10 / CWE-918) for the user-supplied LLM base_url:
-    require http(s) and a loopback/private host; resolve-then-validate; block
-    public IPs and cloud metadata (169.254.169.254). Raises ValueError if unsafe.
-    Empty url (template mode) is a no-op."""
-    if not url:
-        return
-    p = urlparse(url)
-    if p.scheme not in ("http", "https"):
-        raise ValueError("llm_base_url scheme must be http or https")
-    host = p.hostname or ""
-    if host in _LOOPBACK_HOSTS:
-        return
-    try:
-        infos = socket.getaddrinfo(host, p.port or 80)
-    except OSError as exc:
-        raise ValueError(f"llm_base_url host not resolvable: {host}") from exc
-    for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
-        # Block link-local (incl. cloud metadata 169.254.169.254), multicast and
-        # reserved FIRST — note ipaddress treats link-local as is_private.
-        if ip.is_link_local or ip.is_multicast or ip.is_reserved:
-            raise ValueError(
-                f"llm_base_url host {ip} is link-local/metadata/reserved — SSRF guard")
-        if not (ip.is_loopback or ip.is_private):
-            raise ValueError(
-                f"llm_base_url must point to a loopback/private host (got public {ip})")
+_validate_llm_url = validate_llm_url
 
 
 def safe_static_path(suffix: str):
@@ -103,6 +78,18 @@ def safe_static_path(suffix: str):
     if target == base or target.is_relative_to(base):
         return target
     return None
+
+
+def _host_allowed(headers, server=None) -> bool:
+    """Host allow-list for every route, including GET.
+
+    This closes the read side of DNS-rebinding: a browser can reach loopback, but
+    a rebound page sends its attacker-controlled Host header.
+    """
+    host = (headers.get("Host") or "").rsplit(":", 1)[0].strip("[]")
+    allowed = set(_LOOPBACK_HOSTS)
+    allowed.update(getattr(server, "allowed_hosts", set()) or set())
+    return not host or host in allowed
 
 HARMFUL_CATS = ("hate", "harassment", "fraud", "misinfo", "adult",
                 "illegal_goods", "self_harm")
@@ -191,6 +178,7 @@ def _build_config(body: dict) -> RunConfig:
         exploration_epsilon=_f(body, "exploration_epsilon", 0.10),
         feed_size=int(_f(body, "feed_size", 20)),
         ad_slot_interval=int(_f(body, "ad_slot_interval", 5)),
+        n_replicates=int(_f(body, "n_replicates", 1)),
         content_mode=body.get("content_mode", "template"),
         classifier_mode=body.get("classifier_mode", "noise"),
         benchmark=body.get("benchmark", "default"),
@@ -227,13 +215,11 @@ def _build_config(body: dict) -> RunConfig:
     return factory(**overrides).validate()
 
 
-def _campaigns_fn(body: dict):
-    """Build a campaigns factory from a web `campaigns` spec list, or None to
-    use the default campaigns. The factory returns FRESH Campaign objects each
-    call (budgets mutate during a run; Monte Carlo needs independent copies)."""
+def _normalize_campaign_specs(body: dict) -> list[dict]:
+    """Normalize the web campaign-editor rows into Campaign constructor args."""
     specs = body.get("campaigns")
     if not specs:
-        return None
+        return []
     clean = []
     for s in specs:
         try:
@@ -258,10 +244,20 @@ def _campaigns_fn(body: dict):
                 base_ctr=float(s.get("base_ctr", 0.012)),
                 base_cvr=float(s.get("base_cvr", 0.05)),
                 conversion_value=float(s.get("conversion_value", 1.0)),
+                ltv_multiplier=float(s.get("ltv_multiplier", 3.0)),
+                attribution_window_ticks=int(s.get("attribution_window_ticks", 168)),
                 targeting=targeting,
             ))
         except (TypeError, ValueError):
             continue
+    return clean
+
+
+def _campaigns_fn(body: dict):
+    """Build a campaigns factory from a web `campaigns` spec list, or None to
+    use the default campaigns. The factory returns FRESH Campaign objects each
+    call (budgets mutate during a run; Monte Carlo needs independent copies)."""
+    clean = _normalize_campaign_specs(body)
     if not clean:
         return None
     from socio_sim.ads.campaigns import Campaign
@@ -297,9 +293,10 @@ def _chart_data(result, summary) -> dict:
         chist[s - 1] += 1
     cascade = [[i + 1, c] for i, c in enumerate(chist)]
 
+    graph_stats = result.graph_stats.get("final", result.graph_stats)
     return {
         "diurnal": diurnal,
-        "degree_hist": result.graph_stats.get("degree_hist", []),
+        "degree_hist": graph_stats.get("degree_hist", []),
         "cascade": cascade,
         "timeline_posts": posts_t,
         "timeline_removed": removed_t,
@@ -355,6 +352,7 @@ def _sample_feed(result, limit: int = 9) -> list:
             "topic": topic, "stance": round(stance, 2), "text": text,
             "categories": sorted(d.get("true_categories", [])),
             "ai_generated": bool(d.get("ai_generated")),
+            "media_type": d.get("media_type", "text"),
             "action": action_by_id.get(e["content_id"], "none"),
         })
         if len(out) >= limit:
@@ -391,6 +389,7 @@ def _run_job(job_id: str, body: dict):
             campaigns_fn=_campaigns_fn(body), progress_callback=on_progress,
             on_phase=lambda p: job.__setitem__("phase", p))
         result = a.result
+        campaign_specs = _normalize_campaign_specs(body)
 
         llm_calls = result.log.by_kind("llm_call")
         # Kind-stratified event sample for the in-UI audit-log explorer (up to
@@ -409,6 +408,7 @@ def _run_job(job_id: str, body: dict):
             "lens": run_lens(cfg.to_dict(), a.summary),
             "manifest": result.manifest.__dict__,
             "config": cfg.to_dict(),
+            "campaign_specs": campaign_specs,
             "observed": a.observed,
             "targets": a.targets,
             "implausibility": a.implausibility,
@@ -476,12 +476,15 @@ class Handler(BaseHTTPRequestHandler):
         for k, v in SECURITY_HEADERS.items():
             self.send_header(k, v)
 
+    def end_headers(self):
+        self._security_headers()
+        super().end_headers()
+
     def _send_json(self, payload, status=200):
         data = json.dumps(payload).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
-        self._security_headers()
         self.end_headers()
         self.wfile.write(data)
 
@@ -494,7 +497,6 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type",
                          _CONTENT_TYPES.get(path.suffix, "application/octet-stream"))
         self.send_header("Content-Length", str(len(data)))
-        self._security_headers()
         self.end_headers()
         self.wfile.write(data)
 
@@ -502,13 +504,14 @@ class Handler(BaseHTTPRequestHandler):
         """Reject cross-origin state-changing requests (CSRF / DNS-rebinding):
         if an Origin/Referer is present it must be loopback. Non-browser clients
         (no Origin) are allowed. Also pins Host to loopback."""
-        host = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip("[]")
-        if host and host not in _LOOPBACK_HOSTS:
+        if not _host_allowed(self.headers, self.server):
             return False
         origin = self.headers.get("Origin") or self.headers.get("Referer")
         if origin:
             h = (urlparse(origin).hostname or "")
-            if h not in _LOOPBACK_HOSTS:
+            allowed = set(_LOOPBACK_HOSTS)
+            allowed.update(getattr(self.server, "allowed_hosts", set()) or set())
+            if h not in allowed:
                 return False
         return True
 
@@ -522,15 +525,32 @@ class Handler(BaseHTTPRequestHandler):
         sent = self.headers.get("X-SocioSim-Token", "")
         return hmac.compare_digest(sent, token)
 
+    def _api_read_token_ok(self, route: str) -> bool:
+        if getattr(self.server, "expose_token", True):
+            return True
+        if route == "/api/meta":
+            return True
+        if route == "/api/creative" or route.startswith("/api/job") or route.startswith("/api/runs"):
+            return self._token_ok()
+        return True
+
     def do_GET(self):
+        if not _host_allowed(self.headers, self.server):
+            self._send_json({"error": "host rejected"}, 403)
+            return
         route = self.path.split("?")[0]
+        if not self._api_read_token_ok(route):
+            self._send_json({"error": "missing or invalid access token"}, 403)
+            return
         if route in ("/", "/index.html"):
             self._send_file(STATIC_DIR / "index.html")
         elif route == "/api/meta":
             self._send_json({
                 "version": __version__,
                 "notice": RESEARCH_USE_NOTICE,
-                "token": getattr(self.server, "access_token", None),
+                "token": (getattr(self.server, "access_token", None)
+                          if getattr(self.server, "expose_token", True) else None),
+                "token_required": bool(getattr(self.server, "access_token", None)),
                 "adversaries": list(ADVERSARIES),
                 "harmful_categories": list(HARMFUL_CATS),
                 "defaults": RunConfig().category_base_rates,
@@ -575,8 +595,6 @@ class Handler(BaseHTTPRequestHandler):
         seeded by the ?key= string so it varies by campaign/segment/market.
         Bounded dimensions (DoS guard)."""
         import zlib
-        from urllib.parse import parse_qs, urlparse
-
         from socio_sim.content.media import synth_image
         q = parse_qs(urlparse(self.path).query)
         key = (q.get("key", ["ad"])[0] or "ad")[:200]
@@ -586,17 +604,23 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             self.send_error(400, "bad dimensions")
             return
-        data = synth_image(zlib.crc32(key.encode("utf-8")), w, h)
+        # The dashboard requests 2:1 cards; serve realistic curated v3 assets
+        # selected by the campaign key. Other dimensions keep the procedural
+        # deterministic path used by CLI smoke/media tests.
+        assets = sorted((STATIC_DIR / "assets").glob("ad-creative-v3-*.png"))
+        if assets and w == 1024 and h == 512:
+            idx = zlib.crc32(key.encode("utf-8")) % len(assets)
+            data = assets[idx].read_bytes()
+        else:
+            data = synth_image(zlib.crc32(key.encode("utf-8")), w, h)
         self.send_response(200)
         self.send_header("Content-Type", "image/png")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "public, max-age=86400")
-        self._security_headers()
         self.end_headers()
         self.wfile.write(data)
 
     def _export_run(self, run_id: str):
-        from urllib.parse import parse_qs, urlparse
         fmt = parse_qs(urlparse(self.path).query).get("fmt", ["json"])[0]
         payload = _STORE.payload(run_id)
         if payload is None:
@@ -614,7 +638,6 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Disposition", f'attachment; filename="sociosim-{run_id}-{name}"')
         self.send_header("Content-Length", str(len(data)))
-        self._security_headers()
         self.end_headers()
         self.wfile.write(data)
 
@@ -633,7 +656,18 @@ class Handler(BaseHTTPRequestHandler):
         if ctype != "application/json":
             self._send_json({"error": "Content-Type must be application/json"}, 415)
             return
-        length = int(self.headers.get("Content-Length", 0))
+        raw_length = self.headers.get("Content-Length")
+        if raw_length is None:
+            self._send_json({"error": "Content-Length required"}, 411)
+            return
+        try:
+            length = int(raw_length)
+        except (TypeError, ValueError):
+            self._send_json({"error": "invalid Content-Length"}, 400)
+            return
+        if length < 0:
+            self._send_json({"error": "invalid Content-Length"}, 400)
+            return
         if length > MAX_BODY_BYTES:                     # DoS / oversized-body guard
             self._send_json({"error": "request body too large"}, 413)
             return
@@ -656,6 +690,12 @@ class Handler(BaseHTTPRequestHandler):
         self._send_json({"job_id": job_id})
 
     def do_DELETE(self):
+        if not self._origin_ok():
+            self._send_json({"error": "cross-origin request rejected"}, 403)
+            return
+        if not self._token_ok():
+            self._send_json({"error": "missing or invalid access token"}, 403)
+            return
         route = self.path.split("?")[0]
         if route.startswith("/api/runs/"):
             ok = _STORE.delete(route[len("/api/runs/"):])
@@ -669,7 +709,23 @@ def serve(host="127.0.0.1", port=8765, open_browser=True):
     # Per-session access token: defends state-changing POSTs against browser
     # CSRF / DNS-rebinding even on loopback. Served via /api/meta (same-origin
     # reads it; cross-origin pages cannot read the response) and required on POST.
-    server.access_token = secrets.token_urlsafe(32)
+    remote = host not in _LOOPBACK_HOSTS
+    configured_token = os.environ.get("SOCIOSIM_ACCESS_TOKEN", "")
+    extra_hosts = {
+        h.strip() for h in os.environ.get("SOCIOSIM_ALLOWED_HOSTS", "").split(",")
+        if h.strip()
+    }
+    if remote and not configured_token:
+        raise RuntimeError(
+            "Non-loopback bind requires SOCIOSIM_ACCESS_TOKEN. The built-in "
+            "token is a CSRF guard, not network authentication.")
+    if remote and not extra_hosts:
+        raise RuntimeError(
+            "Non-loopback bind requires explicit SOCIOSIM_ALLOWED_HOSTS "
+            "(comma-separated hostnames or IPs clients will use).")
+    server.access_token = configured_token or secrets.token_urlsafe(32)
+    server.expose_token = not remote
+    server.allowed_hosts = extra_hosts if remote else set()
     if host not in _LOOPBACK_HOSTS:
         print(f"WARNING: binding {host} exposes the console beyond loopback — "
               "use only on a trusted host/network.")

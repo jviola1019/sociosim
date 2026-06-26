@@ -1,6 +1,5 @@
-"""Out-of-sample backtest: held-out public-aggregate metrics must fall within
-tolerance after calibrating on the disjoint train subset (Rung-3 generalization),
-deterministically."""
+"""Held-out aggregate backtest: held-out public-aggregate metrics must fall
+within tolerance after calibrating on the disjoint train subset, deterministically."""
 
 import pytest
 
@@ -20,9 +19,9 @@ def test_train_and_holdout_are_disjoint(bt):
     assert bt["chosen_p"] in (0.4, 0.6, 0.8)          # p chosen from the grid
 
 
-def test_held_out_metrics_generalize_within_tolerance(bt):
+def test_held_out_metrics_within_tolerance(bt):
     assert bt["provenance"] == PROVENANCE
-    assert bt["test_pass"], bt["test"]                # out-of-sample generalization
+    assert bt["test_pass"], bt["test"]                # held-out aggregate sanity check
     for row in bt["test"]:
         assert row["z"] == row["z"]                   # finite (no NaN leaked)
         assert "within_tolerance" in row

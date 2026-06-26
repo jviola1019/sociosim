@@ -35,6 +35,9 @@ def test_validation_rejects_bad_fields():
         RunConfig.test(holdout_fraction=1.5).validate()
     with pytest.raises(ConfigError, match="content_mode"):
         RunConfig.test(content_mode="oracle").validate()
+    with pytest.raises(ConfigError, match="llm_base_url"):
+        RunConfig.test(content_mode="ollama",
+                       llm_base_url="http://169.254.169.254/latest").validate()
 
 
 def test_round_trip_dict():
@@ -58,3 +61,11 @@ def test_behavior_params_are_live_and_serializable():
     rt = RunConfig.from_dict(tweaked.to_dict())
     assert rt.behavior.p_post_given_active == 0.6
     assert rt.config_hash() == tweaked.config_hash()
+
+
+def test_behavior_params_are_validated():
+    from socio_sim.behavior import BehaviorParams
+    with pytest.raises(ConfigError, match="p_post_given_active"):
+        RunConfig.test(behavior=BehaviorParams(p_post_given_active=2.0)).validate()
+    with pytest.raises(ConfigError, match="impression_fatigue"):
+        RunConfig.test(behavior=BehaviorParams(impression_fatigue=-1.0)).validate()

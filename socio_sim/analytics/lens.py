@@ -24,7 +24,11 @@ SETTING_LENS = {
     "classifier_precision": "government", "classifier_recall": "government",
     "classifier_mode": "government", "human_review_accuracy": "government",
     "human_review_delay_ticks": "government", "appeal_grant_fp_rate": "government",
-    "eu_optout_rate": "government",
+    "eu_optout_rate": "government", "red_team": "government",
+    "rate_hate": "government", "rate_harassment": "government",
+    "rate_fraud": "government", "rate_misinfo": "government",
+    "rate_adult": "government", "rate_illegal_goods": "government",
+    "rate_self_harm": "government", "rate_ai_generated": "government",
     # Marketing
     "ads_enabled": "marketing", "ftc_compliance": "marketing",
     "holdout_fraction": "marketing", "ad_frequency_cap_per_day": "marketing",
@@ -34,6 +38,9 @@ SETTING_LENS = {
     "feed_strategy": "core", "exploration_epsilon": "core", "feed_size": "core",
     "n_agents": "core", "n_ticks": "core", "n_topics": "core",
     "follow_rate": "core", "unfollow_rate": "core", "churn_rate": "core",
+    "profile": "core", "benchmark": "core", "root_seed": "core",
+    "tick_hours": "core", "n_replicates": "core", "verify_replay": "core",
+    "content_mode": "core", "llm_model": "core", "llm_base_url": "core",
 }
 
 

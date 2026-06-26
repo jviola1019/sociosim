@@ -68,7 +68,7 @@ class AdSystem:
         return int.from_bytes(digest, "big") / 2**64 < fraction
 
     # -- eligibility ------------------------------------------------------
-    def _policy_block(self, campaign: Campaign, agent_id: int) -> str | None:
+    def _policy_block(self, campaign: Campaign, agent_id: int, tick: int) -> str | None:
         """Returns blocking rule_id, or None. Sensitive targeting is stripped
         (handled in _targeting_match), not blocking."""
         context = {
@@ -78,6 +78,13 @@ class AdSystem:
         }
         decisions = self.engine.evaluate(self._protos[campaign.id], {}, context)
         for d in decisions:
+            if d.action == "strip_targeting":
+                self.log.append(tick=tick, kind="ad_auction", actor_id=agent_id,
+                                content_id=None, data={
+                                    "campaign_id": campaign.id,
+                                    "action": "strip_targeting",
+                                    "rule_id": d.rule_id,
+                                })
             if d.action == "block_ad":
                 return d.rule_id
         return None
@@ -113,11 +120,17 @@ class AdSystem:
         for c in self.campaigns:
             if c.budget < RESERVE_PRICE or c.bid < RESERVE_PRICE:
                 continue
-            if self.in_holdout(c.id, agent_id):
-                continue
             if not self._targeting_match(c, agent_id):
                 continue
-            block_rule = self._policy_block(c, agent_id)
+            holdout = self.in_holdout(c.id, agent_id)
+            self.log.append(tick=tick, kind="ad_opportunity", actor_id=agent_id,
+                            content_id=None, data={
+                                "campaign_id": c.id,
+                                "holdout": holdout,
+                            })
+            if holdout:
+                continue
+            block_rule = self._policy_block(c, agent_id, tick)
             if block_rule:
                 self.log.append(tick=tick, kind="ad_auction", actor_id=agent_id,
                                 content_id=None, data={
@@ -161,10 +174,14 @@ class AdSystem:
                 # Conversion latency (ticks after impression) -> attribution
                 # windows become meaningful. Drawn from the dedicated stream.
                 latency = int(self.latency_rng.geometric(0.25)) - 1
-                self.log.append(tick=tick, kind="ad_conversion",
+                conversion_tick = tick + latency
+                if conversion_tick >= self.cfg.n_ticks:
+                    return
+                self.log.append(tick=conversion_tick, kind="ad_conversion",
                                 actor_id=agent_id, content_id=creative.id,
                                 data={"campaign_id": campaign.id,
                                       "value": campaign.conversion_value,
+                                      "impression_tick": tick,
                                       "latency": latency})
 
     # -- organic baseline -------------------------------------------------
