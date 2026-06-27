@@ -31,19 +31,25 @@
   <!-- ============ CONFIG ============ -->
   <aside class="panel config">
     <nav class="seg-tabs" id="cfgTabs" role="tablist">
-      <button type="button" role="tab" data-tab="scenario" class="on">Scenario</button>
-      <button type="button" role="tab" data-tab="network">Network</button>
-      <button type="button" role="tab" data-tab="content">Content</button>
-      <button type="button" role="tab" data-tab="moderation">Moderation</button>
-      <button type="button" role="tab" data-tab="feedads">Feed &amp; Ads</button>
-      <button type="button" role="tab" data-tab="adversaries">Red Team</button>
+      <button type="button" role="tab" data-tab="scenario" data-lens="core" class="on">Scenario</button>
+      <button type="button" role="tab" data-tab="network" data-lens="core">Network</button>
+      <button type="button" role="tab" data-tab="content" data-lens="core">Content</button>
+      <button type="button" role="tab" data-tab="moderation" data-lens="government">Moderation</button>
+      <button type="button" role="tab" data-tab="feedads" data-lens="marketing">Feed &amp; Ads</button>
+      <button type="button" role="tab" data-tab="marketing" data-lens="marketing">Marketing</button>
     </nav>
+    <p class="lens-legend" aria-hidden="true"><span class="lens-dot government"></span>Government / Regulatory <span class="lens-dot marketing"></span>Marketing <span class="lens-dot core"></span>Core</p>
 
     <form id="cfgForm" class="cfg-body">
       <!-- SCENARIO -->
       <section data-panel="scenario" class="tabpanel on">
         <label class="field"><span class="lbl">Preset Scenario</span><select id="preset"></select></label>
         <p class="hint" id="presetDesc"></p>
+        <div id="presetSummary" class="preset-summary" hidden>
+          <span class="ps-title">This preset changes:</span>
+          <ul id="presetSummaryList"></ul>
+          <p id="presetSources" class="ps-sources"></p>
+        </div>
         <label class="field"><span class="lbl">Run Label <i>optional · for history</i></span><input type="text" id="label" placeholder="EU baseline — Q3" maxlength="60"></label>
         <hr>
         <span class="lbl" title="Number of agents and simulated hours. Larger = richer dynamics, slower runs.">Scale Profile</span>
@@ -51,7 +57,7 @@
           <label><input type="radio" name="profile" value="test"><b>Test</b><i>200 · 48h</i></label>
           <label><input type="radio" name="profile" value="quick" checked><b>Quick</b><i>1K · 7d</i></label>
           <label><input type="radio" name="profile" value="standard"><b>Standard</b><i>10K · 28d</i></label>
-          <label><input type="radio" name="profile" value="calibrated"><b>Calibrated</b><i>I=1.0 · in-band</i></label>
+          <label><input type="radio" name="profile" value="calibrated"><b>Calibrated</b><i>I=1.25 / I&lt;3</i></label>
         </div>
         <div class="duo">
           <label class="field"><span class="lbl">Random Seed</span><input type="number" id="root_seed" value="42"></label>
@@ -133,13 +139,18 @@
           </select></label>
         <label class="field llm" data-llm hidden><span class="lbl">Model</span><input type="text" id="llm_model" value="qwen2.5:0.5b" spellcheck="false"></label>
         <label class="field llm" data-llm hidden><span class="lbl">Server URL <i>blank = default</i></span><input type="text" id="llm_base_url" placeholder="http://localhost:11434" spellcheck="false"></label>
-        <label class="field"><span class="lbl">Moderation Classifier</span>
+        <label class="field" title="Noise = calibrated noise model (fast, set the operating point in Moderation). Trained = a real numpy classifier trained on category-signal text, with measured precision/recall.">
+          <span class="lbl">Moderation Classifier</span>
           <select id="classifier_mode">
             <option value="noise" selected>Noise model · calibrated, instant</option>
             <option value="trained">Trained · real numpy classifier (measured P/R)</option>
           </select></label>
         <hr>
         <span class="lbl">Content Prevalence <i>share of all content</i></span>
+        <p class="hint">Fraction of posts in each category. Real platforms run far
+          lower (e.g. hate ≈ 0.02% of views; Meta CSER) — the wider slider range
+          is for stress tests. Spam/fake accounts dominate volume; hate/self-harm
+          are rare but severe.</p>
         <div id="rates" class="rates"></div>
       </section>
 
@@ -153,15 +164,20 @@
         </div>
         <label class="switch"><input type="checkbox" id="ftc_enabled" checked><span class="track"></span><span class="switch-txt">FTC Disclosure Pack</span></label>
         <hr>
-        <span class="lbl">Classifier Operating Point</span>
-        <label class="field"><span class="lbl">Precision <b id="precVal" class="val">0.90</b></span><input type="range" id="classifier_precision" min="0.5" max="0.99" step="0.01" value="0.90"></label>
-        <label class="field"><span class="lbl">Recall <b id="recVal" class="val">0.85</b></span><input type="range" id="classifier_recall" min="0.5" max="0.99" step="0.01" value="0.85"></label>
+        <span class="lbl">Classifier Operating Point <i>real systems ≈ 0.77–0.92</i></span>
+        <label class="field" title="Precision: share of FLAGGED items that are truly violating (higher = fewer false positives). Hate-speech detectors ≈ 0.77–0.92 (2025 benchmarks).">
+          <span class="lbl">Precision <b id="precVal" class="val">0.90</b></span><input type="range" id="classifier_precision" min="0.5" max="0.99" step="0.01" value="0.90"></label>
+        <label class="field" title="Recall: share of TRUE violations the classifier catches (higher = fewer misses). Trades off against precision; ≈ 0.72–0.93.">
+          <span class="lbl">Recall <b id="recVal" class="val">0.85</b></span><input type="range" id="classifier_recall" min="0.5" max="0.99" step="0.01" value="0.85"></label>
         <hr>
         <span class="lbl">Human Review &amp; Appeals</span>
-        <label class="field"><span class="lbl">Reviewer Accuracy <b id="hraVal" class="val">0.92</b></span><input type="range" id="human_review_accuracy" min="0.5" max="1" step="0.01" value="0.92"></label>
+        <label class="field" title="Reviewer agreement with ground truth. Real inter-annotator agreement ≈ 0.70–0.85.">
+          <span class="lbl">Reviewer Accuracy <b id="hraVal" class="val">0.92</b></span><input type="range" id="human_review_accuracy" min="0.5" max="1" step="0.01" value="0.92"></label>
         <div class="duo">
-          <label class="field"><span class="lbl">Review Delay (ticks)</span><input type="number" id="human_review_delay_ticks" value="6" min="0"></label>
-          <label class="field"><span class="lbl">Appeal Grant (FP)</span><input type="number" id="appeal_grant_fp_rate" value="0.70" step="0.05" min="0" max="1"></label>
+          <label class="field" title="Hours from queue to a human decision (1 tick = 1 hour). Priority/trusted-flagger queues: hours; standard: hours–days (DSA Art. 16).">
+            <span class="lbl">Review Delay <i>hours</i></span><input type="number" id="human_review_delay_ticks" value="6" min="0"></label>
+          <label class="field" title="Share of false-positive appeals reinstated. DSA-wide reversal ≈ 30%; varies widely by platform/method.">
+            <span class="lbl">Appeal Grant (FP)</span><input type="number" id="appeal_grant_fp_rate" value="0.70" step="0.05" min="0" max="1"></label>
         </div>
       </section>
 
@@ -175,29 +191,87 @@
           </select></label>
         <div class="duo">
           <label class="field" title="Share of EU users who opt out of personalization (DSA right)."><span class="lbl">EU Opt-out</span><input type="number" id="eu_optout_rate" value="0.20" step="0.05" min="0" max="1"></label>
-          <label class="field" title="Exploration rate — chance of injecting an unseen author into the feed."><span class="lbl">Exploration ε</span><input type="number" id="exploration_epsilon" value="0.10" step="0.05" min="0" max="1"></label>
+          <label class="field" title="Exploration rate — chance of injecting an unseen author into the feed. Production recsys ε ≈ 0.01–0.10."><span class="lbl">Exploration ε</span><input type="number" id="exploration_epsilon" value="0.10" step="0.05" min="0" max="1"></label>
         </div>
         <label class="field"><span class="lbl">Feed Size</span><input type="number" id="feed_size" value="20" min="1"></label>
         <hr>
         <label class="switch"><input type="checkbox" id="ads_enabled" checked><span class="track"></span><span class="switch-txt">Advertising Enabled</span></label>
         <label class="switch"><input type="checkbox" id="ftc_compliance" checked><span class="track"></span><span class="switch-txt">FTC Disclosures on Creatives</span></label>
         <div class="duo">
-          <label class="field" title="Randomized-control holdout share for measuring incremental ad lift."><span class="lbl">RCT Holdout</span><input type="number" id="holdout_fraction" value="0.10" step="0.05" min="0" max="0.9"></label>
-          <label class="field"><span class="lbl">Freq Cap / Day</span><input type="number" id="ad_frequency_cap_per_day" value="4" min="1"></label>
+          <label class="field" title="Randomized-control holdout share for measuring incremental ad lift. 10% default, 10–20% preferred; size it in the Marketing A/B Lab."><span class="lbl">RCT Holdout</span><input type="number" id="holdout_fraction" value="0.10" step="0.05" min="0" max="0.9"></label>
+          <label class="field" title="Max ad impressions per user per day. Programmatic norm ≈ 3–7 (effective-frequency band)."><span class="lbl">Freq Cap / Day</span><input type="number" id="ad_frequency_cap_per_day" value="4" min="1"></label>
         </div>
-        <label class="field"><span class="lbl">Ad Slot Interval</span><input type="number" id="ad_slot_interval" value="5" min="1"></label>
+        <label class="field" title="Show one ad slot every N feed items (1 ad per N organic)."><span class="lbl">Ad Slot Interval <i>1 ad / N items</i></span><input type="number" id="ad_slot_interval" value="5" min="1"></label>
         <hr>
         <span class="lbl">Campaigns <i>blank = 3 default campaigns</i></span>
+        <div class="camp-head" aria-hidden="true">
+          <span>Advertiser</span><span>Bid</span><span>Budget</span><span>CTR</span>
+          <span>CVR</span><span>Value</span><span>LTVx</span><span>Window</span>
+          <span>Segment</span><span>Market</span><span></span>
+        </div>
         <div id="campaigns" class="campaigns"></div>
         <button type="button" id="addCampaign" class="pill" style="margin-top:8px">+ Add campaign</button>
         <p class="hint">Custom campaigns replace the defaults. Incremental lift uses the organic-baseline holdout (Newcombe CI + MDE).</p>
       </section>
 
-      <!-- ADVERSARIES -->
-      <section data-panel="adversaries" class="tabpanel">
-        <span class="lbl">Red-Team Adversaries <i>Spec §3.10</i></span>
-        <div class="chips col" id="redteam"></div>
-        <p class="hint">Each adds ~1% of agents running an adversarial behaviour — coordinated flagging, misinformation amplification, spam, auction gaming, or disclosure evasion.</p>
+      <!-- MARKETING — business suite (subsections) -->
+      <section id="marketing" data-panel="marketing" class="tabpanel">
+        <h2>Marketing Decision Suite</h2>
+        <p class="hint" id="marketingScope">Planning calculators below are local readouts and do not change a simulation run. Simulation inputs live in Feed &amp; Ads and Campaigns.</p>
+        <nav class="seg-tabs sub" id="mktTabs" role="tablist">
+          <button type="button" role="tab" data-mkt="ablab" class="on">A/B Lab</button>
+          <button type="button" role="tab" data-mkt="econ">Unit Economics</button>
+          <button type="button" role="tab" data-mkt="reach">Reach &amp; Frequency</button>
+          <button type="button" role="tab" data-mkt="safety">Brand Safety</button>
+        </nav>
+
+        <!-- A/B EXPERIMENT LAB -->
+        <div data-mktpanel="ablab" class="mktpanel on">
+          <p class="hint">Power an incremental-lift RCT before you run it. Sizing at <b>80% power, α=0.05</b> (Cohen 1988); incrementality needs an RCT holdout, not last-touch (Gordon et al. 2019).</p>
+          <div class="duo">
+            <label class="field calc-field"><span class="lbl">Baseline conversion %</span><input type="number" id="ab_base" value="2.0" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
+            <label class="field calc-field"><span class="lbl">Min. detectable lift % <i>relative</i></span><input type="number" id="ab_mde" value="10" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
+          </div>
+          <div class="duo">
+            <label class="field calc-field"><span class="lbl">Audience size</span><input type="number" id="ab_aud" value="100000" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
+            <label class="field calc-field"><span class="lbl">Holdout %</span><input type="number" id="ab_hold" value="10" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
+          </div>
+          <div id="ab_out" class="mkt-readout"></div>
+          <p class="hint">Holdout 10% default, 10–20% preferred (derive from this power calc). Reality: ad RCTs are hard to power — sales variance is high (Lewis &amp; Rao 2015).</p>
+        </div>
+
+        <!-- UNIT ECONOMICS -->
+        <div data-mktpanel="econ" class="mktpanel">
+          <p class="hint">ROAS, CAC and LTV:CAC with cited guidance. These are <b>business inputs</b>, not measured returns — pair with an incrementality test.</p>
+          <div class="duo">
+            <label class="field calc-field"><span class="lbl">Ad spend ($)</span><input type="number" id="ec_spend" value="10000" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
+            <label class="field calc-field"><span class="lbl">Attributed revenue ($)</span><input type="number" id="ec_rev" value="30000" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
+          </div>
+          <div class="duo">
+            <label class="field calc-field"><span class="lbl">Conversions</span><input type="number" id="ec_conv" value="600" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
+            <label class="field calc-field"><span class="lbl">Customer LTV ($)</span><input type="number" id="ec_ltv" value="120" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
+          </div>
+          <div id="ec_out" class="mkt-readout"></div>
+          <p class="hint">Guidance: ROAS "good" ≈ 2:1–4:1 (set by margins); LTV:CAC ≥ 3:1, best ~5:1, CAC payback &lt; 12 mo (Skok ~2010). Median e-commerce ROAS ≈ 2:1.</p>
+        </div>
+
+        <!-- REACH & FREQUENCY -->
+        <div data-mktpanel="reach" class="mktpanel">
+          <p class="hint">Plan exposure. Effective frequency ≈ 3 (Krugman 1972 — disputed 1–3); programmatic caps ≈ 3–7 / user / window.</p>
+          <div class="duo">
+            <label class="field calc-field"><span class="lbl">Impressions</span><input type="number" id="rf_impr" value="500000" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
+            <label class="field calc-field"><span class="lbl">Unique reach</span><input type="number" id="rf_reach" value="120000" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
+          </div>
+          <label class="field calc-field"><span class="lbl">Target effective frequency</span><input type="number" id="rf_eff" value="3" data-control-kind="planning-calculator" aria-describedby="marketingScope"></label>
+          <div id="rf_out" class="mkt-readout"></div>
+        </div>
+
+        <!-- BRAND SAFETY -->
+        <div data-mktpanel="safety" class="mktpanel">
+          <p class="hint">WFA/GARM Brand Safety Floor + Suitability — the 11 categories advertisers avoid (block at the Floor; tier the rest High/Med/Low).</p>
+          <ul id="garmList" class="garm"></ul>
+        <p class="hint">After a run, use the <b>Ads</b> tab for campaign incrementality and economics. This build does not directly measure ad-adjacency suitability; map that externally via the IAB Content Taxonomy and verify with an MRC-accredited vendor.</p>
+        </div>
       </section>
     </form>
 
@@ -232,7 +306,8 @@
       <div class="rhead">
         <div>
           <h2 class="reveal">Run Report</h2>
-          <p class="mono dim small" id="runMeta"></p>
+          <p class="mono dim small" id="runMeta" aria-live="polite" role="status"></p>
+          <div id="runLens" class="run-lens" aria-live="polite" hidden></div>
         </div>
         <div class="rhead-actions">
           <div class="seal" id="seal"><b class="dot"></b><span id="sealTxt">—</span></div>
@@ -253,11 +328,11 @@
         <button type="button" role="tab" data-otab="charts">Charts</button>
         <button type="button" role="tab" data-otab="network">Network</button>
         <button type="button" role="tab" data-otab="cascade">Cascade</button>
-        <button type="button" role="tab" data-otab="fairness">Fairness</button>
-        <button type="button" role="tab" data-otab="ads">Ads</button>
+        <button type="button" role="tab" data-otab="fairness" data-lens="government">Fairness</button>
+        <button type="button" role="tab" data-otab="ads" data-lens="marketing">Ads</button>
         <button type="button" role="tab" data-otab="calib">Calibration</button>
         <button type="button" role="tab" data-otab="compare">Compare</button>
-        <button type="button" role="tab" data-otab="audit">Audit</button>
+        <button type="button" role="tab" data-otab="audit" data-lens="government">Audit</button>
         <button type="button" role="tab" data-otab="log">Log</button>
       </nav>
       <div class="ostage">
@@ -281,7 +356,7 @@
 </main>
 
 <div class="drawer-scrim" id="histScrim" hidden></div>
-<aside class="drawer" id="histDrawer" hidden aria-label="Run history">
+<aside class="drawer" id="histDrawer" hidden role="dialog" aria-modal="true" aria-label="Run history">
   <div class="drawer-head"><h3>Run History</h3><button type="button" id="histClose" class="pill" aria-label="Close">Close</button></div>
   <p class="hint">Every completed run is saved to a local SQLite database — reopen, export, or remove past runs.</p>
   <div class="hist-list" id="histList"></div>

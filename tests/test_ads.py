@@ -2,7 +2,7 @@ import numpy as np
 
 from socio_sim.ads.auction import AdSystem
 from socio_sim.ads.campaigns import Campaign
-from socio_sim.ads.measure import beta_interval, measure_campaign
+from socio_sim.ads.measure import apply_fdr, beta_interval, measure_campaign
 from socio_sim.agents.personas import Personas
 from socio_sim.agents.state import AgentState
 from socio_sim.config import RunConfig
@@ -48,6 +48,21 @@ def test_second_price_auction():
     assert auction["data"]["price"] == 3.0  # pays runner-up bid
 
 
+def test_second_price_auction_respects_remaining_budget():
+    camp = [
+        Campaign(id="tight", advertiser="T", bid=5.0, budget=1.0),
+        Campaign(id="runner", advertiser="R", bid=3.0, budget=100.0),
+    ]
+    ads, log, personas, _ = setup(campaigns=camp, holdout_fraction=0.0)
+    creative = ads.run_auction(agent_id=adult_id(personas), tick=1)
+    assert creative is not None
+    assert creative.campaign_id == "runner"
+    assert camp[0].budget == 1.0
+    assert camp[1].budget == 99.0  # pays tight campaign's effective bid, not 3.0
+    auction = [e for e in log.by_kind("ad_auction") if "price" in e["data"]][0]
+    assert auction["data"]["price"] == 1.0
+
+
 def test_eu_minors_never_targeted():
     ads, log, personas, _ = setup(("EU",), holdout_fraction=0.0)
     assert ads.run_auction(agent_id=minor_id(personas), tick=1) is None
@@ -61,6 +76,33 @@ def test_eu_minors_never_targeted():
 def test_us_mode_minors_can_be_served():
     ads, _, personas, _ = setup(("US",), holdout_fraction=0.0)
     assert ads.run_auction(agent_id=minor_id(personas), tick=1) is not None
+
+
+def test_eu_sensitive_targeting_strip_is_logged():
+    camp = [Campaign(id="sens", advertiser="S", bid=5.0, budget=1000,
+                     targeting={"ideology": "left"})]
+    ads, log, personas, _ = setup(("EU",), campaigns=camp, holdout_fraction=0.0)
+    assert ads.run_auction(agent_id=adult_id(personas), tick=7) is not None
+    strips = [e for e in log.by_kind("ad_auction")
+              if e["data"].get("action") == "strip_targeting"]
+    assert strips
+    assert strips[0]["tick"] == 7
+    assert strips[0]["data"]["rule_id"] == "EU-ADS-SENS-1"
+
+
+def test_eu_sensitive_strip_event_is_not_counted_as_paid_impression():
+    camp = [Campaign(id="sens", advertiser="S", bid=5.0, budget=1000,
+                     targeting={"ideology": "left"})]
+    ads, log, personas, _ = setup(("EU",), campaigns=camp, holdout_fraction=0.0)
+    assert ads.run_auction(agent_id=adult_id(personas), tick=7) is not None
+    priced = [e for e in log.by_kind("ad_auction") if "price" in e["data"]]
+    strips = [e for e in log.by_kind("ad_auction")
+              if e["data"].get("action") == "strip_targeting"]
+    assert len(priced) == 1 and strips
+    m = measure_campaign(log, camp[0], ads, n_agents=100)
+    apply_fdr([m])
+    assert m["impressions"] == 1
+    assert m["spend"] == priced[0]["data"]["price"]
 
 
 def test_frequency_cap_binds():
@@ -117,6 +159,33 @@ def test_click_and_conversion_events_logged():
             ads.simulate_response(aid, creative, tick=t)
     assert log.by_kind("ad_click")
     assert log.by_kind("ad_conversion")
+
+
+def test_ad_conversion_logged_at_actual_tick_and_horizon_limited():
+    class FixedLatency:
+        def __init__(self, draw):
+            self.draw = draw
+        def geometric(self, p):
+            return self.draw
+
+    camp = [Campaign(id="lat", advertiser="L", bid=5.0, budget=1000,
+                     base_ctr=1.0, base_cvr=1.0)]
+    ads, log, personas, _ = setup(campaigns=camp, holdout_fraction=0.0)
+    ads.latency_rng = FixedLatency(3)  # latency = 2 ticks
+    creative = ads.run_auction(adult_id(personas), tick=5)
+    ads.simulate_response(adult_id(personas), creative, tick=5)
+    conv = log.by_kind("ad_conversion")[-1]
+    assert conv["tick"] == 7
+    assert conv["data"]["impression_tick"] == 5
+
+    ads2, log2, personas2, _ = setup(campaigns=[Campaign(id="late", advertiser="L",
+                                         bid=5.0, budget=1000,
+                                         base_ctr=1.0, base_cvr=1.0)],
+                                     holdout_fraction=0.0, n_ticks=6)
+    ads2.latency_rng = FixedLatency(3)  # tick 5 + 2 falls beyond horizon
+    creative2 = ads2.run_auction(adult_id(personas2), tick=5)
+    ads2.simulate_response(adult_id(personas2), creative2, tick=5)
+    assert not log2.by_kind("ad_conversion")
 
 
 def test_beta_interval_covers_truth():
@@ -251,14 +320,36 @@ def test_marketing_metrics_present_and_consistent():
             if cr:
                 ads.simulate_response(aid, cr, t)
     m = measure_campaign(log, camp[0], ads, n_agents=100)
+    apply_fdr([m])
     for k in ("roas", "iroas", "cac", "ltv", "incremental_ltv",
-              "lift_cuped", "lift_pvalue", "lift_significant", "mde"):
+              "lift_cuped", "lift_pvalue", "lift_pvalue_raw", "lift_qvalue_bh",
+              "lift_significant", "lift_significant_bh_fdr", "mde",
+              "budget_configured", "budget_remaining", "budget_exhausted",
+              "economics_provenance", "economic_inputs", "lift_ci_method",
+              "revenue"):
         assert k in m, f"missing {k}"
     assert m["mde"] > 0  # holdout sized -> a finite detectable effect
     assert "dose_response" in m and len(m["dose_response"]) >= 1
     for bucket in m["dose_response"]:
         assert "freq" in bucket and bucket["n"] > 0 and 0 <= bucket["conv_rate"] <= 1
     assert m["lift"] > 0 and m["iroas"] > 0 and m["roas"] > 0
+    assert m["revenue"] > 0
     assert m["lift_pvalue"] < 0.05 and m["lift_significant"] is True
+    assert m["lift_qvalue_bh"] <= 0.05 and m["lift_significant_bh_fdr"] is True
+    assert m["spend"] <= m["budget_configured"] + 1e-9
+    assert m["economics_provenance"] == "scenario_assumption"
+    assert m["lift_ci_method"] == "uncorrected_newcombe_95"
     assert np.isfinite(m["lift_cuped"])
     assert m["ltv"] == 2.0 * camp[0].ltv_multiplier
+
+
+def test_apply_fdr_reports_bh_qvalues_across_campaign_family():
+    measures = [
+        {"lift_pvalue": 0.01},
+        {"lift_pvalue": 0.03},
+        {"lift_pvalue": 0.20},
+    ]
+    apply_fdr(measures)
+    assert [round(m["lift_qvalue_bh"], 4) for m in measures] == [0.03, 0.045, 0.2]
+    assert [m["lift_significant_bh_fdr"] for m in measures] == [True, True, False]
+    assert [m["lift_significant"] for m in measures] == [True, True, False]

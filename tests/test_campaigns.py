@@ -2,6 +2,9 @@
 
 from socio_sim.ads.campaigns import Campaign
 from socio_sim.config import RunConfig
+from socio_sim.engine import Simulation
+from socio_sim.logs.manifest import Manifest
+from socio_sim.logs.replay import verify
 from socio_sim.pipeline import run_and_analyze
 
 
@@ -18,11 +21,27 @@ def test_run_and_analyze_uses_custom_campaigns():
 
 
 def test_custom_campaigns_replay_is_deterministic():
-    """Replay must still verify with custom campaigns (campaigns_fn is applied
-    on the replay path too, in-process)."""
+    """Replay verifies custom campaigns from manifest-persisted specs."""
     a = run_and_analyze(RunConfig.test(jurisdictions=("EU",), n_agents=150),
                         campaigns_fn=custom_fn, verify_replay=True)
     assert a.replay["checked"] and a.replay["ok"], a.replay["msg"]
+    assert a.result.manifest.campaign_specs[0]["id"] == "solo"
+
+
+def test_custom_campaigns_manifest_replay_after_save_load(tmp_path):
+    a = run_and_analyze(RunConfig.test(jurisdictions=("EU",), n_agents=120),
+                        campaigns_fn=custom_fn, verify_replay=False)
+    p = tmp_path / "manifest.json"
+    a.result.manifest.save(p)
+    m = Manifest.load(p)
+    assert m.campaign_specs and m.campaign_specs[0]["id"] == "solo"
+
+    def replay_from_manifest(config_dict):
+        return Simulation(RunConfig.from_dict(config_dict),
+                          campaigns=m.campaigns()).run().log
+
+    ok, msg = verify(m, a.result.log.stream_hash(), replay_from_manifest)
+    assert ok, msg
 
 
 def test_research_mode_with_custom_campaigns():
@@ -32,3 +51,14 @@ def test_research_mode_with_custom_campaigns():
                         verify_replay=False)
     assert a.mc is not None
     assert set(a.summary["ads"].keys()) == {"solo"}
+
+
+def test_campaign_measurement_uses_eligible_opportunity_itt():
+    a = run_and_analyze(RunConfig.test(jurisdictions=("EU",), n_agents=120,
+                                       n_ticks=24, holdout_fraction=0.5),
+                        campaigns_fn=custom_fn, verify_replay=False)
+    m = a.summary["ads"]["solo"]
+    assert m["estimand"] == "eligible_opportunity_itt"
+    assert m["eligible_opportunities"] >= m["impressions"]
+    assert m["n_exposed"] + m["n_holdout"] <= m["eligible_opportunities"]
+    assert all("price" not in e["data"] for e in a.result.log.by_kind("ad_opportunity"))

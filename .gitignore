@@ -9,3 +9,5 @@ out/
 .ipynb_checkpoints/
 .playwright-mcp/
 *.png
+!socio_sim/web/static/assets/
+!socio_sim/web/static/assets/*.png

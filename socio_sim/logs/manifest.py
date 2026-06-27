@@ -18,12 +18,15 @@ class Manifest:
     package_version: str
     pack_versions: dict
     content_mode: str
+    campaign_specs: list[dict] | None = None
     llm_cache_hash: str | None = None
     stream_hash: str | None = None
+    event_count: int | None = None
 
     @classmethod
     def create(cls, cfg: RunConfig, pack_versions: dict,
-               llm_cache_hash: str | None = None) -> "Manifest":
+               llm_cache_hash: str | None = None,
+               campaign_specs: list[dict] | None = None) -> "Manifest":
         return cls(
             config=cfg.to_dict(),
             config_hash=cfg.config_hash(),
@@ -31,6 +34,7 @@ class Manifest:
             package_version=socio_sim.__version__,
             pack_versions=dict(pack_versions),
             content_mode=cfg.content_mode,
+            campaign_specs=campaign_specs,
             llm_cache_hash=llm_cache_hash,
         )
 
@@ -46,3 +50,7 @@ class Manifest:
 
     def run_config(self) -> RunConfig:
         return RunConfig.from_dict(self.config)
+
+    def campaigns(self):
+        from socio_sim.ads.campaigns import campaigns_from_specs
+        return campaigns_from_specs(self.campaign_specs)

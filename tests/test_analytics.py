@@ -1,3 +1,5 @@
+import re
+
 import numpy as np
 
 from socio_sim.analytics.metrics import (bootstrap_ci, cascade_sizes,
@@ -132,8 +134,34 @@ def test_report_contains_disclaimer_and_intervals():
     summary = summarize_run(result)
     md = render(summary, result.manifest)
     assert "Research use only" in md
+    assert "not legal advice" in md
     assert "95%" in md
     assert result.manifest.config_hash[:8] in md
+    assert not re.search(r"\bnan\b", md.lower())
+    assert not re.search(r"\binfinity\b", md.lower())
+
+
+def test_report_minor_ad_text_is_jurisdiction_aware():
+    us = Simulation(RunConfig.test(jurisdictions=("US",), n_agents=80, n_ticks=12)).run()
+    us_md = render(summarize_run(us), us.manifest)
+    assert "EU-ADS-MINOR-1" not in us_md
+    assert "no EU minor-ad ban is active" in us_md
+
+    eu = Simulation(RunConfig.test(jurisdictions=("EU",), n_agents=80, n_ticks=12)).run()
+    eu_md = render(summarize_run(eu), eu.manifest)
+    assert "EU-ADS-MINOR-1" in eu_md
+
+
+def test_small_eu_report_flags_insufficient_moderation_sample():
+    result = Simulation(RunConfig.test(jurisdictions=("EU",), n_agents=60, n_ticks=12)).run()
+    summary = summarize_run(result)
+    assert summary["moderation"]["insufficient_sample"] is True
+    for groups in summary["fairness"].values():
+        for row in groups.values():
+            assert "n_harmful" in row and "n_benign" in row
+    md = render(summary, result.manifest)
+    assert "insufficient sample" in md
+    assert not re.search(r"\bnan\b", md.lower())
 
 
 def test_wilson_interval_brackets_and_orders():
@@ -164,3 +192,15 @@ def test_report_states_uncertainty_provenance():
     md = render(summarize_run(result), result.manifest)
     low = md.lower()
     assert "provenance" in low or "not monte carlo" in low or "single-run" in low
+
+
+def test_dynamic_graph_report_uses_final_topology():
+    cfg = RunConfig.test(jurisdictions=("EU",), n_ticks=72,
+                         follow_rate=0.1, unfollow_rate=0.1, churn_rate=0.04)
+    result = Simulation(cfg).run()
+    summary = summarize_run(result)
+    assert result.graph_stats["initial"]
+    assert result.graph_stats["final"]
+    assert summary["graph"]["m"] == result.graph_stats["final"]["m"]
+    md = render(summary, result.manifest)
+    assert "values above are final topology" in md

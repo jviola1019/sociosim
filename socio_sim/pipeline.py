@@ -13,12 +13,15 @@ import numpy as np
 
 from socio_sim.analytics.metrics import summarize_run
 from socio_sim.analytics.report import render
+from socio_sim.ads.campaigns import campaigns_from_specs
 from socio_sim.config import RunConfig
 from socio_sim.engine import Simulation
 from socio_sim.logs.replay import verify
 from socio_sim.policy.engine import PolicyEngine
 from socio_sim.policy.transparency import transparency_report
-from socio_sim.validation.calibrate import implausibility
+from socio_sim.validation.calibrate import (dominant_implausibility_metric,
+                                            implausibility,
+                                            implausibility_components)
 from socio_sim.validation.montecarlo import run_replicates
 from socio_sim.validation.targets import compute_observed, load_targets
 
@@ -29,6 +32,16 @@ REPLAY_AGENT_LIMIT = 2000
 def _headline_metrics(result) -> dict:
     """Scalar headline metrics extracted from one run, for MC aggregation."""
     s = summarize_run(result)
+    ads = list((s.get("ads") or {}).values())
+    ad_impressions = sum(float(a.get("impressions", 0)) for a in ads)
+    ad_clicks = sum(float(a.get("clicks", 0)) for a in ads)
+    ad_conversions = sum(float(a.get("conversions", 0)) for a in ads)
+    ad_spend = sum(float(a.get("spend", 0)) for a in ads)
+    ad_revenue = sum(float(a.get("revenue", 0)) for a in ads)
+    exposed_n = sum(float(a.get("n_exposed", 0)) for a in ads)
+    ad_lift = (sum(float(a.get("lift", 0)) * float(a.get("n_exposed", 0))
+                   for a in ads) / exposed_n) if exposed_n else 0.0
+    disclosures = [1.0 if a.get("disclosure_present") else 0.0 for a in ads]
     return {
         "harmful_exposure_rate": float(s["harmful_exposure"]["rate"]),
         "moderation_precision": float(s["moderation"]["precision"]),
@@ -36,6 +49,13 @@ def _headline_metrics(result) -> dict:
         "appeal_grant_rate": float(s["appeals"]["granted_rate"]),
         "welfare_mean": float(s["welfare"]["mean"]),
         "n_posts": float(s["n_posts"]),
+        "ad_impressions": ad_impressions,
+        "ad_ctr": (ad_clicks / ad_impressions) if ad_impressions else 0.0,
+        "ad_cvr": (ad_conversions / ad_clicks) if ad_clicks else 0.0,
+        "ad_spend": ad_spend,
+        "ad_roas": (ad_revenue / ad_spend) if ad_spend else 0.0,
+        "ad_lift_itt": ad_lift,
+        "ad_disclosure_rate": float(np.mean(disclosures)) if disclosures else 0.0,
     }
 
 
@@ -72,6 +92,8 @@ class Analysis:
     observed: dict
     targets: dict
     implausibility: float
+    implausibility_components: list
+    implausibility_dominant_metric: str | None
     replay: dict          # {checked, ok, msg}
     mc: object = None     # None in Preview; {metric: {median, ci, n_replicates, provenance}} in Research
     transparency: object = None  # DSA/§230/CN/FTC-style transparency-report tally
@@ -103,18 +125,17 @@ def run_and_analyze(cfg: RunConfig, *, write: bool = True,
     summary = summarize_run(result)
     observed = compute_observed(result, summary)
     targets = load_targets(cfg.benchmark)
+    i_components = implausibility_components(observed, targets)
 
     replay = {"checked": False, "ok": None, "msg": "skipped (large run)"}
     if verify_replay:
         phase("verifying replay")
-        # campaigns_fn is reconstructed deterministically on the replay path too,
-        # so custom-campaign runs still verify (in-process). NOTE: campaigns are
-        # not persisted in the manifest, so cross-process replay from a saved
-        # manifest uses default campaigns (see KNOWN_LIMITATIONS.md).
         def _replay_run(cd):
             rc = RunConfig.from_dict(cd)
-            return Simulation(rc, campaigns=campaigns_fn(rc) if campaigns_fn
-                              else None).run().log
+            campaigns = campaigns_from_specs(result.manifest.campaign_specs)
+            if campaigns is None and campaigns_fn:
+                campaigns = campaigns_fn(rc)
+            return Simulation(rc, campaigns=campaigns).run().log
         ok, msg = verify(result.manifest, result.log.stream_hash(), _replay_run)
         replay = {"checked": True, "ok": bool(ok), "msg": msg}
 
@@ -128,7 +149,10 @@ def run_and_analyze(cfg: RunConfig, *, write: bool = True,
 
     return Analysis(
         result=result, summary=summary,
-        report_md=render(summary, result.manifest),
+        report_md=render(summary, result.manifest, mc=mc),
         observed=observed, targets=targets,
-        implausibility=implausibility(observed, targets), replay=replay, mc=mc,
+        implausibility=implausibility(observed, targets),
+        implausibility_components=i_components,
+        implausibility_dominant_metric=dominant_implausibility_metric(i_components),
+        replay=replay, mc=mc,
         transparency=transparency)

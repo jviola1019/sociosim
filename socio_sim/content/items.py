@@ -15,7 +15,7 @@ class ContentItem:
     id: str
     author_id: int
     tick: int
-    media_type: str            # text | image | video (media simulated as metadata)
+    media_type: str            # text | image | video; policy metadata, optional generated media
     topic: int
     stance: float              # [-1, 1]
     text: str

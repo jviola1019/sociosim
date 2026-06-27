@@ -3,6 +3,131 @@
 **Purpose:** live resume doc so this sprint continues across sessions/token cutoffs.
 Resuming? Read this, then `AUDIT_LOG.md`, then `CHANGELOG.md`. Branch: `feat/audit-p0-p1`.
 
+## Audit-4 resume note — 2026-06-27
+Current verification after subagent audit remediation: `ruff check .` passes,
+JavaScript syntax check passes, and full pytest passes (`265 passed`). The web
+console was launched locally and smoke-tested through `/api/meta`, `/api/run`,
+`/api/job/<id>`, and report/transparency exports. Calibration wording was
+corrected: `RunConfig.calibrated()` is calibration-consistent under the bundled
+cutoff with current default `I=1.25 < 3.0`, dominated by `ad_ctr`; older sprint
+history calibration wording is superseded by this note and `CALIBRATION_REPORT.md`.
+
+## SPRINT 9 — measured accuracy + creative studio + verification (user 2026-06-22; multi-segment)
+User chose: Rung-5 real-outcome scoring · FULL creative studio · AGGRESSIVE knob
+restructure · honest README · + verify security/key-leakage + ADA + gov-vs-marketing
+differentiated data/graphs. DONE so far (commits 71-73):
+- S9.1 Proper scoring on measured classifier: Brier/log-loss/ECE + Brier-Skill vs
+  climatology baseline on REAL data (toxicity BSS 0.23, spam 0.95; well-calibrated);
+  honest scope (beats no-skill baseline, not real-market). BENCHMARK_REPORT updated.
+- S9.2 REAL PNG ad creatives: /api/creative endpoint (media.synth_image, seeded by
+  campaign/segment/market, bounded dims, headers) replaces SVG placeholders; <img>
+  with ADA alt + download; removed dead creativeSVG. Browser-verified.
+- S9.V1 Security/key-leakage scan CLEAN (runtime token, env-only Anthropic key, no
+  secrets/.env tracked) — SECURITY.md Verification section.
+- S9.V2 ADA/WCAG fixes: all controls labeled, aria-live+role=status results, global
+  :focus-visible. Browser-verified.
+SPRINT 9 COMPLETE (commits 71-78, pushed PR#2):
+- S9.3 DONE: creative studio — campaign segment(age)/market(topic) selects ->
+  Campaign.targeting (real audience A/B; untargeted 413 impr vs 25-34 arm 8 impr),
+  per-variant REAL PNG creatives, + Ads-tab A/B verdict wired to engine lift CIs
+  (honest "significant winner" only if top CI clears runner-up). Browser-verified.
+- S9.4b DONE: gov-vs-marketing differentiated dashboards (lens marketing_output
+  numbers + output-tab lens dots: Fairness/Audit=gov, Ads=marketing).
+- S9.5 DONE: honest README "what this is (and isn't) useful for"; realism audit =
+  cited presets (S5) + researched tooltips (S5) + Saltelli/effect audit (MODELS §6).
+- S9.V1/V2 DONE: security/key-leakage CLEAN; ADA/WCAG fixes; consistency audit
+  (fixed stale runner import + documented all CLI flags).
+- S9.4a (aggressive knob restructure): NOT done by DESIGN — data-driven audit shows
+  NO redundant/dead knobs (lens-specific); aggressive deletion would be a REDUCTION
+  the user warned against. impression_fatigue stays flagged-advanced. Decision documented.
+OPS NOTE: killed 28 leaked web-server processes (every `run.py --web` spawns a
+venv+WindowsApps-shim pair; pkill -f "run.py --web" does NOT kill them on Windows —
+use PowerShell Get-CimInstance Win32_Process | Stop-Process). A stale zombie server
+caused a false "empty ads" failure (ran pre-token/old-targets code); code was always
+correct. ALWAYS kill servers via CIM by PID after browser checks.
+
+## SPRINT 8 — architecture clarify + marketing/government lens + settings audit (user 2026-06-22)
+DONE+verified:
+- S8.1 Renamed experiments/runner.py -> compare.py (kills run.py/runner.py confusion);
+  deleted regenerable build artifacts (the real "duplicate files"); dead-module scan
+  = zero unreferenced. No behavior change.
+- S8.2 analytics/lens.py: run_lens() tags every setting (government/marketing/core),
+  emits a lens banner + output-interpretation in the report ("Run lens & output
+  interpretation") AND the web payload; UI shows a lens banner (active badges +
+  what the output means) + per-tab lens dots + legend. Browser-verified (0 console
+  errors): banner shows Government+Marketing active + interpretation line. +4 tests.
+- S8.3 Data-driven settings audit (Saltelli total-effect + OAT effect screen):
+  NO dead/redundant knobs; knobs are LENS-SPECIFIC (organic->government,
+  ad->marketing); only impression_fatigue is low-influence (ST~0.09) -> flagged
+  advanced (behavior.py note + MODELS.md §6); no deletions/merges; candidate future
+  additions documented. Determinism unaffected (lens is reporting-only).
+Reach the TOP lawful rung for the classifier + upgrade docs to professional w/
+diagrams + full model definitions. DONE+verified:
+- Datasets inserted (license-VERIFIED via HF API before bundling): Civil Comments
+  (CC0-1.0, toxicity) + Deysi spam-detection (Apache-2.0, spam). SMS-Spam REJECTED
+  (HF license 'unknown'). Balanced 1500/1500, PII-scrubbed (emails/URLs/phones/
+  @handles), 400-char cap, gzipped JSONL under data/benchmarks/moderation/;
+  provenance script scripts/fetch_moderation_benchmarks.py; package-data + wheel
+  ship verified.
+- validation/benchmark_eval.py: deterministic split + numpy LR -> MEASURED P/R/F1
+  + tie-corrected ROC-AUC. Results: toxicity F1=0.74/AUC=0.81; spam F1=0.99/AUC=
+  1.00 (baseline ~0.52). Provenance 'measured-on-benchmark' (top rung).
+- run.py --measure-classifier -> BENCHMARK_REPORT.md; DATA_MANIFEST entries
+  (verified license/PII/redistribution). Tests +4.
+- DOCS UPGRADE (user NOTE): docs/MODELS.md professional ref w/ 4 Mermaid diagrams
+  (architecture, per-tick flow, validation ladder) + full model-definition tables;
+  README architecture diagram + MODELS link; ladder docs reconciled.
+HONEST CEILING held: measures the CLASSIFIER COMPONENT on real licensed text; does
+NOT make the synthetic ABM predictive of a real platform; no real-person decisions.
+
+## SPRINT 6 — research-only -> measured (validation ladder, user decision 2026-06-22)
+Audit-3 correction note (2026-06-26): current active docs/runtime label this
+rung `held-out-aggregate`; the historical phrase "backtested-out-of-sample"
+below is retained only as sprint history, not as a current predictive claim.
+
+Climb from "research-only" toward "measured" WITHOUT crossing legal/ethics lines
+(no PII, no scraping, no real-person decisions, no point-prediction). DONE+verified:
+- Validation ladder defined w/ provenance labels: synthetic-exploratory <
+  uncalibrated < calibration-consistent < stylized-fact-validated <
+  backtested-out-of-sample < measured-on-benchmark (docs/DATA_MANIFEST.md, usage.md).
+- S6.1 validation/stylized.py: 5 cited stylized facts (heavy-tail degree,
+  clustering>>random, cascade skew, participation inequality, diurnal) — 5/5 on
+  calibrated world; 3 tests.
+- S6.2 validation/backtest.py: leave-out out-of-sample backtest (calibrate graph
+  on TRAIN subset of public aggregates, validate HELD-OUT metrics) -> test_pass,
+  I_test=0.12 at quick scale; 3 tests.
+- S6.3 run.py --backtest -> BACKTEST_REPORT.md (committed); docs/DATA_MANIFEST.md
+  governance (aggregate/public only, no PII, no scraping; DSA Art.40 gate for real
+  microdata). Honest ceiling: aggregate/pattern agreement, NOT point-prediction;
+  agent behavioural magnitudes stay calibrated assumptions. Rung-4 (classifier on
+  real public benchmark) is the next gated step (needs explicit data decision).
+
+## SPRINT 5 — UX/marketing/settings/security redesign (user decision 2026-06-21)
+USER DECISIONS: (1) Red Team tab -> **Full Business Marketing Suite** (subsections:
+Campaign Studio + A/B Experiment Lab + Audience & Brand-Safety), built on the
+existing measurement engine (incrementality/iROAS/CAC/LTV/MDE/dose-response).
+(2) **Fold red-team adversaries into presets** (drop standalone tab; keep feature
+via presets). (3) Presets: BOTH cited-framework AND business-scenario, **subsectioned**;
+ground in heavy research (many cited sources). (4) Settings: clarify
+labels/units/help/grouping + restructure/add knobs + harden web console +
+document security posture (ALL four).
+EVIDENCE BASE: 2 background research agents dispatched (marketing measurement/
+brand-safety standards [a7e44cef]; moderation-settings grounding + web-app
+security [a28f9a6]) -> cited recommendations feed presets/settings/suite/security.
+SEGMENTS: S5.1 research(agents) · S5.2 cited+subsectioned presets + visible
+summary · S5.3 settings clarity/restructure · S5.4 Business Suite · S5.5 security
+hardening + SECURITY.md · S5.6 test+browser-verify+docs+commit.
+SPRINT-5 DONE+verified (commits 60-65): S5.1 research (2 agents, ~130 cited
+sources) -> docs/RESEARCH_EVIDENCE.md; S5.2 cited+subsectioned presets (14:
+Regulatory/Research/Business) + visible "what changes"+Sources panel + adversaries
+FOLDED into presets (no standalone tab); S5.3 settings clarified (units + cited
+ranges as tooltips); S5.4 Business Marketing Suite (A/B power lab, unit economics,
+reach&freq, GARM brand-safety) replaces Red Team; S5.5 security hardening
+(token + Origin/Host + CSP/headers + body/CT limits + SSRF allow-list) + SECURITY.md
++ 8 tests. All browser-verified (0 console errors; folded red_team reaches run;
+calculators compute). Fixed real bug: marketing inputs' min/step blocked the form
+submit -> stripped constraints. 214 tests green; ruff clean.
+
 ## SPRINT 4 — fix ALL caveats (user decision 2026-06-19)
 DECISION: keep ALL guardrails (fully legal, no PII, no fabrication, research-only,
 not-legal-advice, projections-not-predictions) as honest disclaimers; push every
@@ -15,7 +140,8 @@ SPRINT-3 DONE+verified: real trained classifier (measured P/R), bundled empirica
 datasets (cited), distributed pluggable executor, procedural image + APNG video +
 pluggable backend + accel/GPU kernel (numpy-verified). 49 commits.
 SPRINT-4 DONE+verified (all 5 eng caveats + UI): (1) calibrated profile (plc p=0.7,
-I=1.0 all in-band, CALIBRATION_REPORT, replay); (2) multi-output/seed/Sobol
+current calibration wording superseded by Audit-4 note above, CALIBRATION_REPORT,
+replay); (2) multi-output/seed/Sobol
 sensitivity + ABC->output (report §1b/§2b); (3) approx clustering n>5000; (4)
 dynamic graph follow/unfollow/churn (opt-in, deterministic+replay, default static);
 (5) stale-doc + style.css honesty. UI: all new options exposed as controls

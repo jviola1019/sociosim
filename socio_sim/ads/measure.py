@@ -48,7 +48,17 @@ def apply_fdr(measures, alpha: float = 0.05):
     if valid:
         idxs, pvals = zip(*valid)
         rejected = benjamini_hochberg(pvals, alpha)
+        p = np.asarray(pvals, dtype=float)
+        n = p.size
+        order = np.argsort(p)
+        ranked = p[order]
+        q_ranked = np.minimum.accumulate((ranked * n / np.arange(1, n + 1))[::-1])[::-1]
+        q_ranked = np.minimum(q_ranked, 1.0)
+        qvals = np.empty(n, dtype=float)
+        qvals[order] = q_ranked
         for j, i in enumerate(idxs):
+            measures[i]["lift_qvalue_bh"] = float(qvals[j])
+            measures[i]["lift_significant_bh_fdr"] = rejected[j]
             measures[i]["lift_significant"] = rejected[j]
     return measures
 
@@ -69,38 +79,56 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
     cid = campaign.id
     auctions = [e for e in log.by_kind("ad_auction")
                 if e["data"].get("campaign_id") == cid
-                and "blocked_rule" not in e["data"]]
+                and "price" in e["data"]]
     clicks = [e for e in log.by_kind("ad_click")
               if e["data"].get("campaign_id") == cid]
     convs = [e for e in log.by_kind("ad_conversion")
              if e["data"].get("campaign_id") == cid]
     org_convs = [e for e in log.by_kind("organic_conversion")
                  if e["data"].get("campaign_id") == cid]
+    opportunities = [e for e in log.by_kind("ad_opportunity")
+                     if e["data"].get("campaign_id") == cid]
+    disclosure_insertions = [
+        e for e in log.by_kind("moderation")
+        if e["content_id"] and str(e["content_id"]).startswith(f"ad-{cid}-")
+        and e["data"].get("action") == "insert_disclosure"
+    ]
 
     impressions = len(auctions)
     spend = float(sum(e["data"]["price"] for e in auctions))
     n_clicks, n_convs = len(clicks), len(convs)
+    budget_configured = float(campaign.initial_budget)
+    budget_remaining = float(campaign.budget)
 
     ctr = n_clicks / impressions if impressions else 0.0
     cvr = n_convs / n_clicks if n_clicks else 0.0
     revenue = float(sum(e["data"]["value"] for e in convs))
 
-    # Incremental lift via clean-holdout RCT. An agent "converts" if it
-    # converted through EITHER channel (ad OR organic baseline); holdout agents
-    # can only convert organically, so exposed_rate - holdout_rate isolates the
-    # ad's incremental effect. Both arms are restricted to the targeted
-    # population so the comparison is apples-to-apples. CI: Newcombe
-    # (Wilson-hybrid) difference of two proportions; P(lift>0) from independent
-    # Jeffreys-Beta posteriors. Provenance: analytic / Bayesian, NOT Monte Carlo
-    # across replicates (run multiple replicates for that).
-    exposed = {e["actor_id"] for e in auctions}
-    holdout = {a for a in range(n_agents)
-               if ads.in_holdout(cid, a) and ads._targeting_match(campaign, a)}
+    # Incremental lift via eligible-opportunity ITT. The auction logs an
+    # opportunity for every targeted active ad slot before holdout suppression.
+    # Denominators therefore match treatment/holdout users who had a real ad
+    # opportunity, not merely users who happened to receive a paid impression.
+    # This avoids conditioning the treatment arm on delivery/activity. CI:
+    # Newcombe (Wilson-hybrid) difference of two proportions; P(lift>0) from
+    # independent Jeffreys-Beta posteriors. Provenance: analytic / Bayesian,
+    # NOT Monte Carlo across replicates (run multiple replicates for that).
+    exposed = {e["actor_id"] for e in opportunities
+               if not e["data"].get("holdout")}
+    holdout = {e["actor_id"] for e in opportunities
+               if e["data"].get("holdout")}
+    if not opportunities:
+        # Backward-compatible fallback for logs created before ad_opportunity.
+        exposed = {e["actor_id"] for e in auctions}
+        holdout = {a for a in range(n_agents)
+                   if ads.in_holdout(cid, a) and ads._targeting_match(campaign, a)}
     # Attribution window: credit an ad conversion only if it lands within W
     # ticks of the impression (applied symmetrically; organic baseline has no
     # ad latency). A tighter window credits fewer ad conversions -> lower lift.
     window = campaign.attribution_window_ticks
-    ad_convs_attr = [e for e in convs if e["data"].get("latency", 0) <= window]
+    ad_convs_attr = [
+        e for e in convs
+        if e["tick"] - e["data"].get("impression_tick", e["tick"]) <= window
+    ]
     converted = ({e["actor_id"] for e in ad_convs_attr}
                  | {e["actor_id"] for e in org_convs})
     n_exposed, n_holdout = len(exposed), len(holdout)
@@ -139,11 +167,24 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
 
     return {
         "campaign_id": cid,
+        "advertiser": campaign.advertiser,
+        "targeting": dict(campaign.targeting),
+        "creative_key": "|".join([
+            cid,
+            campaign.advertiser,
+            str(sorted(campaign.targeting.items())),
+            str(campaign.base_ctr),
+            str(campaign.base_cvr),
+        ]),
+        "disclosure_present": bool(ads._compliance(campaign) or disclosure_insertions),
+        "ftc_disclosure_inserted": bool(disclosure_insertions),
         "impressions": impressions,
+        "eligible_opportunities": len(opportunities),
         "clicks": n_clicks,
         "conversions": n_convs,
         "organic_conversions": len(org_convs),
         "spend": spend,
+        "revenue": revenue,
         "ctr": ctr,
         "ctr_ci": beta_interval(n_clicks, impressions),
         "cvr": cvr,
@@ -152,11 +193,16 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
         "cpc": (spend / n_clicks) if n_clicks else float("nan"),
         "roi": ((revenue - spend) / spend) if spend else float("nan"),
         "lift": lift,
+        "estimand": "eligible_opportunity_itt",
         "lift_ci": newcombe_diff_ci(x_exposed, n_exposed, x_holdout, n_holdout),
+        "lift_ci_method": "uncorrected_newcombe_95",
         "lift_cuped": lift_cuped,
         "lift_pvalue": lift_pvalue,
+        "lift_pvalue_raw": lift_pvalue,
+        "lift_qvalue_bh": float("nan"),
         "lift_significant": bool(lift_pvalue < 0.05) if lift_pvalue == lift_pvalue
         else False,
+        "lift_significant_bh_fdr": False,
         "exposed_rate": exposed_rate,
         "holdout_rate": holdout_rate,
         "prob_lift_positive": prob_diff_positive(x_exposed, n_exposed,
@@ -170,6 +216,15 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
         "cac": cac,
         "ltv": ltv,
         "incremental_ltv": incr_conv * ltv,
+        "economics_provenance": "scenario_assumption",
+        "economic_inputs": {
+            "conversion_value": campaign.conversion_value,
+            "ltv_multiplier": campaign.ltv_multiplier,
+            "attribution_window_ticks": window,
+        },
+        "budget_configured": budget_configured,
+        "budget_remaining": budget_remaining,
+        "budget_exhausted": budget_remaining <= 1e-9 or spend >= budget_configured - 1e-9,
         "n_exposed": n_exposed,
         "n_holdout": n_holdout,
     }

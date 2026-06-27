@@ -35,7 +35,8 @@ include = ["socio_sim*"]
 
 [tool.setuptools.package-data]
 "socio_sim.policy" = ["packs/*.yaml"]
-"socio_sim" = ["data/benchmarks/*.json"]
+"socio_sim" = ["data/benchmarks/*.json", "data/benchmarks/moderation/*.jsonl.gz"]
+"socio_sim.web" = ["static/*.html", "static/*.css", "static/*.js", "static/assets/*.png"]
 
 [tool.pytest.ini_options]
 addopts = "-q"

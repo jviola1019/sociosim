@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 
 from socio_sim.ads.auction import AdSystem
-from socio_sim.ads.campaigns import Campaign
+from socio_sim.ads.campaigns import Campaign, campaign_to_spec
 from socio_sim.agents.personas import Personas
 from socio_sim.agents.state import AgentState
 from socio_sim.config import RunConfig
@@ -124,7 +124,10 @@ class Simulation:
         #   openai_compatible -> free local OpenAI-compatible server (no key)
         base_gen = TemplateGenerator(cfg, self.rngs["content"],
                                      inject_signal=(cfg.classifier_mode == "trained"))
-        cache = cfg.llm_cache_path or str(Path(cfg.out_dir) / "llm_cache.json")
+        # The implicit LLM cache affects generated text, so keep it tied to the
+        # behavioral config identity rather than output storage (`out_dir`).
+        cache = cfg.llm_cache_path or str(
+            Path("out") / "llm_cache" / f"{cfg.config_hash()}.json")
         if cfg.content_mode == "claude":
             self.generator = ClaudeAdapter(
                 base=base_gen, cache_path=cache,
@@ -158,6 +161,7 @@ class Simulation:
         self.moderation = ModerationSystem(cfg, self.policy, self.personas,
                                            self.log, self.rngs["moderation"])
         self.campaigns = campaigns if campaigns is not None else default_campaigns(cfg)
+        self._campaign_specs = [campaign_to_spec(c) for c in self.campaigns]
         self.ads = AdSystem(cfg, self.campaigns, self.personas, self.state,
                             self.policy, self.log, self.rngs["ads"],
                             baseline_rng=self.rngs["conversion"],
@@ -297,8 +301,10 @@ class Simulation:
         llm_cache_hash = (self.generator.cache_hash()
                           if hasattr(self.generator, "cache_hash") else None)
         manifest = Manifest.create(cfg, self.policy.pack_versions(),
-                                   llm_cache_hash=llm_cache_hash)
+                                   llm_cache_hash=llm_cache_hash,
+                                   campaign_specs=self._campaign_specs)
         manifest.stream_hash = self.log.stream_hash()
+        manifest.event_count = len(self.log.events)
 
         if write:
             out = Path(cfg.out_dir)
@@ -308,6 +314,21 @@ class Simulation:
                 persist.append(**e)
             persist.close()
             manifest.save(out / "manifest.json")
+
+        if self._dynamic_graph:
+            import networkx as nx
+            final = nx.Graph()
+            final.add_nodes_from(range(cfg.n_agents))
+            for u, nbrs in self._adj.items():
+                for v in nbrs:
+                    if u < v:
+                        final.add_edge(u, v)
+            initial = {k: v for k, v in self.graph_stats.items()
+                       if k not in ("graph_sample", "initial", "final")}
+            final_stats = graph_summary(final)
+            self.graph_stats["initial"] = initial
+            self.graph_stats["final"] = final_stats
+            self.graph_stats.update(final_stats)
 
         return RunResult(log=self.log, manifest=manifest, personas=self.personas,
                          campaigns=self.campaigns, graph_stats=self.graph_stats,

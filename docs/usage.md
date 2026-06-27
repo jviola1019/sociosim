@@ -6,7 +6,7 @@
 python -m venv .venv
 .venv\Scripts\activate            # Windows (source .venv/bin/activate on POSIX)
 pip install -e .[dev]
-pytest                            # 110+ tests; -m "not slow" to skip stats tests
+pytest                            # full test suite; -m "not slow" to skip stats tests
 ```
 
 ## Web console (browser dashboard)
@@ -29,7 +29,7 @@ motion (blur-in reveals, count-up metrics, sliding tab indicators).
   populates the other tabs; then scale profile, seed, tick length, run label,
   replay toggle, and **Monte Carlo Replicates** (1 = Preview / within-run
   intervals; >1 = Research run with mc-replicated percentile intervals).
-- **Network** — agent/tick overrides, topic count, graph model (BA / WS / SBM)
+- **Network** — agent/tick overrides, topic count, graph model (BA / PLC / WS / SBM)
   and its parameters, homophily rewiring.
 - **Content** — generator (template / local LLM), model, and per-category
   ground-truth prevalence sliders (hate, harassment, misinfo, fraud, adult,
@@ -38,9 +38,12 @@ motion (blur-in reveals, count-up metrics, sliding tab indicators).
   human-review accuracy and delay, appeal grant rate.
 - **Feed & Ads** — ranking strategy, EU opt-out, exploration ε, feed size,
   holdout fraction, frequency cap, disclosure compliance, and a **campaign
-  editor** (add/remove campaigns with bid / budget / base CTR / base CVR;
+  editor** (add/remove campaigns with bid / budget / base CTR / base CVR /
+  conversion value / LTV multiplier / attribution window / segment / market;
   blank = three default campaigns).
-- **Red Team** — adversary toggles.
+Red-team adversaries are folded into cited Research/Business presets rather
+than a standalone tab; selecting those presets shows the active adversaries in
+the "what this changes" summary.
 
 The simulation runs **only when Run Simulation is clicked**, after settings are
 tuned. The engine runs in a background thread with a live progress meter
@@ -48,8 +51,8 @@ tuned. The engine runs in a background thread with a live progress meter
 
 - **Overview** — metric cards with confidence-interval bars.
 - **Feed** — a sampled slice of generated content, each post shown as a card with
-  a **unique, deterministically generated cover image and avatar** (procedural SVG
-  seeded by content id — offline, reproducible), persona, category tags, and the
+  a **unique, deterministic cover image and avatar** (generated bitmap topic
+  atlas + seeded SVG avatar — offline, reproducible), persona, category tags, and the
   moderation action applied.
 - **Charts** — diurnal posting, degree distribution, activity timeline, cascade
   sizes (hand-built SVG).
@@ -58,8 +61,8 @@ tuned. The engine runs in a background thread with a live progress meter
 - **Cascade** — the largest share tree, nodes revealed in posting-time order
   (propagation replay).
 - **Fairness** (confusion grid + FPR/FNR by group), **Ads** (each campaign with a
-  **unique generated ad creative** + table incl. CUPED-adjusted lift, MDE,
-  ROAS/iROAS/CAC/LTV and Benjamini–Hochberg significance), **Calibration**
+  **unique fictional v3 ad creative** + table incl. CUPED-adjusted lift, MDE,
+  ROAS/iROAS/CAC/LTV and Benjamini-Hochberg discovery screen), **Calibration**
   (benchmark whisker plot), **Log** (markdown report + Monte Carlo intervals +
   transparency tally; **Export** as Markdown / full JSON / transparency JSON).
 
@@ -75,8 +78,11 @@ python run.py --web [--port 8765 --bind 0.0.0.0 --no-open]   # browser console
 python run.py --llm [--model qwen2.5:0.5b]       # free local Ollama content
 ```
 
-`--bind` defaults to `127.0.0.1` (localhost only); set `0.0.0.0` only on a
-trusted host/container (see `Dockerfile`).
+`--bind` defaults to `127.0.0.1` (localhost only). Non-loopback bind requires
+`SOCIOSIM_ACCESS_TOKEN` and explicit `SOCIOSIM_ALLOWED_HOSTS` for the Host
+allow-list; protected exports and history calls use the `X-SocioSim-Token`
+header rather than tokenized URLs. Use non-loopback bind only behind trusted
+network controls (see `SECURITY.md`).
 
 When a run requests the local-LLM content mode, the server **bootstraps Ollama
 on demand** (starts the server, pulls the model) and shows the phase; if the
@@ -120,7 +126,7 @@ Key config knobs (all validated eagerly): `jurisdictions` (any of US/EU/CN),
 `ftc_enabled`, `feed_strategy` (`personalized|chronological|random`),
 `eu_optout_rate`, `content_mode` (`template|claude|ollama|openai_compatible`), `classifier_targets`
 (per-category precision/recall), `category_base_rates`, `ads_enabled`,
-`holdout_fraction`, `ad_frequency_cap_per_day`, `graph_kind` (`ba|ws|sbm`),
+`holdout_fraction`, `ad_frequency_cap_per_day`, `graph_kind` (`ba|plc|ws|sbm`),
 `red_team` (adversary names).
 
 ## Reports and metrics
@@ -136,7 +142,7 @@ markdown = render(summary, result.manifest)
 ## Experiments (baseline vs intervention, CRN-paired)
 
 ```python
-from socio_sim.experiments.runner import compare
+from socio_sim.experiments.compare import compare
 from socio_sim.experiments.scenarios import policy_stress_eu_vs_us
 
 baseline, intervention = policy_stress_eu_vs_us("quick")
@@ -157,8 +163,65 @@ from socio_sim.validation.targets import load_targets, compute_observed
 - `run_replicates` -> outcome distributions (median + 95% percentile interval).
 - `history_match` (LHS, implausibility < 3) then `abc_posterior` (closest
   fraction) -> parameter credible intervals.
-- `validation.sensitivity.first_order_indices` -> variance-based first-order
-  sensitivity (Sobol-style approximation).
+- `validation.sensitivity.first_order_indices` -> first-order (correlation-ratio)
+  sensitivity; `saltelli_indices` / `study.saltelli_study` -> gold-standard
+  Saltelli **S1 + total-effect ST** (interactions). `study.multi_output_sensitivity`
+  sweeps several outputs over a Sobol design across seeds.
+- `study.posterior_calibrated_mc` chains history-match -> ABC posterior -> output
+  interval (parameter-uncertainty propagation). All written to
+  `VALIDATION_REPORT.md` via `run.py --validate`.
+
+### Validation ladder (research-only -> measured)
+SocioSim is honest about *how* validated a claim is. The provenance ladder:
+`synthetic-exploratory` < `uncalibrated` < `calibration-consistent` (I<3 vs
+published aggregates) < **`stylized-fact-validated`** < **`held-out-aggregate`** < `measured-on-benchmark`. No claim may exceed its label.
+
+- **Stylized facts** (`validation.stylized`, provenance `stylized-fact-validated`):
+  does the calibrated world reproduce documented empirical regularities? — heavy-
+  tailed degree, clustering >> random, right-skewed cascades, participation
+  inequality, diurnal cycle (each cited).
+- **Held-out aggregate backtest** (`validation.backtest`, provenance `held-out-aggregate`): calibrate the graph on a train subset of public aggregates, then validate held-out aggregate metrics within tolerance. This is an aggregate sanity check, not platform-level prediction.
+- **Measured on real benchmarks** (`validation.benchmark_eval`, provenance
+  `measured-on-benchmark`, the top rung): `python run.py --measure-classifier`
+  trains the classifier on a deterministic split of bundled, license-clean,
+  de-identified datasets and reports REAL precision/recall/F1/ROC-AUC — Civil
+  Comments toxicity (CC0) and Deysi spam (Apache-2.0) -> `BENCHMARK_REPORT.md`.
+- `python run.py --backtest` runs the aggregate backtest + stylized facts -> `BACKTEST_REPORT.md`.
+- Data governance for every dataset is recorded in `docs/DATA_MANIFEST.md`
+  (aggregate/public only, no PII, no scraping). Real-person decisions / point-
+  prediction of a specific platform are out of scope by design.
+
+## Models & engineered features
+
+Every option below is reachable from the CLI (`run.py`), the web console, and
+`RunConfig`. Defaults keep runs deterministic; opt-in features never change the
+default event stream.
+
+- **Calibrated profile** — `--profile calibrated` / `RunConfig.calibrated()`.
+  History-matched Holme-Kim (`plc`) graph (p=0.7) that is
+  calibration-consistent under the bundled benchmark cutoff (current default
+  implausibility I=1.25 < 3; see `CALIBRATION_REPORT.md`). Keep its tuned scale
+  when comparing calibration scores.
+- **Benchmark target sets** — `--benchmark default|twitter_like|facebook_like` /
+  `RunConfig.benchmark`. Bundled *published aggregate* statistics (cited, no PII);
+  affects calibration scoring only, not the event stream.
+- **Moderation classifier** — `--classifier noise|trained` / `classifier_mode`.
+  `noise` = calibrated noise model (default). `trained` = a real pure-numpy
+  logistic-regression classifier (`content/ml_classifier.py`) trained on
+  category-signal content with **measured** held-out precision/recall.
+- **Dynamic social graph** — `--dynamic-graph` or `follow_rate` / `unfollow_rate`
+  / `churn_rate`. Daily follow (triadic closure) / unfollow / churn, emitted as
+  events, deterministic + bit-identically replayable. Default rates 0 = static.
+- **Network models** — `graph_kind = ba | plc | ws | sbm`. `plc` (Holme–Kim) adds
+  tunable clustering via triad prob `p`. Average clustering is exact for
+  n≤5000, a deterministic sampled estimate above that.
+- **Media synthesis** — `--media N` writes N real procedural PNG images plus one
+  animated-PNG (APNG) video to `out/<run>/media/` (`content/media.py`, offline,
+  zero-dep, deterministic). `set_image_backend()` plugs in an external model.
+- **Distributed / GPU** — `--workers N` or `run_replicates(executor=...)` (any
+  `concurrent.futures` executor: ProcessPool / Dask / Ray) for Monte Carlo;
+  `accel.py` routes the classifier's training matmuls to CuPy when a GPU is
+  present, else NumPy (GPU path is opt-in/unverified without a device).
 
 ## Replay & audit
 
@@ -197,8 +260,11 @@ cfg = RunConfig.quick(content_mode="ollama", llm_model="qwen2.5:0.5b",
                       llm_cache_path="out/llm_cache.json")
 ```
 
-`llm_base_url` defaults to `http://localhost:11434`. Recommended ≤1,000 agents
-with live generation (each post is one local inference call).
+`llm_base_url` defaults to `http://localhost:11434`. Loopback LLM URLs are
+accepted by default. Private/RFC1918 hosts must be explicitly allowed with
+`SOCIOSIM_LLM_ALLOWED_HOSTS=host-or-ip` to avoid SSRF into corporate networks.
+Recommended ≤1,000 agents with live generation (each post is one local
+inference call).
 
 ### Free, keyless: any OpenAI-compatible local server
 

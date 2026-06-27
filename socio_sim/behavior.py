@@ -24,6 +24,8 @@ class BehaviorParams:
     # Moderation interaction
     p_flag_scale: float = 0.30             # user-flag prob = p_flag_scale * moderation_attitude
     # Attention / fatigue
+    # Advanced knob: influence is regime/sample dependent. Keep it explicit and
+    # sensitivity-tested; do not treat older small-N influence rankings as final.
     impression_fatigue: float = 0.005      # fatigue added per impression seen
     fatigue_decay_per_tick: float = 0.05   # multiplicative fatigue decay each tick
     # Feed candidate window / exploration

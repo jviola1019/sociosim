@@ -7,7 +7,8 @@ by rule EU-ADS-SENS-1.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
+from copy import deepcopy
 
 from socio_sim.content.items import ContentItem
 
@@ -29,6 +30,14 @@ class Campaign:
     holdout_fraction: float | None = None  # None -> use RunConfig.holdout_fraction
     ftc_override: bool | None = None  # None -> use RunConfig.ftc_compliance
     _creative_counter: int = 0
+    _initial_budget: float | None = field(default=None, init=False, repr=False)
+
+    def __post_init__(self):
+        self._initial_budget = float(self.budget)
+
+    @property
+    def initial_budget(self) -> float:
+        return float(self._initial_budget if self._initial_budget is not None else self.budget)
 
     def has_sensitive_targeting(self) -> bool:
         return any(k in self.targeting for k in SENSITIVE_KEYS)
@@ -51,3 +60,25 @@ class Campaign:
             disclosure_present=ftc_compliance,
             campaign_id=self.id,
         )
+
+
+def campaign_to_spec(campaign: Campaign) -> dict:
+    """JSON-safe constructor args for replay manifests.
+
+    Campaign budgets mutate during a run, so callers should serialize campaigns
+    before simulation starts. Private runtime counters are intentionally omitted.
+    """
+    spec = {}
+    for f in fields(Campaign):
+        if f.name.startswith("_"):
+            continue
+        spec[f.name] = deepcopy(getattr(campaign, f.name))
+    return spec
+
+
+def campaigns_from_specs(specs: list[dict] | None) -> list[Campaign] | None:
+    if not specs:
+        return None
+    allowed = {f.name for f in fields(Campaign) if not f.name.startswith("_")}
+    return [Campaign(**{k: deepcopy(v) for k, v in spec.items() if k in allowed})
+            for spec in specs]

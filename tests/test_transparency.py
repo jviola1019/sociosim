@@ -54,3 +54,17 @@ def test_transparency_report_aggregates_actions_notices_appeals():
     ri = rep["rights_impact"]
     assert ri["actions_total"] >= 1 and ri["appealable_actions"] >= 1
     assert ri["removals"] >= 1 and ri["removals_without_notice"] == 0
+
+
+def test_transparency_report_counts_ad_targeting_strips():
+    eng = PolicyEngine(("EU",), ftc_enabled=False)
+    log = EventLog()
+    log.append(3, "ad_auction", 7, None, {
+        "campaign_id": "sens",
+        "action": "strip_targeting",
+        "rule_id": "EU-ADS-SENS-1",
+    })
+    rep = transparency_report(log, eng)
+    assert any(v["by_action"].get("strip_targeting", 0) == 1
+               for v in rep["actions_by_category"].values())
+    assert rep["rights_impact"]["actions_total"] == 1

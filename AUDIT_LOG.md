@@ -20,7 +20,7 @@ Status: OPEN / IN-PROGRESS / DONE (with commit) / DEFERRED (-> HANDOFF.md).
 | Q-PARAM | P1 | engine.py:35-44,312-317 | ~15 undocumented magic constants drive all outputs; never sensitivity-tested | Extract cited BehaviorParams; sensitivity sweep | determinism regression; sensitivity-rank | **DONE** (P1d+P4) |
 | Q-PERF | P1 | engine.py:267-349; graph/metrics.py:23 | Per-agent Python loops + exact clustering -> standard profile impractical | Index recent posts by author; approx clustering n>2k; benchmark | perf budget | DEFERRED (determinism risk; see HANDOFF) |
 | Q-TRAV | P1 | web/app.py:355-356 | Static-file path traversal (no containment) | resolve()+is_relative_to() | traversal returns 404 | **DONE** (P5a) |
-| Q-CLAUDE | P2 | content/claude_adapter.py:54-91 | Prompt hardcodes TOPICS[0]/casual; cache key ignores topic/tick | Key by topic/stance/ideology; build prompt from item | cache-key uniqueness | OPEN |
+| Q-CLAUDE | P2 | content/claude_adapter.py:54-91 | Prompt hardcodes TOPICS[0]/casual; cache key ignores topic/tick | Key by model/full prompt/topic/stance/tick; build prompt from generated item | cache-key uniqueness | **DONE** |
 | Q-KINDS | P2 | logs/events.py:16-33 | policy_gap/follow/unfollow declared, never emitted; graph static (no churn) | Removed dead kinds + corrected spec (churn deferred) | dead-kinds-removed | **DONE** (P5b) |
 | Q-REVIEW | P2 | moderation/workflow.py:106-157 | Reviewer ground-truth heuristic + uncited appeal magic | Document/expose params | reviewer convergence | OPEN |
 | S1 | P2 | web/static/app.js:79-84 | Presets are additive, not reset -> stale values persist across preset switches | Reset to defaults then apply overrides | preset-applies-clean-state | **DONE** (P6) |
@@ -30,7 +30,7 @@ Status: OPEN / IN-PROGRESS / DONE (with commit) / DEFERRED (-> HANDOFF.md).
 | S5 | P3 | index.html:56; config.py:160 | tick_hours UI allows non-divisors of 24 -> validation error | Constrain to divisor select | n/a | **DONE** (P6) |
 | S6 | P3 | engine.py:96; web | Classifier global-only; political base rate not exposed; homophily attr hardcoded | Optional per-category; expose political rate | n/a | OPEN |
 | Q-CSS | P3 | web/static/style.css:1-4 | Header advertises aurora-mesh/tilt/spotlight/magnetic not implemented | Corrected comment to match implementation | n/a | **DONE** (P6) |
-| Q-DOC | P3 | usage.md:9,99; ethics.md:28 | "110+ tests" (108); content_mode drift; "MC built in" overclaim | Correct docs | n/a | OPEN |
+| Q-DOC | P3 | usage.md:9,99; ethics.md:28 | "110+ tests" (108); content_mode drift; "MC built in" overclaim | Correct docs | n/a | **DONE** |
 
 \*S3 is P1 specifically for marketing/government usefulness scores.
 

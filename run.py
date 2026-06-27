@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -67,6 +68,7 @@ def bootstrap_ollama(model: str, host: str):
 # Simulation run
 # --------------------------------------------------------------------------
 def run_sim(cfg: RunConfig, n_replicates: int = 1, workers: int = 1, media: int = 0):
+    cfg = replace(cfg, n_replicates=n_replicates)
     mode = "Research" if n_replicates > 1 else "Preview"
     extra = f", {n_replicates} replicates" if n_replicates > 1 else ""
     print(f"\nRunning {cfg.n_agents} agents x {cfg.n_ticks} hourly ticks "
@@ -162,7 +164,7 @@ def main():
     p.add_argument("--profile", default="quick",
                    choices=["quick", "test", "standard", "calibrated"],
                    help="quick=1k/7d (default), test=200/48t, standard=10k/28d, "
-                        "calibrated=history-matched (I=1.0, all metrics in-band)")
+                        "calibrated=history-matched (current default I=1.25 < 3)")
     p.add_argument("--jurisdictions", default="EU",
                    help="comma list of US,EU,CN (default EU)")
     p.add_argument("--benchmark", default="default",
@@ -187,6 +189,13 @@ def main():
     p.add_argument("--validate", action="store_true",
                    help="run a BehaviorParams sensitivity + calibration study, "
                         "write VALIDATION_REPORT.md, and exit")
+    p.add_argument("--backtest", action="store_true",
+                   help="held-out aggregate backtest (calibrate on a train subset "
+                        "of public aggregates, validate held-out metrics) + stylized-"
+                        "facts validation, write BACKTEST_REPORT.md, and exit")
+    p.add_argument("--measure-classifier", action="store_true",
+                   help="measure the moderation classifier on bundled REAL licensed "
+                        "benchmarks (F1/ROC-AUC) -> BENCHMARK_REPORT.md, and exit")
     p.add_argument("--sens-samples", type=int, default=24,
                    help="LHS samples for --validate sensitivity (default 24)")
     p.add_argument("--media", type=int, default=0,
@@ -208,6 +217,36 @@ def main():
             render_validation_report(study), encoding="utf-8")
         print(f"Wrote VALIDATION_REPORT.md  (implausibility I = "
               f"{study['calibration']['implausibility']:.2f}, cutoff 3.0)")
+        return 0
+
+    if args.backtest:
+        from socio_sim.validation.backtest import (leave_out_backtest,
+                                                   render_backtest_report)
+        from socio_sim.validation.stylized import evaluate_stylized_facts
+        prof = args.profile if args.profile in ("quick", "calibrated", "standard") else "quick"
+        print(f"Backtest: held-out aggregate calibration on '{args.benchmark}' aggregates "
+              f"(profile={prof}) + stylized-facts validation...")
+        bt = leave_out_backtest(benchmark=args.benchmark, profile=prof, seed=args.seed)
+        sf = evaluate_stylized_facts()
+        (ROOT / "BACKTEST_REPORT.md").write_text(
+            render_backtest_report(bt, sf), encoding="utf-8")
+        print(f"Wrote BACKTEST_REPORT.md (held-out test_pass={bt['test_pass']}, "
+              f"I_test={bt['implausibility_test']:.2f}; stylized "
+              f"{sf['n_pass']}/{sf['n_total']})")
+        return 0
+
+    if args.measure_classifier:
+        from socio_sim.validation.benchmark_eval import (evaluate_all,
+                                                         render_benchmark_report)
+        print("Measuring the moderation classifier on bundled REAL licensed "
+              "benchmarks (Civil Comments CC0; Deysi spam Apache-2.0)...")
+        res = evaluate_all(seed=args.seed)
+        (ROOT / "BENCHMARK_REPORT.md").write_text(
+            render_benchmark_report(res), encoding="utf-8")
+        for r in res:
+            print(f"  {r['name']:16s} ({r['task']}): F1={r['f1']:.3f} "
+                  f"ROC-AUC={r['auc']:.3f}")
+        print("Wrote BENCHMARK_REPORT.md")
         return 0
 
     if args.web:

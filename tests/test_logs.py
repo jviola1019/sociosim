@@ -54,6 +54,18 @@ def test_jsonl_append_only_and_readable(tmp_path):
     assert len(path.read_text().strip().splitlines()) == 2
 
 
+def test_eventlog_path_overwrites_stale_file_by_default(tmp_path):
+    path = tmp_path / "events.jsonl"
+    old = EventLog(path=path)
+    old.append(0, "post", 1, "old", {})
+    old.close()
+    new = EventLog(path=path)
+    new.append(0, "post", 2, "new", {})
+    new.close()
+    loaded = EventLog.load(path)
+    assert [e["content_id"] for e in loaded.events] == ["new"]
+
+
 def test_manifest_round_trip(tmp_path):
     cfg = RunConfig.test()
     m = Manifest.create(cfg, pack_versions={"eu_dsa": "1.0"})
