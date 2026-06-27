@@ -33,6 +33,7 @@ def render(summary: dict, manifest: Manifest, mc: dict | None = None) -> str:
     mod = summary["moderation"]
     app = summary["appeals"]
     notices = summary["notices"]
+    provenance = summary.get("metric_provenance") or {}
     lines = [
         "# SocioSim Run Report",
         "",
@@ -57,6 +58,17 @@ def render(summary: dict, manifest: Manifest, mc: dict | None = None) -> str:
         "mc-replicated intervals.",
         "",
     ]
+    if provenance:
+        lines.extend([
+            "## Metric provenance",
+            "| metric | provenance | unit | limitation |",
+            "|---|---|---|---|",
+        ])
+        for name, meta in sorted(provenance.items()):
+            lines.append(
+                f"| `{name}` | `{meta.get('provenance', 'unsupported')}` | "
+                f"{meta.get('unit', 'n/a')} | {meta.get('limitations', 'n/a')} |")
+        lines.append("")
     if mc:
         finite_n = max((d.get("n_replicates", 0) for d in mc.values()), default=0)
         lines.extend([

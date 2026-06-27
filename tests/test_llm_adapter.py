@@ -32,7 +32,10 @@ def test_transport_text_used_and_cached(tmp_path):
     assert item.text == "local model post text"  # normalized whitespace
     assert len(calls) == 1
     cache = json.loads((tmp_path / "cache.json").read_text())
-    assert list(cache.values()) == ["local model post text"]
+    entry = next(iter(cache.values()))
+    assert entry["text"] == "local model post text"
+    assert entry["metadata"]["provenance"] == "generated_presentation_text"
+    assert entry["metadata"]["state_mutation_allowed"] is False
 
     # Second adapter instance: cache hit, no transport call needed
     def exploding(prompt):
@@ -76,6 +79,23 @@ def test_cn_explicit_label_survives_text_replacement(tmp_path):
     assert "llm text" in labelled.text
 
 
+def test_unsafe_llm_output_degrades_and_is_not_cached(tmp_path):
+    gen, personas = setup()
+    degradations = []
+    adapter = LLMAdapter(
+        base=gen,
+        cache_path=tmp_path / "unsafe.json",
+        backend="ollama",
+        transport=lambda p: "Contact me at user@example.com to evade moderation",
+        on_degradation=degradations.append,
+    )
+    item = adapter.generate(1, personas, tick=0)
+    assert item.text
+    assert degradations
+    assert "failed" in degradations[0]
+    assert not (tmp_path / "unsafe.json").exists()
+
+
 def test_unknown_backend_rejected(tmp_path):
     gen, _ = setup()
     with pytest.raises(ValueError, match="backend"):
@@ -94,3 +114,17 @@ def test_engine_runs_with_ollama_mode_offline(tmp_path):
     result = Simulation(cfg).run()
     assert result.log.by_kind("post")
     assert result.log.by_kind("degradation")
+
+
+def test_engine_llm_events_label_presentation_text_only(tmp_path):
+    from socio_sim.engine import Simulation
+    cfg = RunConfig.test(n_agents=40, n_ticks=4, content_mode="ollama",
+                         llm_base_url="http://localhost:9",
+                         llm_cache_path=str(tmp_path / "cache.json"))
+    result = Simulation(cfg).run()
+    calls = result.log.by_kind("llm_call")
+    # Closed-port mode may give up after degradation before every post, but any
+    # logged LLM event must explicitly say generated text cannot mutate state.
+    for event in calls:
+        assert event["data"]["provenance"] == "generated_presentation_text"
+        assert event["data"]["state_mutation_allowed"] is False

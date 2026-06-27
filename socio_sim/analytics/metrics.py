@@ -19,6 +19,63 @@ HARMFUL = {"hate", "harassment", "fraud", "misinfo", "adult",
 
 TERMINAL_ACTIONS = {"remove", "downrank"}
 
+METRIC_PROVENANCE = {
+    "n_posts": {
+        "provenance": "model_derived",
+        "unit": "count",
+        "definition": "Number of post events in the synthetic event log.",
+        "limitations": "Descriptive count for one configured run.",
+    },
+    "harmful_exposure_rate": {
+        "provenance": "model_derived",
+        "unit": "rate per impression",
+        "definition": "Harmful impressions divided by total impressions.",
+        "limitations": "Depends on synthetic truth labels and feed logging.",
+    },
+    "moderation_precision": {
+        "provenance": "model_derived",
+        "unit": "rate",
+        "definition": "True positive moderation actions divided by positive actions.",
+        "limitations": "Undefined when no positive actions occur.",
+    },
+    "moderation_recall": {
+        "provenance": "model_derived",
+        "unit": "rate",
+        "definition": "True positive moderation actions divided by harmful items.",
+        "limitations": "Undefined when no harmful items occur.",
+    },
+    "appeal_grant_rate": {
+        "provenance": "model_derived",
+        "unit": "rate",
+        "definition": "Granted appeals divided by resolved appeals.",
+        "limitations": "Sensitive to synthetic appeal-filing assumptions.",
+    },
+    "welfare_mean": {
+        "provenance": "model_derived",
+        "unit": "index",
+        "definition": "Engagement affinity minus harm and attention penalties.",
+        "limitations": "A model proxy, not measured human welfare.",
+    },
+    "ad_ctr": {
+        "provenance": "model_derived",
+        "unit": "rate",
+        "definition": "Synthetic clicks divided by paid impressions.",
+        "limitations": "Not a real campaign estimate.",
+    },
+    "ad_lift_itt": {
+        "provenance": "model_derived",
+        "unit": "rate delta",
+        "definition": "Exposed conversion rate minus randomized holdout rate.",
+        "limitations": "Synthetic holdout diagnostic; not real incrementality.",
+    },
+    "ad_roas": {
+        "provenance": "synthetic_assumption",
+        "unit": "ratio",
+        "definition": "Synthetic revenue divided by synthetic spend.",
+        "limitations": "Synthetic scenario input/output, not real financial performance.",
+    },
+}
+
 #: Welfare proxy weights (design §1): satisfaction per engagement, penalty per
 #: harmful impression, small attention cost per impression.
 W_ENGAGE, W_HARM, W_ATTENTION = 1.0, 2.0, 0.01
@@ -290,6 +347,7 @@ def summarize_run(result, rng: np.random.Generator | None = None) -> dict:
         "minor_protection": minor_protection(log, result.personas),
         "ads": _ads_with_fdr(log, result),
         "graph": result.graph_stats,
+        "metric_provenance": METRIC_PROVENANCE,
     }
 
 

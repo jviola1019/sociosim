@@ -699,6 +699,8 @@ class Handler(BaseHTTPRequestHandler):
             run_id = parts[0]
             if len(parts) > 1 and parts[1] == "export":
                 self._export_run(run_id)
+            elif len(parts) > 1 and parts[1] == "events":
+                self._export_events(run_id)
             else:
                 payload = _STORE.payload(run_id)
                 if payload is None:
@@ -743,6 +745,40 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "image/png")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "public, max-age=86400")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def _safe_events_path(self, payload: dict) -> Path | None:
+        out_dir = payload.get("out_dir") or (payload.get("config") or {}).get("out_dir")
+        if not out_dir:
+            return None
+        base = Path("out").resolve()
+        try:
+            target = (Path(out_dir) / "events.jsonl").resolve()
+        except (OSError, ValueError):
+            return None
+        if not (target == base or target.is_relative_to(base)):
+            return None
+        return target if target.is_file() else None
+
+    def _export_events(self, run_id: str):
+        payload = _STORE.payload(run_id)
+        if payload is None:
+            self._send_json({"error": "unknown run"}, 404)
+            return
+        target = self._safe_events_path(payload)
+        if target is None:
+            self._send_json({"error": "event log unavailable"}, 404)
+            return
+        data = target.read_bytes()
+        stream_hash = ((payload.get("manifest") or {}).get("stream_hash")
+                       or payload.get("stream_hash") or "")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+        self.send_header("Content-Disposition",
+                         f'attachment; filename="sociosim-{run_id}-events.jsonl"')
+        self.send_header("X-SocioSim-Stream-Hash", stream_hash)
+        self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
 

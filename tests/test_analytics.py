@@ -126,6 +126,14 @@ def test_fairness_keys_and_run_summary():
     assert "ci" in summary["harmful_exposure"]
     fair = summary["fairness"]
     assert "age_group" in fair and "ideology" in fair and "vulnerable" in fair
+    prov = summary["metric_provenance"]
+    for key in ("harmful_exposure_rate", "moderation_precision",
+                "moderation_recall", "ad_lift_itt", "ad_roas"):
+        assert prov[key]["provenance"] in {
+            "model_derived", "synthetic_assumption", "component_measured",
+            "aggregate_backtested", "calibration_consistent", "unsupported"}
+        assert prov[key]["unit"]
+        assert prov[key]["limitations"]
 
 
 def test_report_contains_disclaimer_and_intervals():
@@ -136,6 +144,8 @@ def test_report_contains_disclaimer_and_intervals():
     assert "Research use only" in md
     assert "not legal advice" in md
     assert "95%" in md
+    assert "Metric provenance" in md
+    assert "`harmful_exposure_rate`" in md
     assert result.manifest.config_hash[:8] in md
     assert not re.search(r"\bnan\b", md.lower())
     assert not re.search(r"\binfinity\b", md.lower())

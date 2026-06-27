@@ -704,12 +704,12 @@ function render(r) {
   else if (r.replay.ok) { seal.classList.add("ok"); $("#sealTxt").textContent = "replay verified"; }
   else { seal.classList.add("bad"); $("#sealTxt").textContent = "replay mismatch"; }
   if (currentRunId) {
-    $("#expReport").hidden = false; $("#expJson").hidden = false; $("#expTransparency").hidden = false;
+    $("#expReport").hidden = false; $("#expJson").hidden = false; $("#expTransparency").hidden = false; $("#expEvents").hidden = false;
     $("#expReport").href = `/api/runs/${currentRunId}/export?fmt=report`;
     $("#expJson").href = `/api/runs/${currentRunId}/export?fmt=json`;
     $("#expTransparency").href = `/api/runs/${currentRunId}/export?fmt=transparency`;
+    $("#expEvents").href = `/api/runs/${currentRunId}/events`;
   }
-  $("#expEvents").hidden = true;
 
   const heB = ibar(he.ci[0], he.ci[1], he.rate, 0, Math.max(he.ci[1] * 1.3, .05));
   const wB = ibar(w.ci[0], w.ci[1], w.mean, Math.min(w.ci[0], -.1), Math.max(w.ci[1], .1), "teal");
@@ -826,12 +826,12 @@ function renderAds(ads) {
 
 /* ---------- export + history ---------- */
 $("#exportBtn").addEventListener("click", () => $("#exportMenu").hidden = !$("#exportMenu").hidden);
-["expReport", "expJson", "expTransparency"].forEach(id => {
+["expReport", "expJson", "expTransparency", "expEvents"].forEach(id => {
   $("#" + id)?.addEventListener("click", e => {
     e.preventDefault();
     const href = e.currentTarget.getAttribute("href");
     if (!href) return;
-    const ext = id === "expReport" ? "md" : "json";
+    const ext = id === "expReport" ? "md" : (id === "expEvents" ? "jsonl" : "json");
     downloadProtected(href, `sociosim-${currentRunId || "run"}-${id}.${ext}`);
   });
 });

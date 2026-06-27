@@ -5,6 +5,13 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
 ## [Unreleased] — audit P0/P1 remediation
 
 ### Added
+- **Codex continuation remediation:** held-out aggregate backtests now rerun the
+  selected configuration on independent replicate IDs and report replicate
+  intervals; run summaries and reports now carry machine-readable metric
+  provenance; optional LLM text is safety-checked before cache/render and stored
+  with prompt/model provenance; saved web runs now expose an authenticated
+  full-event-log export; LLM URLs are revalidated immediately before outbound
+  calls.
 - **Codex baseline audit + release gate:** added `AGENTS.md`, the
   2026-06-27 baseline/remediation audit docs, scenario-as-code linting,
   12 required example scenarios, a release verifier (`scripts/verify_release.py`),

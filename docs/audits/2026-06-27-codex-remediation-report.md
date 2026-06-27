@@ -20,22 +20,22 @@
 - Added `scripts/verify_release.py`, which writes
   `docs/audits/latest-release-verification.md`.
 - Added scenario lint to GitHub Actions.
+- Added independent held-out backtest reruns with replicate intervals.
+- Added machine-readable metric provenance to summaries and reports.
+- Added deterministic LLM generated-text guards and metadata-rich cache entries.
+- Added authenticated full event-log export for saved web runs.
 
 ## Remaining P0/P1 Items
 
 No P0 item was found in this pass.
 
-Remaining P1:
-
-- Independent aggregate backtest design still needs fresh held-out reruns,
-  replicate intervals, and generated calibration artifacts before stronger
-  validation claims are justified.
+Remaining P1: none known after this continuation.
 
 ## Known Remaining P2 Work
 
-- Add mandatory per-metric provenance to every report/web/API headline output.
-- Add LLM output scrub/reclassification and cache-hash replay validation.
-- Add authenticated full event-log export rather than sample-only Audit Trail.
+- Extend per-metric provenance from headline metrics to every secondary chart
+  and UI table.
+- Add LLM reclassification and cache-hash replay validation.
 - Add dependency/security scan tooling and Docker hardening.
 - Add accessibility table alternatives and automated axe checks.
 - Refresh `SOURCE_LEDGER.md` so it is authoritative for implemented methods and

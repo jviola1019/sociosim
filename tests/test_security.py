@@ -152,6 +152,9 @@ def test_remote_mode_protects_history_gets(tmp_path, monkeypatch):
             base + "/api/runs/r1/export?fmt=json",
             headers={"X-SocioSim-Token": "s3cret-token"})
         assert json.loads(urllib.request.urlopen(req).read())["config"]
+        with pytest.raises(urllib.error.HTTPError) as e:
+            urllib.request.urlopen(base + "/api/runs/r1/events")
+        assert e.value.code == 403
     finally:
         srv.shutdown()
 

@@ -5,12 +5,12 @@
 ## 1. Held-out aggregate backtest — `default` (profile `quick`)
 Calibrated graph triad p = **0.3** on the TRAIN metrics (ad_ctr, appeal_grant_rate, clustering, diurnal_trough_hour, posts_per_agent_day); implausibility I_train = 1.25.
 
-Held-out metrics — never used to choose p — scored as aggregate sanity checks (I_test = 0.44): **PASS**.
+Held-out metrics — never used to choose p — rerun on 3 independent replicate id(s) and scored as aggregate sanity checks (I_test = 0.78): **PASS**.
 
-| held-out metric | observed | target ± tol | z | within? |
-|---|---|---|---|---|
-| degree_tail_exponent | 2.7223 | 2.5 ± 0.5 | 0.44 | yes |
-| diurnal_peak_hour | 17.0000 | 17 ± 2 | 0.00 | yes |
+| held-out metric | median observed | 95% replicate interval | target ± tol | z | within? |
+|---|---|---|---|---|---|
+| degree_tail_exponent | 2.8889 | [2.7209, 2.9248] | 2.5 ± 0.5 | 0.78 | yes |
+| diurnal_peak_hour | 18.0000 | [17.0500, 18.0000] | 17 ± 2 | 0.50 | yes |
 
 ## 2. Stylized facts — face validity vs documented regularities
 5/5 empirical regularities reproduced.
@@ -25,4 +25,5 @@ Held-out metrics — never used to choose p — scored as aggregate sanity check
 
 ## Limitations / honest scope
 - Validates **aggregate / pattern** agreement against PUBLISHED AGGREGATES only — not point-prediction of a specific platform or individual.
+- The selected parameter is rerun on held-out replicate IDs; intervals are Monte Carlo percentiles over those replicate observations.
 - Synthetic agents: behavioural magnitudes remain calibrated assumptions; real-person microdata is deliberately NOT used (lawful by design — no PII, no scraping). Decisions about real individuals are out of scope.

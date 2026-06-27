@@ -16,12 +16,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import urllib.request
 from pathlib import Path
 from typing import Callable
 
 from socio_sim.content.generate import TOPICS, TemplateGenerator
 from socio_sim.content.items import ContentItem
+from socio_sim.security import validate_llm_url
 
 DEFAULT_MODELS = {
     "ollama": "qwen2.5:0.5b",          # ~400MB pull; adequate for short posts
@@ -33,6 +35,9 @@ DEFAULT_URLS = {
 }
 
 _PROMPT_TEMPLATE = (
+    "SocioSim is a fictional synthetic simulation. Do not name real people, "
+    "private contact details, real platforms, instructions for harm, evasion, "
+    "fraud, harassment, or self-harm. "
     "Write one short social media post (max 40 words) about {topic}. "
     "Persona: {age} year-old, ideology {ideo:+.1f} on a -1..1 scale "
     "(negative=left, positive=right). Day {day} of the simulation. "
@@ -41,6 +46,20 @@ _PROMPT_TEMPLATE = (
 
 #: CN explicit-label prefix that must survive text replacement.
 _CN_LABEL_PREFIX = "[AI-generated content] "
+_PII_PATTERNS = (
+    re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b"),
+    re.compile(r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b"),
+    re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
+)
+_UNSAFE_PHRASES = (
+    "kill yourself",
+    "build a bomb",
+    "evade moderation",
+    "avoid detection",
+    "harass",
+    "dox",
+    "real person's",
+)
 
 
 class LLMAdapter:
@@ -98,7 +117,8 @@ class LLMAdapter:
         item = self.base.generate(author_id, personas, tick)
         prompt = self._prompt(author_id, personas, item.topic, tick)
         key = self.prompt_key(prompt)
-        text = self._cache.get(key)
+        cached = self._cache.get(key)
+        text = cached.get("text") if isinstance(cached, dict) else cached
         if text is None:
             if self._disabled:
                 return item  # already gave up; serve template silently
@@ -106,8 +126,18 @@ class LLMAdapter:
                 text = (self.transport(prompt) or "").strip()
                 if not text:
                     raise ValueError("empty LLM response")
-                text = " ".join(text.split())[:280]
-                self._cache[key] = text
+                text = self._safe_generated_text(text)
+                self._cache[key] = {
+                    "text": text,
+                    "metadata": {
+                        "backend": self.backend,
+                        "model": self.model,
+                        "prompt_hash": key,
+                        "prompt_version": "llm_adapter_v2_safety_boundaries",
+                        "provenance": "generated_presentation_text",
+                        "state_mutation_allowed": False,
+                    },
+                }
                 self._save_cache()
                 self._fail_streak = 0
             except Exception as exc:
@@ -127,8 +157,21 @@ class LLMAdapter:
             item.text = text
         return item
 
+    def _safe_generated_text(self, text: str) -> str:
+        text = " ".join(text.split())[:280]
+        lowered = text.lower()
+        for pat in _PII_PATTERNS:
+            if pat.search(text):
+                raise ValueError("generated text failed PII/contact-info guard")
+        if any(phrase in lowered for phrase in _UNSAFE_PHRASES):
+            raise ValueError("generated text failed operational-harm guard")
+        if "```" in text or "<script" in lowered:
+            raise ValueError("generated text failed executable-content guard")
+        return text
+
     # -- transports ----------------------------------------------------------
     def _http_transport(self, prompt: str) -> str:
+        validate_llm_url(self.base_url)
         if self.backend == "ollama":
             payload = {
                 "model": self.model,

@@ -359,7 +359,14 @@ class Simulation:
                                     "backend": self.cfg.content_mode,
                                     "model": getattr(self.generator, "model",
                                              getattr(self.generator, "MODEL", "n/a")),
-                                    "text_preview": item.text[:60]})
+                                    "text_preview": item.text[:60],
+                                    "provenance": "generated_presentation_text",
+                                    "state_mutation_allowed": False,
+                                    "llm_cache_hash": (
+                                        self.generator.cache_hash()
+                                        if hasattr(self.generator, "cache_hash")
+                                        else None),
+                                })
             scores = self._classify(item)
             self.scores_by_item[item.id] = scores
             self.log.append(tick=tick, kind="post", actor_id=int(agent_id),

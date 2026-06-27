@@ -35,7 +35,7 @@ DEFAULT_HOLDOUT = ("degree_tail_exponent", "diurnal_peak_hour")
 
 def leave_out_backtest(benchmark: str = "default", holdout=DEFAULT_HOLDOUT,
                        grid=None, profile: str = "quick", seed: int = 42,
-                       **cfg_overrides) -> dict:
+                       test_replicates: int = 3, **cfg_overrides) -> dict:
     targets = load_targets(benchmark)
     holdout = tuple(h for h in holdout if h in targets)
     train_targets = {k: v for k, v in targets.items() if k not in holdout}
@@ -53,8 +53,25 @@ def leave_out_backtest(benchmark: str = "default", holdout=DEFAULT_HOLDOUT,
         if best is None or i_train < best["i_train"]:
             best = {"p": float(p), "i_train": float(i_train), "obs": obs}
 
-    # --- TEST: score the held-out metrics (never used to pick p) ---
-    obs = best["obs"]
+    # --- TEST: rerun selected p on fresh replicate IDs. The train observation
+    # that selected p is deliberately not reused for held-out scoring.
+    test_replicates = max(1, int(test_replicates))
+    rep_obs = []
+    for rep in range(test_replicates):
+        cfg = replace(base, graph_kind="plc", graph_params={"m": 5, "p": best["p"]},
+                      replicate_id=1000 + rep)
+        res = Simulation(cfg).run()
+        rep_obs.append(compute_observed(res, summarize_run(res)))
+    obs = {}
+    intervals = {}
+    for k in test_targets:
+        vals = np.array([o.get(k, float("nan")) for o in rep_obs], dtype=float)
+        vals = vals[np.isfinite(vals)]
+        obs[k] = float(np.median(vals)) if vals.size else float("nan")
+        intervals[k] = (
+            float(np.percentile(vals, 2.5)) if vals.size else float("nan"),
+            float(np.percentile(vals, 97.5)) if vals.size else float("nan"),
+        )
     rows = []
     for k, spec in test_targets.items():
         o = obs.get(k)
@@ -62,6 +79,7 @@ def leave_out_backtest(benchmark: str = "default", holdout=DEFAULT_HOLDOUT,
              if (o is not None and o == o) else float("nan"))
         rows.append({"metric": k, "observed": o, "target": spec["value"],
                      "tolerance": spec["tolerance"], "z": z,
+                     "observed_ci": intervals.get(k, (float("nan"), float("nan"))),
                      "within_tolerance": bool(np.isfinite(z) and z <= 1.0)})
     return {
         "provenance": PROVENANCE, "benchmark": benchmark, "profile": profile,
@@ -69,6 +87,9 @@ def leave_out_backtest(benchmark: str = "default", holdout=DEFAULT_HOLDOUT,
         "holdout_metrics": sorted(test_targets),
         "implausibility_train": best["i_train"],
         "implausibility_test": float(implausibility(obs, test_targets)),
+        "test_replicates": test_replicates,
+        "test_replicate_ids": [1000 + rep for rep in range(test_replicates)],
+        "test_observation_reused_from_training": False,
         "test": rows, "test_pass": all(r["within_tolerance"] for r in rows),
     }
 
@@ -92,15 +113,18 @@ def render_backtest_report(bt: dict, stylized: dict) -> str:
         f"({', '.join(bt['train_metrics'])}); implausibility I_train = "
         f"{_fmt(bt['implausibility_train'], 2)}.",
         "",
-        f"Held-out metrics — never used to choose p — scored as aggregate sanity checks "
-        f"(I_test = {_fmt(bt['implausibility_test'], 2)}): "
+        f"Held-out metrics — never used to choose p — rerun on "
+        f"{bt.get('test_replicates', 1)} independent replicate id(s) and scored "
+        f"as aggregate sanity checks (I_test = {_fmt(bt['implausibility_test'], 2)}): "
         f"**{'PASS' if bt['test_pass'] else 'FAIL'}**.",
         "",
-        "| held-out metric | observed | target ± tol | z | within? |",
-        "|---|---|---|---|---|",
+        "| held-out metric | median observed | 95% replicate interval | target ± tol | z | within? |",
+        "|---|---|---|---|---|---|",
     ]
     for r in bt["test"]:
-        lines.append(f"| {r['metric']} | {_fmt(r['observed'])} | {r['target']} ± "
+        ci = r.get("observed_ci", (float("nan"), float("nan")))
+        lines.append(f"| {r['metric']} | {_fmt(r['observed'])} | "
+                     f"[{_fmt(ci[0])}, {_fmt(ci[1])}] | {r['target']} ± "
                      f"{r['tolerance']} | {_fmt(r['z'], 2)} | "
                      f"{'yes' if r['within_tolerance'] else 'NO'} |")
     lines += [
@@ -120,6 +144,8 @@ def render_backtest_report(bt: dict, stylized: dict) -> str:
         "## Limitations / honest scope",
         "- Validates **aggregate / pattern** agreement against PUBLISHED AGGREGATES "
         "only — not point-prediction of a specific platform or individual.",
+        "- The selected parameter is rerun on held-out replicate IDs; intervals "
+        "are Monte Carlo percentiles over those replicate observations.",
         "- Synthetic agents: behavioural magnitudes remain calibrated assumptions; "
         "real-person microdata is deliberately NOT used (lawful by design — no PII, "
         "no scraping). Decisions about real individuals are out of scope.",

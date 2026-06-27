@@ -10,5 +10,7 @@ Requirements:
 - Cache generated outputs with provider/model/prompt/version/hash metadata.
 - Scrub or reject generated text that contains PII, operational harm, evasion,
   real-person likeness, or unsafe instructions before rendering.
+- LLM cache entries are presentation provenance records; generated text cannot
+  change executable configuration, policy rules, metrics, or event state.
 - Report degradation events when a backend fails and fall back to deterministic
   template content where possible.

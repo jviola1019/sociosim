@@ -9,6 +9,7 @@ SocioSim uses validation language conservatively:
 5. `component_measured`: measured software component behavior on a benchmark.
 
 The ladder does not include real-world prediction of people, events, campaigns,
-or platforms. Current backtest artifacts should be read as aggregate pattern
-checks until independent post-selection reruns and replicate intervals are
-implemented.
+or platforms. Backtest artifacts are aggregate pattern checks: selected
+parameters are rerun on held-out replicate IDs with percentile intervals, but
+the target sets are still coarse published aggregates rather than real-platform
+microdata.

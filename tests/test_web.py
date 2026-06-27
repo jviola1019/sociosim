@@ -191,6 +191,11 @@ def test_live_server_runs_simulation_end_to_end():
         # audit-log explorer sample present + stratified by kind
         assert result["event_sample"] and result["event_kinds"]
         assert "post" in result["event_kinds"]
+        ev = urllib.request.urlopen(f"{base}/api/runs/{job_id}/events")
+        assert ev.headers.get("Content-Type").startswith("application/x-ndjson")
+        assert ev.headers.get("X-SocioSim-Stream-Hash") == result["manifest"]["stream_hash"]
+        first_line = ev.readline().decode()
+        assert json.loads(first_line)["kind"]
     finally:
         server.shutdown()
 
@@ -338,6 +343,11 @@ def test_safe_static_path_blocks_traversal():
     assert app.safe_static_path("../app.py") is None
     assert app.safe_static_path("../../config.py") is None
     assert app.safe_static_path("../store.py") is None
+
+
+def test_event_export_path_is_contained_to_out():
+    assert app.Handler._safe_events_path(None, {"out_dir": "../"}) is None
+    assert app.Handler._safe_events_path(None, {"config": {"out_dir": "C:/"}}) is None
 
 
 def test_live_server_research_mode_returns_mc_and_transparency():
