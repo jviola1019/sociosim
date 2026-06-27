@@ -195,7 +195,8 @@ class LLMAdapter:
 
         req = urllib.request.Request(url, data=json.dumps(payload).encode(),
                                      headers=headers)
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+        # B310 suppressed: URL pre-validated by validate_llm_url() above; only localhost/127.0.0.1 accepted.
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
             body = json.loads(resp.read().decode("utf-8"))
         if self.backend == "ollama":
             return body["response"]

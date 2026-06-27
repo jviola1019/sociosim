@@ -5,7 +5,15 @@
 #     -e SOCIOSIM_ALLOWED_HOSTS=127.0.0.1,localhost sociosim \
 #     python run.py --web --no-open --bind 0.0.0.0
 # (binding 0.0.0.0 exposes the console; use only behind trusted network controls).
-FROM python:3.11-slim
+#
+# PINNED BASE IMAGE — update the digest when bumping the base:
+#   docker pull python:3.11-slim
+#   docker inspect python:3.11-slim --format='{{index .RepoDigests 0}}'
+#
+# SBOM generation (run after building the image):
+#   syft sociosim -o spdx-json > sociosim.sbom.spdx.json
+#   grype sbom:sociosim.sbom.spdx.json  # vulnerability scan of image contents
+FROM python:3.11-slim@sha256:cdbd05fb6f457ca275ff51ce00d93d865ca0b6a25f5ffb08262d94f6835771e5
 
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 WORKDIR /app
@@ -14,6 +22,11 @@ COPY pyproject.toml README.md ./
 COPY socio_sim ./socio_sim
 COPY run.py ./
 RUN pip install -e .
+
+# Drop root: create an unprivileged user and run as it.
+RUN adduser --disabled-password --gecos "" appuser \
+    && chown -R appuser:appuser /app
+USER appuser
 
 # Deterministic, network-free default run (template content mode).
 CMD ["python", "run.py", "--profile", "quick"]

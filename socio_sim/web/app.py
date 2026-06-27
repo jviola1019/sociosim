@@ -558,7 +558,7 @@ def _run_job(job_id: str, body: dict):
         # reopened, compared, or exported later.
         try:
             _STORE.save(job_id, job["result"], label=body.get("label", ""))
-        except Exception:
+        except Exception:  # nosec B110
             pass  # history is best-effort; never fail a run over it
         job["status"] = "done"
         job["progress"] = 1.0

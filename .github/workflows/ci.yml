@@ -31,3 +31,12 @@ jobs:
           pip install build
           python -m build --wheel
           python -c "import zipfile,glob; n=zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist(); assert any(x.endswith('default_targets.json') for x in n), 'targets data missing from wheel'; assert sum(x.endswith('.yaml') for x in n)==4, 'policy packs missing from wheel'; assert any(x.endswith('feed-atlas-v3.png') for x in n) and any(x.endswith('ad-atlas-v3.png') for x in n), 'v3 web image atlases missing from wheel'; assert sum(x.endswith('.png') and 'feed-cover-v3-' in x for x in n) == 12, 'feed cover v3 assets missing from wheel'; assert sum(x.endswith('.png') and 'ad-creative-v3-' in x for x in n) == 12, 'ad creative v3 assets missing from wheel'; print('wheel data OK')"
+      - name: Security — Bandit static scan (medium/high, blocks CI)
+        run: |
+          pip install bandit
+          bandit -r socio_sim/ -ll -q
+      - name: Security — pip-audit production deps (advisory, never blocks CI)
+        run: |
+          pip install pip-audit
+          python scripts/audit_deps.py
+        continue-on-error: true

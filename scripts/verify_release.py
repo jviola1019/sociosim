@@ -98,6 +98,21 @@ def optional_python_module_check(name: str, module: str, args: list[str]) -> Che
     return run_cmd(name, [sys.executable, "-m", module, *args])
 
 
+def optional_python_script_check(name: str, guard_module: str, script: str) -> Check:
+    """Like optional_python_module_check but runs a script file, not -m module."""
+    probe = subprocess.run(
+        [sys.executable, "-c", f"import {guard_module.replace('-', '_')}"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if probe.returncode != 0:
+        return Check(name, "skipped", 0.0, f"python {script}",
+                     f"Python module {guard_module!r} is not installed in this environment")
+    return run_cmd(name, [sys.executable, script])
+
+
 def write_report(checks: list[Check]):
     REPORT.parent.mkdir(parents=True, exist_ok=True)
     summary = {}
@@ -204,8 +219,12 @@ def main(argv: list[str] | None = None) -> int:
                           [sys.executable, "-m", "pytest", "-q",
                            "tests/test_e2e_playwright.py"], timeout=180))
     checks.append(optional_tool_check("Docker build", "docker", ["build", "-t", "sociosim", "."]))
-    checks.append(optional_python_module_check("pip-audit availability",
-                                               "pip_audit", ["--version"]))
+    checks.append(optional_python_module_check(
+        "Bandit static security scan (medium/high)",
+        "bandit", ["-r", "socio_sim/", "-ll", "-q"]))
+    checks.append(optional_python_script_check(
+        "pip-audit — production dependencies only",
+        "pip_audit", str(ROOT / "scripts" / "audit_deps.py")))
 
     write_report(checks)
     print(f"Wrote {REPORT.relative_to(ROOT)}")
