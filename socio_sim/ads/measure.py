@@ -48,7 +48,17 @@ def apply_fdr(measures, alpha: float = 0.05):
     if valid:
         idxs, pvals = zip(*valid)
         rejected = benjamini_hochberg(pvals, alpha)
+        p = np.asarray(pvals, dtype=float)
+        n = p.size
+        order = np.argsort(p)
+        ranked = p[order]
+        q_ranked = np.minimum.accumulate((ranked * n / np.arange(1, n + 1))[::-1])[::-1]
+        q_ranked = np.minimum(q_ranked, 1.0)
+        qvals = np.empty(n, dtype=float)
+        qvals[order] = q_ranked
         for j, i in enumerate(idxs):
+            measures[i]["lift_qvalue_bh"] = float(qvals[j])
+            measures[i]["lift_significant_bh_fdr"] = rejected[j]
             measures[i]["lift_significant"] = rejected[j]
     return measures
 
@@ -87,6 +97,8 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
     impressions = len(auctions)
     spend = float(sum(e["data"]["price"] for e in auctions))
     n_clicks, n_convs = len(clicks), len(convs)
+    budget_configured = float(campaign.initial_budget)
+    budget_remaining = float(campaign.budget)
 
     ctr = n_clicks / impressions if impressions else 0.0
     cvr = n_convs / n_clicks if n_clicks else 0.0
@@ -172,6 +184,7 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
         "conversions": n_convs,
         "organic_conversions": len(org_convs),
         "spend": spend,
+        "revenue": revenue,
         "ctr": ctr,
         "ctr_ci": beta_interval(n_clicks, impressions),
         "cvr": cvr,
@@ -182,10 +195,14 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
         "lift": lift,
         "estimand": "eligible_opportunity_itt",
         "lift_ci": newcombe_diff_ci(x_exposed, n_exposed, x_holdout, n_holdout),
+        "lift_ci_method": "uncorrected_newcombe_95",
         "lift_cuped": lift_cuped,
         "lift_pvalue": lift_pvalue,
+        "lift_pvalue_raw": lift_pvalue,
+        "lift_qvalue_bh": float("nan"),
         "lift_significant": bool(lift_pvalue < 0.05) if lift_pvalue == lift_pvalue
         else False,
+        "lift_significant_bh_fdr": False,
         "exposed_rate": exposed_rate,
         "holdout_rate": holdout_rate,
         "prob_lift_positive": prob_diff_positive(x_exposed, n_exposed,
@@ -199,6 +216,15 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
         "cac": cac,
         "ltv": ltv,
         "incremental_ltv": incr_conv * ltv,
+        "economics_provenance": "scenario_assumption",
+        "economic_inputs": {
+            "conversion_value": campaign.conversion_value,
+            "ltv_multiplier": campaign.ltv_multiplier,
+            "attribution_window_ticks": window,
+        },
+        "budget_configured": budget_configured,
+        "budget_remaining": budget_remaining,
+        "budget_exhausted": budget_remaining <= 1e-9 or spend >= budget_configured - 1e-9,
         "n_exposed": n_exposed,
         "n_holdout": n_holdout,
     }

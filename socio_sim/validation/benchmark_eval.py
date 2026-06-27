@@ -166,8 +166,9 @@ def render_benchmark_report(results: list) -> str:
     lines += [
         "",
         "## Honest scope",
-        "- These are REAL measured metrics on real public benchmarks — usable by "
-        "businesses/governments under the datasets' licenses (CC0-1.0, Apache-2.0).",
+        "- These are REAL measured classifier-component metrics on public benchmarks "
+        "with documented licenses (CC0-1.0, Apache-2.0). They support component "
+        "evaluation and reproducibility claims, not operational suitability claims.",
         "- The classifier is a transparent numpy logistic-regression over hashed "
         "features (auditable, deterministic), not a black-box LLM — a deliberate "
         "trade of peak accuracy for reproducibility + explainability.",

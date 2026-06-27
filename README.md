@@ -33,7 +33,7 @@ Honest scope — what SocioSim genuinely supports, and what it does not:
   numbers), with Monte-Carlo uncertainty — for analysts in government or business.
 - **A working reference for measurement methodology:** auditable implementations
   of ad **incrementality** (RCT holdout + Newcombe CI + CUPED + BH-FDR + MDE),
-  **calibration** (history-matching / ABC, in-band on published aggregates),
+  **calibration** (history-matching / ABC, consistency against published aggregates),
   **sensitivity** (Saltelli S1+total-effect), and a **moderation classifier
   measured on real licensed benchmarks** (F1/ROC-AUC/Brier/log-loss).
 - **Marketing planning at jurisdiction / international scale:** the Marketing suite
@@ -112,8 +112,8 @@ python run.py --llm --profile calibrated --classifier trained \
 That runs: local-LLM content · history-matched calibrated graph · real trained
 moderation classifier · Twitter-like benchmark · follow/unfollow/churn graph
 evolution · 20-replicate Monte Carlo (Research mode) · real PNG + APNG media into
-`out/run/media/`. (Keep the `calibrated` profile's own scale for `I=1.0`; adding
-`--agents/--ticks` overrides the tuned calibration.)
+`out/run/media/`. (Keep the `calibrated` profile's own scale for the documented
+calibration score; adding `--agents/--ticks` overrides the tuned calibration.)
 
 ### Web console
 
@@ -171,7 +171,7 @@ python run.py --agents 300 --ticks 72 --seed 7   # custom scale/seed
 python run.py --replicates 20                    # Research run: Monte Carlo 95% intervals
 python run.py --validate                         # sensitivity + calibration -> VALIDATION_REPORT.md
 python run.py --backtest                          # held-out aggregate backtest + stylized facts -> BACKTEST_REPORT.md
-python run.py --profile calibrated               # history-matched (I=1.0, all metrics in-band)
+python run.py --profile calibrated               # history-matched (current default I=1.25 < 3)
 python run.py --classifier trained               # real trained moderation classifier (measured P/R)
 python run.py --benchmark twitter_like           # calibrate against a named published-aggregate set
 python run.py --dynamic-graph                    # daily follow/unfollow/churn graph evolution
@@ -214,12 +214,13 @@ Infrastructure flags: `--web` (browser console), `--port N` / `--bind HOST`
 - **Validation:** `python run.py --validate` runs a BehaviorParams sensitivity
   sweep (Saltelli first-order S1 **and** total-effect ST, multi-output/multi-seed
   Sobol) + calibration (implausibility, diurnal-KS, ABC-posterior propagation) →
-  `VALIDATION_REPORT.md`. A history-matched `--profile calibrated` puts every
-  benchmark metric in-band (`CALIBRATION_REPORT.md`).
+  `VALIDATION_REPORT.md`. A history-matched `--profile calibrated` is
+  calibration-consistent under the bundled benchmark cutoff
+  (`CALIBRATION_REPORT.md`).
 - **Transparency:** every run emits a DSA/§230/CN/FTC-style transparency tally
   (web export `?fmt=transparency`); policy packs carry statute citations and
   `legal_uncertainty` notes.
-- **Tests/CI:** `pytest` (~190 tests incl. property-based) + `ruff`, ~93%
+- **Tests/CI:** `pytest` (265 tests incl. property-based) + `ruff`, ~93%
   coverage; GitHub Actions enforces both with an 85% coverage gate. See
   `AUDIT_LOG.md`, `KNOWN_LIMITATIONS.md`, `SOURCE_LEDGER.md`, `CHANGELOG.md`.
 - **Docker:** `docker build -t sociosim . && docker run --rm sociosim`
@@ -232,7 +233,7 @@ Infrastructure flags: `--web` (browser console), `--port N` / `--bind HOST`
 | standard   | 10,000 | 28 days | hourly | 100        | default scale |
 | quick      | 1,000  | 7 days  | hourly | 20         | fast iteration |
 | test       | 200    | 48 h    | hourly | 2          | tiny smoke runs |
-| calibrated | 1,000  | 7 days  | hourly | 20         | history-matched: Holme–Kim graph, I=1.0, all benchmark metrics in-band (`CALIBRATION_REPORT.md`) |
+| calibrated | 1,000  | 7 days  | hourly | 20         | history-matched: Holme-Kim graph, current default I=1.25 < 3 (`CALIBRATION_REPORT.md`) |
 
 Scale defaults are grounded in published ABM/LLM-simulation literature and ad
 experimentation practice; see the design spec for citations.

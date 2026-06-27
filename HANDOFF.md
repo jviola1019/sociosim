@@ -3,6 +3,15 @@
 **Purpose:** live resume doc so this sprint continues across sessions/token cutoffs.
 Resuming? Read this, then `AUDIT_LOG.md`, then `CHANGELOG.md`. Branch: `feat/audit-p0-p1`.
 
+## Audit-4 resume note — 2026-06-27
+Current verification after subagent audit remediation: `ruff check .` passes,
+JavaScript syntax check passes, and full pytest passes (`265 passed`). The web
+console was launched locally and smoke-tested through `/api/meta`, `/api/run`,
+`/api/job/<id>`, and report/transparency exports. Calibration wording was
+corrected: `RunConfig.calibrated()` is calibration-consistent under the bundled
+cutoff with current default `I=1.25 < 3.0`, dominated by `ad_ctr`; older sprint
+history calibration wording is superseded by this note and `CALIBRATION_REPORT.md`.
+
 ## SPRINT 9 — measured accuracy + creative studio + verification (user 2026-06-22; multi-segment)
 User chose: Rung-5 real-outcome scoring · FULL creative studio · AGGRESSIVE knob
 restructure · honest README · + verify security/key-leakage + ADA + gov-vs-marketing
@@ -131,7 +140,8 @@ SPRINT-3 DONE+verified: real trained classifier (measured P/R), bundled empirica
 datasets (cited), distributed pluggable executor, procedural image + APNG video +
 pluggable backend + accel/GPU kernel (numpy-verified). 49 commits.
 SPRINT-4 DONE+verified (all 5 eng caveats + UI): (1) calibrated profile (plc p=0.7,
-I=1.0 all in-band, CALIBRATION_REPORT, replay); (2) multi-output/seed/Sobol
+current calibration wording superseded by Audit-4 note above, CALIBRATION_REPORT,
+replay); (2) multi-output/seed/Sobol
 sensitivity + ABC->output (report §1b/§2b); (3) approx clustering n>5000; (4)
 dynamic graph follow/unfollow/churn (opt-in, deterministic+replay, default static);
 (5) stale-doc + style.css honesty. UI: all new options exposed as controls

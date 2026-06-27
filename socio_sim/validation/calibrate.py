@@ -15,13 +15,32 @@ from scipy.stats import qmc
 
 
 def implausibility(observed: dict, targets: dict) -> float:
-    discrepancies = []
+    discrepancies = [c["z"] for c in implausibility_components(observed, targets)]
+    return max(discrepancies) if discrepancies else float("inf")
+
+
+def implausibility_components(observed: dict, targets: dict) -> list[dict]:
+    components = []
     for name, spec in targets.items():
         if name not in observed or not np.isfinite(observed[name]):
             continue
-        discrepancies.append(abs(observed[name] - spec["value"])
-                             / spec["tolerance"])
-    return max(discrepancies) if discrepancies else float("inf")
+        target = float(spec["value"])
+        tolerance = float(spec["tolerance"])
+        z = abs(float(observed[name]) - target) / tolerance
+        components.append({
+            "metric": name,
+            "observed": float(observed[name]),
+            "target": target,
+            "tolerance": tolerance,
+            "z": float(z),
+        })
+    return components
+
+
+def dominant_implausibility_metric(components: list[dict]) -> str | None:
+    if not components:
+        return None
+    return max(components, key=lambda c: c["z"])["metric"]
 
 
 def _scale(unit, bounds: dict, names: list) -> list:

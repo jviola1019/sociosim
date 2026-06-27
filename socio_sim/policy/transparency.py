@@ -11,6 +11,8 @@ Provenance: a deterministic tally of one run's audit log, not an estimate.
 
 from __future__ import annotations
 
+from socio_sim import (NO_REAL_PERSON_DATA_NOTICE, NOT_LEGAL_ADVICE_NOTICE,
+                       RESEARCH_USE_NOTICE)
 from socio_sim.logs.events import EventLog
 from socio_sim.policy.engine import PolicyEngine
 
@@ -66,6 +68,14 @@ def transparency_report(log: EventLog, engine: PolicyEngine) -> dict:
                                   if e["content_id"] not in noticed_ids)
 
     return {
+        "provenance": "deterministic_audit_tally",
+        "research_use_notice": RESEARCH_USE_NOTICE,
+        "not_legal_advice": NOT_LEGAL_ADVICE_NOTICE,
+        "no_real_person_data": NO_REAL_PERSON_DATA_NOTICE,
+        "component_scope": (
+            "Transparency export is a deterministic tally of one synthetic run's "
+            "audit log and policy-pack metadata; it is not a legal determination."
+        ),
         "pack_versions": engine.pack_versions(),
         "notices_sent": len(notices),
         "actions_by_category": {

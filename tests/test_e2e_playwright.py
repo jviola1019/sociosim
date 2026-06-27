@@ -92,6 +92,28 @@ def test_e2e_dashboard_runs_and_renders():
                 assert "/api/creative" in page.locator("#ads img.creative-img").first.get_attribute("src")
                 assert page.locator("#feedWrap img.feed-img[alt]").count() >= 1
                 assert "feed-cover-v3-" in page.locator("#feedWrap img.feed-img").first.get_attribute("src")
+                page.evaluate("document.querySelector('#outTabs button[data-otab=feed]').click()")
+                for width in (1440, 768, 390, 320):
+                    page.set_viewport_size({"width": width, "height": 900})
+                    page.wait_for_timeout(80)
+                    layout = page.evaluate("""() => {
+                      const doc = document.documentElement;
+                      const outTabs = document.querySelector('#outTabs');
+                      const buttons = [...outTabs.querySelectorAll('button')];
+                      const feed = document.querySelector('#feedWrap .post');
+                      return {
+                        docOverflow: doc.scrollWidth - doc.clientWidth,
+                        outTabsHeight: outTabs.getBoundingClientRect().height,
+                        minButtonHeight: Math.min(...buttons.map(b => b.getBoundingClientRect().height)),
+                        minButtonWidth: Math.min(...buttons.map(b => b.getBoundingClientRect().width)),
+                        feedFits: !feed || feed.scrollWidth <= feed.clientWidth + 1
+                      };
+                    }""")
+                    assert layout["docOverflow"] <= 1, (width, layout)
+                    assert layout["outTabsHeight"] <= 60, (width, layout)
+                    assert layout["minButtonHeight"] >= 34, (width, layout)
+                    assert layout["minButtonWidth"] >= 64, (width, layout)
+                    assert layout["feedFits"], (width, layout)
                 page.evaluate("document.querySelector('#outTabs button[data-otab=ads]').click()")
                 image_ok = page.evaluate("""() => {
                   const ads = [...document.querySelectorAll('#ads img.creative-img')];
@@ -101,6 +123,8 @@ def test_e2e_dashboard_runs_and_renders():
                   return {
                     adsLoaded: ads.every(i => i.complete && i.naturalWidth > 0 && i.naturalHeight > 0),
                     feedsLoaded: feeds.every(i => i.complete && i.naturalWidth === 900 && i.naturalHeight === 600),
+                    adsFit: ads.every(i => getComputedStyle(i).objectFit === 'contain'),
+                    feedsFit: feeds.every(i => getComputedStyle(i).objectFit === 'contain'),
                     variedFeed: feedSrcs.size >= Math.min(3, feeds.length),
                     adRatio: Math.round((adBox.width / adBox.height) * 100) / 100,
                     overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
@@ -108,6 +132,8 @@ def test_e2e_dashboard_runs_and_renders():
                 }""")
                 assert image_ok["adsLoaded"]
                 assert image_ok["feedsLoaded"]
+                assert image_ok["adsFit"]
+                assert image_ok["feedsFit"]
                 assert image_ok["variedFeed"]
                 assert abs(image_ok["adRatio"] - 2.0) < 0.08
                 assert image_ok["overflow"] <= 1

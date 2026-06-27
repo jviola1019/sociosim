@@ -133,8 +133,9 @@ PRESETS = {
     "marketing_ab": {
         "label": "Incrementality A/B test",
         "category": "Business",
-        "desc": "Ad A/B focus: larger RCT holdout for an adequately-powered "
-                "incremental-lift read; FTC disclosures on.",
+        "desc": "Ad A/B focus: larger RCT holdout for an incremental-lift "
+                "preview; use Research mode or larger scale before treating "
+                "results as decision-grade.",
         "sources": ["Gordon et al. 2019 (RCT > attribution); Cohen 1988 (power)"],
         "fields": {
             "jurisdictions": ["US"], "ftc_enabled": True, "ftc_compliance": True,
@@ -169,8 +170,9 @@ PRESETS = {
     "brand_safety_stress": {
         "label": "Brand-safety stress",
         "category": "Business",
-        "desc": "Measures ad adjacency to harmful content under elevated misinfo "
-                "+ amplifier/spam adversaries (GARM suitability lens).",
+        "desc": "Stress-tests a harmful-content environment under elevated "
+                "misinfo plus amplifier/spam adversaries. Ad-adjacency "
+                "suitability is not directly measured in this simulator.",
         "sources": ["WFA/GARM Brand Safety Floor + Adjacency Standards (2020–22)"],
         "fields": {
             "jurisdictions": ["US"], "ads_enabled": True, "ftc_compliance": True,

@@ -19,7 +19,9 @@ from socio_sim.engine import Simulation
 from socio_sim.logs.replay import verify
 from socio_sim.policy.engine import PolicyEngine
 from socio_sim.policy.transparency import transparency_report
-from socio_sim.validation.calibrate import implausibility
+from socio_sim.validation.calibrate import (dominant_implausibility_metric,
+                                            implausibility,
+                                            implausibility_components)
 from socio_sim.validation.montecarlo import run_replicates
 from socio_sim.validation.targets import compute_observed, load_targets
 
@@ -90,6 +92,8 @@ class Analysis:
     observed: dict
     targets: dict
     implausibility: float
+    implausibility_components: list
+    implausibility_dominant_metric: str | None
     replay: dict          # {checked, ok, msg}
     mc: object = None     # None in Preview; {metric: {median, ci, n_replicates, provenance}} in Research
     transparency: object = None  # DSA/§230/CN/FTC-style transparency-report tally
@@ -121,6 +125,7 @@ def run_and_analyze(cfg: RunConfig, *, write: bool = True,
     summary = summarize_run(result)
     observed = compute_observed(result, summary)
     targets = load_targets(cfg.benchmark)
+    i_components = implausibility_components(observed, targets)
 
     replay = {"checked": False, "ok": None, "msg": "skipped (large run)"}
     if verify_replay:
@@ -146,5 +151,8 @@ def run_and_analyze(cfg: RunConfig, *, write: bool = True,
         result=result, summary=summary,
         report_md=render(summary, result.manifest, mc=mc),
         observed=observed, targets=targets,
-        implausibility=implausibility(observed, targets), replay=replay, mc=mc,
+        implausibility=implausibility(observed, targets),
+        implausibility_components=i_components,
+        implausibility_dominant_metric=dominant_implausibility_metric(i_components),
+        replay=replay, mc=mc,
         transparency=transparency)

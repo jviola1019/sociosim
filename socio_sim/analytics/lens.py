@@ -49,6 +49,9 @@ def run_lens(config: dict, summary: dict) -> dict:
     juris = list(config.get("jurisdictions", []) or [])
     ftc = bool(config.get("ftc_enabled", False))
     ads = bool(config.get("ads_enabled", False))
+    n_replicates = int(config.get("n_replicates") or 1)
+    n_agents = int(config.get("n_agents") or 0)
+    n_ticks = int(config.get("n_ticks") or 0)
     packs = [f"{j}·{PACK_NAMES.get(j, j)}" for j in juris] + (["FTC"] if ftc else [])
 
     def _n(x, d=2):  # format a possibly-NaN metric cleanly ("n/a" not "nan")
@@ -65,12 +68,45 @@ def run_lens(config: dict, summary: dict) -> dict:
     ads_sum = summary.get("ads") or {}
     mkt_rows = [m for m in ads_sum.values() if isinstance(m, dict)]
     mkt_out = ""
+    any_sig = any(bool(m.get("lift_significant_bh_fdr")) for m in mkt_rows)
     if ads and mkt_rows:
         best = max(ads_sum.items(),
                    key=lambda kv: (kv[1].get("lift", 0.0) if isinstance(kv[1], dict) else 0.0))
         cid, m = best
         mkt_out = (f"top campaign '{cid}' incremental lift {_n(m.get('lift'), 4)} · "
                    f"CTR {_n(m.get('ctr'), 4)} · ROI {_n(m.get('roi'))}")
+
+    fairness_sparse = any(
+        bool(d.get("insufficient_sample"))
+        for groups in (summary.get("fairness") or {}).values()
+        for d in groups.values()
+        if isinstance(d, dict)
+    )
+    moderation_sparse = bool(mod.get("insufficient_sample"))
+    readiness = []
+    if n_replicates <= 1 or n_agents < 1000 or n_ticks < 168:
+        readiness.append(
+            "Decision readiness: preview/directional only. Use Research mode "
+            "(multiple replicates) and enough agents/ticks before treating results "
+            "as government or marketing decision-grade.")
+    else:
+        readiness.append(
+            "Decision readiness: research-mode run; still synthetic and not valid "
+            "for real-person enforcement, targeting, or prediction.")
+    if moderation_sparse or fairness_sparse:
+        readiness.append(
+            "Government readiness: moderation/fairness denominators are sparse; "
+            "rates are screening signals, not clean compliance estimates.")
+    if ads and mkt_rows and not any_sig:
+        readiness.append(
+            "Marketing readiness: no campaign has BH-FDR significant incremental "
+            "lift in the current run; increase audience, holdout, or replicates "
+            "before choosing a winner.")
+    elif ads and any_sig:
+        readiness.append(
+            "Marketing readiness: at least one campaign clears BH-FDR in this "
+            "campaign-vs-holdout screen; use a direct pairwise experiment before "
+            "declaring a creative winner.")
 
     lines = [
         f"**Government / Regulatory lens — ACTIVE** ({', '.join(packs) or 'none'}). "
@@ -83,10 +119,12 @@ def run_lens(config: dict, summary: dict) -> dict:
          "operating point, human review, appeals) changes the COMPLIANCE/SAFETY "
          "output; switching a **Marketing** setting (ads, holdout, frequency, "
          "campaigns) changes the INCREMENTALITY/ROI output."),
+        *readiness,
     ]
     return {"government_active": True, "marketing_active": ads,
             "packs": packs, "lines": lines,
-            "government_output": gov_out, "marketing_output": mkt_out}
+            "government_output": gov_out, "marketing_output": mkt_out,
+            "decision_readiness": readiness}
 
 
 def render_lens_md(config: dict, summary: dict) -> list:

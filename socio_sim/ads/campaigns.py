@@ -30,6 +30,14 @@ class Campaign:
     holdout_fraction: float | None = None  # None -> use RunConfig.holdout_fraction
     ftc_override: bool | None = None  # None -> use RunConfig.ftc_compliance
     _creative_counter: int = 0
+    _initial_budget: float | None = field(default=None, init=False, repr=False)
+
+    def __post_init__(self):
+        self._initial_budget = float(self.budget)
+
+    @property
+    def initial_budget(self) -> float:
+        return float(self._initial_budget if self._initial_budget is not None else self.budget)
 
     def has_sensitive_targeting(self) -> bool:
         return any(k in self.targeting for k in SENSITIVE_KEYS)

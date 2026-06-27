@@ -110,6 +110,10 @@ class AdSystem:
         return True
 
     # -- auction ----------------------------------------------------------
+    @staticmethod
+    def _effective_bid(campaign: Campaign) -> float:
+        return min(float(campaign.bid), float(campaign.budget))
+
     def run_auction(self, agent_id: int, tick: int) -> ContentItem | None:
         if not self.cfg.ads_enabled:
             return None
@@ -118,7 +122,7 @@ class AdSystem:
 
         bidders = []
         for c in self.campaigns:
-            if c.budget < RESERVE_PRICE or c.bid < RESERVE_PRICE:
+            if self._effective_bid(c) < RESERVE_PRICE:
                 continue
             if not self._targeting_match(c, agent_id):
                 continue
@@ -142,11 +146,12 @@ class AdSystem:
 
         if not bidders:
             return None
-        bidders.sort(key=lambda c: (-c.bid, c.id))
+        bidders.sort(key=lambda c: (-self._effective_bid(c), c.id))
         winner = bidders[0]
-        price = max(bidders[1].bid, RESERVE_PRICE) if len(bidders) > 1 else RESERVE_PRICE
-        price = min(price, winner.bid)
-        winner.budget -= price
+        price = (max(self._effective_bid(bidders[1]), RESERVE_PRICE)
+                 if len(bidders) > 1 else RESERVE_PRICE)
+        price = min(price, self._effective_bid(winner))
+        winner.budget = max(0.0, float(winner.budget) - price)
 
         creative = winner.make_creative(tick, self._compliance(winner))
         self.state.ad_exposures_today[agent_id] += 1

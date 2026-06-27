@@ -60,6 +60,9 @@ def moderation_confusion(log: EventLog) -> dict:
         "fnr": fn / (fn + tp) if (fn + tp) else float("nan"),
         "precision_ci": wilson_interval(tp, tp + fp),
         "recall_ci": wilson_interval(tp, tp + fn),
+        "n_harmful": tp + fn,
+        "n_benign": fp + tn,
+        "insufficient_sample": (tp + fp) == 0 or (tp + fn) < 10 or (fp + tn) < 10,
     }
 
 
@@ -227,7 +230,14 @@ def fairness_diagnostics(log: EventLog, personas) -> dict:
                         if (d["fp"] + d["tn"]) else float("nan")),
                 "fnr": (d["fn"] / (d["fn"] + d["tp"])
                         if (d["fn"] + d["tp"]) else float("nan")),
+                "n_harmful": d["tp"] + d["fn"],
+                "n_benign": d["fp"] + d["tn"],
                 "n_posts": d["tp"] + d["fp"] + d["fn"] + d["tn"],
+                "insufficient_sample": (
+                    (d["tp"] + d["fp"]) == 0
+                    or (d["tp"] + d["fn"]) < 10
+                    or (d["fp"] + d["tn"]) < 10
+                ),
             } for g, d in per_group.items()
         }
     return out

@@ -1,9 +1,11 @@
 import json
+import re
 import time
 import urllib.request
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from socio_sim.web import app
 
@@ -15,12 +17,14 @@ def test_jsonable_handles_numpy_and_nonfinite():
         "c": float("nan"),
         "d": float("inf"),
         "e": (np.bool_(True), [np.float32(2.0)]),
+        "flag": False,
         "ci": (np.float64(0.1), np.float64(0.2)),
     })
     assert out["a"] == 1.5 and isinstance(out["a"], float)
     assert out["b"] == 3 and isinstance(out["b"], int)
     assert out["c"] is None and out["d"] is None
     assert out["e"] == [True, [2.0]]
+    assert out["flag"] is False
     # round-trips through json without error
     assert json.loads(json.dumps(out))["ci"] == [0.1, 0.2]
 
@@ -30,7 +34,7 @@ def test_build_config_maps_granular_body():
         "profile": "test",
         "jurisdictions": ["US", "EU"],
         "ftc_enabled": False,
-        "red_team": ["spammer", "bogus_adversary"],
+        "red_team": ["spammer"],
         "n_agents": 60, "root_seed": 9,
         "graph_kind": "ws", "graph_k": 8, "graph_p": 0.1,
         "classifier_precision": 0.8, "classifier_recall": 0.7,
@@ -39,7 +43,7 @@ def test_build_config_maps_granular_body():
     })
     assert cfg.n_agents == 60 and cfg.root_seed == 9
     assert cfg.jurisdictions == ("US", "EU") and cfg.ftc_enabled is False
-    assert cfg.red_team == ("spammer",)            # invalid filtered out
+    assert cfg.red_team == ("spammer",)
     assert cfg.graph_kind == "ws" and cfg.graph_params["k"] == 8
     assert cfg.classifier_targets["hate"]["precision"] == 0.8
     assert cfg.category_base_rates["misinfo"] == 0.12
@@ -47,14 +51,35 @@ def test_build_config_maps_granular_body():
     assert cfg.feed_strategy == "chronological" and cfg.holdout_fraction == 0.25
 
 
-def test_build_config_filters_invalid_jurisdiction():
-    # Unknown jurisdictions are dropped (not an error); falls back to EU.
-    cfg = app._build_config({"jurisdictions": ["MARS"]})
-    assert cfg.jurisdictions == ("EU",)
+def test_build_config_rejects_invalid_api_values():
+    with pytest.raises(ValueError, match="jurisdictions"):
+        app._build_config({"jurisdictions": ["MARS"]})
+    with pytest.raises(ValueError, match="red_team"):
+        app._build_config({"red_team": ["bogus_adversary"]})
+    with pytest.raises(ValueError, match="feed_size"):
+        app._build_config({"feed_size": "not-a-number"})
+    with pytest.raises(ValueError, match="ftc_enabled"):
+        app._build_config({"ftc_enabled": "not-a-bool"})
+
+
+def test_build_config_parses_boolean_strings_and_preserves_calibrated_profile():
+    cfg = app._build_config({"profile": "calibrated", "ftc_enabled": "false",
+                             "ads_enabled": "true"})
+    assert cfg.graph_kind == "plc"
+    assert cfg.graph_params == {"m": 5, "p": 0.7}
+    assert cfg.ftc_enabled is False and cfg.ads_enabled is True
+
+
+def test_trained_classifier_ignores_precision_targets_for_identity():
+    a = app._build_config({"classifier_mode": "trained",
+                           "classifier_precision": 0.5, "classifier_recall": 0.5})
+    b = app._build_config({"classifier_mode": "trained",
+                           "classifier_precision": 0.99, "classifier_recall": 0.99})
+    assert a.classifier_targets == b.classifier_targets
+    assert a.config_hash() == b.config_hash()
 
 
 def test_build_config_rejects_out_of_range_value():
-    import pytest
     with pytest.raises(Exception):
         app._build_config({"holdout_fraction": 1.5})
 
@@ -136,11 +161,22 @@ def test_live_server_runs_simulation_end_to_end():
         assert "moderation" in s and "fairness" in s and "ads" in s
         assert result["replay"]["checked"] and result["replay"]["ok"]
         assert isinstance(result["implausibility"], (int, float))
+        assert result["implausibility_components"]
+        assert result["implausibility_dominant_metric"]
         assert "report_md" in result and "RUN REPORT" not in result  # report present
+        assert not re.search(r"\bnan\b", result["report_md"].lower())
+        assert "not legal advice" in result["report_md"]
+        assert "no_real_person_data" in result
         # chart series present for the dashboard
         ch = result["charts"]
         assert len(ch["diurnal"]) == 24
         assert ch["degree_hist"] and ch["timeline_posts"]
+        ad_metric = next(iter(result["summary"]["ads"].values()))
+        for key in ("budget_configured", "budget_remaining", "lift_qvalue_bh",
+                    "lift_pvalue_raw", "lift_significant_bh_fdr",
+                    "economics_provenance", "economic_inputs", "lift_ci_method"):
+            assert key in ad_metric
+        assert ad_metric["spend"] <= ad_metric["budget_configured"] + 1e-9
         # entire payload is valid JSON (no NaN leaked)
         assert "NaN" not in json.dumps(result)
         # audit-log explorer sample present + stratified by kind
@@ -233,6 +269,18 @@ def test_campaign_specs_are_normalized_for_persistence():
     assert clean[0]["conversion_value"] == 6.0
 
 
+def test_campaign_specs_reject_non_deliverable_or_malformed_rows():
+    bad_specs = [
+        {"bid": 0, "budget": 100},
+        {"bid": 1, "budget": 0},
+        {"bid": 1, "budget": 100, "base_ctr": 1.5},
+        {"bid": 1, "budget": 100, "segment": "unknown"},
+    ]
+    for spec in bad_specs:
+        with pytest.raises(ValueError):
+            app._normalize_campaign_specs({"campaigns": [spec]})
+
+
 def test_bundled_atlas_assets_exist_and_are_unignored():
     root = Path(__file__).resolve().parents[1]
     assets = root / "socio_sim" / "web" / "static" / "assets"
@@ -313,11 +361,15 @@ def test_live_server_research_mode_returns_mc_and_transparency():
         assert result["mode"] == "research" and result["n_replicates"] == 2
         assert result["mc"] and "harmful_exposure_rate" in result["mc"]
         assert result["transparency"]["pack_versions"]
+        assert result["transparency"]["not_legal_advice"]
+        assert result["transparency"]["no_real_person_data"]
+        assert result["transparency"]["provenance"] == "deterministic_audit_tally"
         assert "NaN" not in json.dumps(result)
         # in-UI transparency export endpoint returns the tally as JSON
         tx = json.loads(urllib.request.urlopen(
             f"{base}/api/runs/{job_id}/export?fmt=transparency").read())
         assert tx["pack_versions"] and "actions_by_category" in tx
+        assert tx["not_legal_advice"] and tx["research_use_notice"]
     finally:
         server.shutdown()
 

@@ -164,7 +164,7 @@ def main():
     p.add_argument("--profile", default="quick",
                    choices=["quick", "test", "standard", "calibrated"],
                    help="quick=1k/7d (default), test=200/48t, standard=10k/28d, "
-                        "calibrated=history-matched (I=1.0, all metrics in-band)")
+                        "calibrated=history-matched (current default I=1.25 < 3)")
     p.add_argument("--jurisdictions", default="EU",
                    help="comma list of US,EU,CN (default EU)")
     p.add_argument("--benchmark", default="default",

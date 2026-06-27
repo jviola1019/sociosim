@@ -9,14 +9,14 @@ channel) update these constants in the same commit, with a note in CHANGELOG.md.
 from socio_sim.config import RunConfig
 from socio_sim.engine import Simulation
 
-# Baselines re-locked after adding ad_opportunity audit events for eligible-
-# opportunity ITT ad lift. Earlier intentional regens (trusted flagger priority,
-# feed perf redesign, P2 baseline channel) are in git history. Run-to-run
-# determinism and replay still hold (verified).
+# Baselines re-locked after hard-capping campaign budgets in second-price ad
+# auctions. Earlier intentional regens (trusted flagger priority, feed perf
+# redesign, P2 baseline channel, eligible-opportunity ITT ad lift) are in git
+# history. Run-to-run determinism and replay still hold (verified).
 BASELINE_STREAM_HASHES = {
-    "EU": "c4b47514eca0ec19a9ce64fa8db7bf32d7fe95efd24a87bedf46cdc027484da1",
-    "US": "17385aee9b481b220d81091688828a859deb34def56cecf603173f8797e035af",
-    "CN": "793de5c9103df65448272adb083c0808bc7c0d8f29ff4b09b58deaf8d77cfdeb",
+    "EU": "f807f603c269061c40e69728b8f08e87f0332886ad0ad1897f55ab8991f66e3a",
+    "US": "4bff3361da19db41a0cfce56850b03c674be9501b8120c07ed51488382a6e3af",
+    "CN": "08ae413920a3c7f1ce3b0d2a66c76c06240658ae1bf92bb57cfeb5c77fa82561",
 }
 
 

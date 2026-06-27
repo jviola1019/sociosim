@@ -31,6 +31,7 @@ def test_report_contains_lens_and_interpretation():
     assert "Run lens & output interpretation" in a.report_md
     assert "Government / Regulatory lens" in a.report_md
     assert "Marketing lens" in a.report_md
+    assert "Decision readiness" in a.report_md
 
 
 def test_lens_surfaces_separate_government_and_marketing_data():
@@ -44,6 +45,16 @@ def test_lens_surfaces_separate_government_and_marketing_data():
     b = run_and_analyze(RunConfig.test(jurisdictions=("US",), ads_enabled=False),
                         verify_replay=False)
     assert run_lens(b.result.config.to_dict(), b.summary)["marketing_output"] == ""
+
+
+def test_lens_flags_preview_and_non_significant_marketing_runs():
+    a = run_and_analyze(RunConfig.test(jurisdictions=("EU",), ads_enabled=True,
+                                       n_agents=60, n_ticks=12),
+                        verify_replay=False)
+    lens = run_lens(a.result.config.to_dict(), a.summary)
+    readiness = " ".join(lens["decision_readiness"])
+    assert "preview/directional only" in readiness
+    assert "no campaign has BH-FDR significant" in readiness
 
 
 def test_every_setting_tagged_to_a_known_lens():

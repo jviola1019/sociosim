@@ -124,7 +124,10 @@ class Simulation:
         #   openai_compatible -> free local OpenAI-compatible server (no key)
         base_gen = TemplateGenerator(cfg, self.rngs["content"],
                                      inject_signal=(cfg.classifier_mode == "trained"))
-        cache = cfg.llm_cache_path or str(Path(cfg.out_dir) / "llm_cache.json")
+        # The implicit LLM cache affects generated text, so keep it tied to the
+        # behavioral config identity rather than output storage (`out_dir`).
+        cache = cfg.llm_cache_path or str(
+            Path("out") / "llm_cache" / f"{cfg.config_hash()}.json")
         if cfg.content_mode == "claude":
             self.generator = ClaudeAdapter(
                 base=base_gen, cache_path=cache,

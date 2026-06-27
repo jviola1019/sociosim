@@ -6,9 +6,10 @@ list; this file tracks what remains open or newly surfaced.
 
 ## Quant / validation
 - **A calibrated profile now exists.** `RunConfig.calibrated()` / `--profile
-  calibrated` history-matches the graph (Holme–Kim `plc`, p=0.7) so **every**
-  published-aggregate observable falls within one tolerance band (implausibility
-  I=1.0 < 3.0; `CALIBRATION_REPORT.md`, replay-verified). Honest scope: this is
+  calibrated` history-matches the graph (Holme-Kim `plc`, p=0.7) and is
+  calibration-consistent against the bundled benchmark (current default
+  implausibility I=1.25 < 3.0, dominated by `ad_ctr`;
+  `CALIBRATION_REPORT.md`, replay-verified). Honest scope: this is
   calibration *consistency* against wide published **aggregates**, not predictive
   validation — the model stays a synthetic ABM (projections, not predictions).
 - **The default profile is still uncalibrated** (BA graph, I≈1.7, clustering
@@ -111,7 +112,8 @@ list; this file tracks what remains open or newly surfaced.
 
 ## Tooling
 - ruff is a dev dependency and a CI gate (lint passes clean); pytest-cov enforces
-  an 85% coverage floor (actual ~92%). GitHub Actions runs ruff + pytest + a real
+  an 85% coverage floor (actual ~92%). Local audit verification currently passes
+  ruff plus 265 pytest tests; GitHub Actions runs ruff + pytest + a real
   Playwright E2E + a wheel build with a data-asset assertion.
 
 See `AUDIT_LOG.md` for the full issue ledger with status, and `HANDOFF.md` for

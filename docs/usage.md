@@ -198,9 +198,10 @@ Every option below is reachable from the CLI (`run.py`), the web console, and
 default event stream.
 
 - **Calibrated profile** — `--profile calibrated` / `RunConfig.calibrated()`.
-  History-matched Holme–Kim (`plc`) graph (p=0.7) so every published-aggregate
-  benchmark lands within one tolerance band (implausibility I=1.0; see
-  `CALIBRATION_REPORT.md`). Keep its tuned scale for I=1.0.
+  History-matched Holme-Kim (`plc`) graph (p=0.7) that is
+  calibration-consistent under the bundled benchmark cutoff (current default
+  implausibility I=1.25 < 3; see `CALIBRATION_REPORT.md`). Keep its tuned scale
+  when comparing calibration scores.
 - **Benchmark target sets** — `--benchmark default|twitter_like|facebook_like` /
   `RunConfig.benchmark`. Bundled *published aggregate* statistics (cited, no PII);
   affects calibration scoring only, not the event stream.

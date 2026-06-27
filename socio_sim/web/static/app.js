@@ -127,9 +127,12 @@ function renderLens(lens) {
   const badge = (on, cls, label) =>
     `<span class="lens-badge ${cls} ${on ? "on" : "off"}">${label}: ${on ? "active" : "off"}</span>`;
   const fmt2 = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+  const readiness = (lens.decision_readiness || [])[0] || "Lens & decision readiness";
   el.innerHTML = badge(lens.government_active, "government", "Government / Regulatory")
     + badge(lens.marketing_active, "marketing", "Marketing")
-    + '<ul class="lens-lines">' + (lens.lines || []).map(l => `<li>${fmt2(l)}</li>`).join("") + "</ul>";
+    + `<details class="lens-details"><summary>${fmt2(readiness)}</summary><ul class="lens-lines">`
+    + (lens.lines || []).map(l => `<li>${fmt2(l)}</li>`).join("")
+    + "</ul></details>";
   el.hidden = false;
 }
 async function loadMeta() {
@@ -729,12 +732,12 @@ function render(r) {
   renderAudit(r.event_sample, r.event_kinds);
 
   $("#confusion").innerHTML = `<div class="cell tp"><div class="cl">true positive</div><div class="cv">${mod.tp}</div></div><div class="cell fp"><div class="cl">false positive</div><div class="cv">${mod.fp}</div></div><div class="cell fn"><div class="cl">false negative</div><div class="cv">${mod.fn}</div></div><div class="cell tn"><div class="cl">true negative</div><div class="cv">${mod.tn}</div></div>`;
-  $("#fairness").innerHTML = Object.entries(s.fairness).map(([dim, gs]) => `<div class="fgrp">${esc(dim.replace(/_/g, " "))}</div><table class="read"><thead><tr><th>group</th><th>FPR</th><th>FNR</th><th>n posts</th></tr></thead><tbody>${Object.entries(gs).map(([g, d]) => `<tr><td>${esc(g)}</td><td class="num">${fmt(d.fpr, 4)}</td><td class="num">${fmt(d.fnr, 3)}</td><td class="num">${d.n_posts}</td></tr>`).join("")}</tbody></table>`).join("");
+  $("#fairness").innerHTML = Object.entries(s.fairness).map(([dim, gs]) => `<div class="fgrp">${esc(dim.replace(/_/g, " "))}</div><table class="read"><thead><tr><th>group</th><th>FPR</th><th>FNR</th><th>posts</th><th>harm</th><th>benign</th><th>status</th></tr></thead><tbody>${Object.entries(gs).map(([g, d]) => `<tr><td>${esc(g)}</td><td class="num">${fmt(d.fpr, 4)}</td><td class="num">${fmt(d.fnr, 3)}</td><td class="num">${d.n_posts}</td><td class="num">${d.n_harmful ?? "—"}</td><td class="num">${d.n_benign ?? "—"}</td><td>${d.insufficient_sample ? "directional only" : "screened"}</td></tr>`).join("")}</tbody></table>`).join("");
 
   renderAds(Object.values(s.ads));
   $("#compare").innerHTML = `<p class="dim small">No comparison run for this result.</p>`;
 
-  $("#implaus").textContent = `implausibility I = ${fmt(r.implausibility, 2)} (history-matching cutoff 3.0; lower = closer to published benchmarks)`;
+  $("#implaus").textContent = `implausibility I = ${fmt(r.implausibility, 2)} (dominant: ${esc(r.implausibility_dominant_metric || "n/a")}; history-matching cutoff 3.0; lower = closer to published aggregate benchmarks)`;
   $("#calib").innerHTML = Object.entries(r.targets).map(([name, spec]) => {
     const obs = r.observed[name]; if (obs == null) return "";
     const lo0 = spec.value - 3 * spec.tolerance, hi0 = spec.value + 3 * spec.tolerance, sp = Math.max(hi0 - lo0, 1e-9), L = v => Math.max(0, Math.min(100, 100 * (v - lo0) / sp)), inb = Math.abs(obs - spec.value) <= spec.tolerance;
@@ -795,20 +798,22 @@ function renderAds(ads) {
     return `<div class="adcard" style="animation-delay:${i * 50}ms"><div class="creative"><img class="creative-img protected-creative"${src} data-src="${img}" alt="Generated ad creative for ${name} targeting ${targeting}">${disc}<button type="button" class="dl-creative" data-download="${img}" data-filename="creative-${key}.png" title="Download deterministic creative">download</button></div><div class="ad-body"><div class="adname">${name}</div><div class="adtarget">${targeting}</div><div class="adstat"><span>CTR <b>${fmt(a.ctr, 4)}</b></span><span>lift <b>${fmt(a.lift, 4)}</b></span><span>iROAS <b>${fmt(a.iroas, 2)}</b></span></div></div></div>`;
   }).join("");
   const table = `<div class="table-wrap"><table class="read"><thead><tr><th>campaign</th><th>impr</th><th>eligible</th><th>CTR</th><th>CVR</th><th>lift 95% CI</th><th>CUPED lift</th><th>p</th><th>MDE</th><th>ROAS</th><th>iROAS</th><th>CAC</th><th>LTV</th><th>holdout</th><th>attr W</th></tr></thead><tbody>${ads.map(a => `<tr><td>${esc(a.campaign_id)}</td><td class="num">${a.impressions}</td><td class="num">${a.eligible_opportunities ?? "—"}</td><td class="num">${fmt(a.ctr, 4)}</td><td class="num">${fmt(a.cvr, 4)}</td><td class="num">${fmt(a.lift_ci[0], 4)}–${fmt(a.lift_ci[1], 4)}</td><td class="num">${fmt(a.lift_cuped, 4)}</td><td class="num">${fmt(a.lift_pvalue, 3)}</td><td class="num">${fmt(a.mde, 4)}</td><td class="num">${fmt(a.roas, 2)}</td><td class="num">${fmt(a.iroas, 2)}</td><td class="num">${fmt(a.cac, 2)}</td><td class="num">${fmt(a.ltv, 2)}</td><td class="num">${a.n_holdout}</td><td class="num">${a.attribution_window_ticks}</td></tr>`).join("")}</tbody></table></div>`;
-  // Creative A/B verdict — wired to the incrementality engine's lift CIs (Newcombe)
+  const tableV2 = `<div class="table-wrap"><table class="read"><thead><tr><th>campaign</th><th>impr</th><th>eligible</th><th>budget</th><th>CTR</th><th>CVR</th><th>lift raw CI</th><th>CUPED lift</th><th>p(raw)</th><th>q(BH)</th><th>MDE</th><th>ROAS*</th><th>iROAS*</th><th>CAC*</th><th>LTV*</th><th>holdout</th><th>attr W</th></tr></thead><tbody>${ads.map(a => `<tr><td>${esc(a.campaign_id)}</td><td class="num">${a.impressions}</td><td class="num">${a.eligible_opportunities ?? "—"}</td><td class="num">${fmt(a.spend, 2)} / ${fmt(a.budget_configured, 2)}</td><td class="num">${fmt(a.ctr, 4)}</td><td class="num">${fmt(a.cvr, 4)}</td><td class="num">${a.lift_ci ? `${fmt(a.lift_ci[0], 4)}-${fmt(a.lift_ci[1], 4)}` : "—"}</td><td class="num">${fmt(a.lift_cuped, 4)}</td><td class="num">${fmt(a.lift_pvalue_raw ?? a.lift_pvalue, 3)}</td><td class="num">${fmt(a.lift_qvalue_bh, 3)}</td><td class="num">${fmt(a.mde, 4)}</td><td class="num">${fmt(a.roas, 2)}</td><td class="num">${fmt(a.iroas, 2)}</td><td class="num">${fmt(a.cac, 2)}</td><td class="num">${fmt(a.ltv, 2)}</td><td class="num">${a.n_holdout}</td><td class="num">${a.attribution_window_ticks}</td></tr>`).join("")}</tbody></table><p class="hint">* Scenario economics are assumption-derived from conversion value, LTV multiplier, and attribution window inputs.</p></div>`;
+  // Campaign screen — each campaign is measured against its own holdout. This is
+  // not a direct creative-vs-creative randomized contrast.
   let ab = "";
   if (ads.length >= 2) {
     const ranked = [...ads].filter(a => a.lift != null).sort((a, b) => (b.lift || 0) - (a.lift || 0));
     if (ranked.length >= 2) {
       const top = ranked[0], second = ranked[1];
       const sep = top.lift_ci && second.lift_ci && top.lift_ci[0] > second.lift_ci[1];
-      const win = top.lift_significant && sep;
-      ab = `<div class="ab-verdict ${win ? "ok" : "warn"}"><b>Creative A/B:</b> ${win
-        ? `<b>${esc(top.campaign_id)}</b> wins — incremental lift ${fmt(top.lift, 4)} [${fmt(top.lift_ci[0], 4)}, ${fmt(top.lift_ci[1], 4)}], p=${fmt(top.lift_pvalue, 3)}; its CI clears the runner-up.`
-        : `no significant winner yet — best lift ${fmt(top.lift, 4)} but confidence intervals overlap or sit below the minimum detectable effect (MDE ${fmt(top.mde, 4)}). Increase audience, holdout, or run more replicates.`}</div>`;
+      const win = top.lift_significant_bh_fdr && sep;
+      ab = `<div class="ab-verdict ${win ? "ok" : "warn"}"><b>Campaign lift screen:</b> ${win
+        ? `<b>${esc(top.campaign_id)}</b> clears its holdout screen — incremental lift ${fmt(top.lift, 4)} [${fmt(top.lift_ci[0], 4)}, ${fmt(top.lift_ci[1], 4)}], p(raw)=${fmt(top.lift_pvalue_raw ?? top.lift_pvalue, 3)}, q(BH)=${fmt(top.lift_qvalue_bh, 3)}. Treat this as campaign-vs-holdout evidence, not a direct creative-vs-creative winner.`
+        : `no decision-grade campaign winner yet — best lift ${fmt(top.lift, 4)} but confidence intervals overlap or sit below the minimum detectable effect (MDE ${fmt(top.mde, 4)}). Increase audience, holdout, or run more replicates.`}</div>`;
     }
   }
-  $("#ads").innerHTML = `${ab}<div class="ads-grid">${grid}</div>${table}`;
+  $("#ads").innerHTML = `${ab}<div class="ads-grid">${grid}</div>${tableV2}`;
   $$("#ads [data-download]").forEach(b => b.addEventListener("click", () => downloadProtected(b.dataset.download, b.dataset.filename)));
   if (remoteProtected) {
     $$("#ads img.protected-creative").forEach(async img => {

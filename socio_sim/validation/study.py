@@ -19,9 +19,11 @@ from socio_sim.analytics.metrics import summarize_run
 from socio_sim.config import RunConfig
 from socio_sim.engine import Simulation
 from socio_sim.stats import discrete_ks
-from socio_sim.validation.calibrate import (abc_posterior, history_match,
-                                            implausibility, lhs_samples,
-                                            sobol_samples)
+from socio_sim.validation.calibrate import (abc_posterior,
+                                            dominant_implausibility_metric,
+                                            history_match, implausibility,
+                                            implausibility_components,
+                                            lhs_samples, sobol_samples)
 from socio_sim.validation.sensitivity import (first_order_indices,
                                               saltelli_indices)
 from socio_sim.validation.targets import compute_observed, load_targets
@@ -144,12 +146,15 @@ def calibration_implausibility(cfg: RunConfig) -> dict:
     (history-matching cutoff 3.0)."""
     result = Simulation(cfg).run()
     observed = compute_observed(result, summarize_run(result))
-    targets = load_targets()
+    targets = load_targets(cfg.benchmark)
+    components = implausibility_components(observed, targets)
     # Distributional check (not just means): KS gap between the observed
     # posting-hour distribution and the expected diurnal curve.
     hours = [(e["tick"] * cfg.tick_hours) % 24 for e in result.log.by_kind("post")]
     counts = np.bincount(hours, minlength=24) if hours else np.zeros(24)
     return {"implausibility": implausibility(observed, targets),
+            "implausibility_components": components,
+            "implausibility_dominant_metric": dominant_implausibility_metric(components),
             "observed": observed, "targets": targets,
             "diurnal_ks": discrete_ks(counts, DIURNAL_CURVE)}
 

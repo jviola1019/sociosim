@@ -5,6 +5,13 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
 ## [Unreleased] — audit P0/P1 remediation
 
 ### Added
+- **Audit-4 black-box remediation:** ad auctions now enforce hard campaign
+  budgets, reports render undefined metrics as `n/a` instead of literal `nan`,
+  minor-ad language is jurisdiction-aware, moderation/fairness outputs include
+  sufficiency denominators, calibration exports include per-target z-scores and
+  the dominant metric, transparency exports carry research/legal/no-real-person
+  caveats, and determinism baselines were intentionally re-locked for the budget
+  behavior change.
 - **Audit-3 web/corporate remediation:** realistic v2 feed/ad PNG assets plus
   split 3:2 feed covers and 2:1 ad creatives; `/api/creative` now serves
   deterministic realistic dashboard creatives for 2:1 requests. Added

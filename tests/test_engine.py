@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from socio_sim.config import RunConfig
@@ -93,6 +95,19 @@ def test_trained_classifier_mode_runs_and_is_deterministic():
     res = Simulation(cfg).run()
     assert res.log.by_kind("classify") and res.log.by_kind("post")
     assert res.manifest.config["classifier_mode"] == "trained"
+
+
+def test_default_llm_cache_path_is_not_derived_from_out_dir(tmp_path):
+    a = RunConfig.test(n_agents=20, n_ticks=1, content_mode="ollama",
+                       out_dir=str(tmp_path / "a"))
+    b = RunConfig.test(n_agents=20, n_ticks=1, content_mode="ollama",
+                       out_dir=str(tmp_path / "b"))
+    assert a.config_hash() == b.config_hash()
+    sim_a = Simulation(a)
+    sim_b = Simulation(b)
+    expected = Path("out") / "llm_cache" / f"{a.config_hash()}.json"
+    assert Path(sim_a.generator.cache_path) == expected
+    assert Path(sim_b.generator.cache_path) == expected
 
 
 def test_run_writes_outputs(tmp_path):

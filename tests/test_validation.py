@@ -3,8 +3,10 @@ import pytest
 
 from socio_sim.config import RunConfig
 from socio_sim.rng import SeedTree
-from socio_sim.validation.calibrate import (abc_posterior, history_match,
-                                            implausibility)
+from socio_sim.validation.calibrate import (abc_posterior,
+                                            dominant_implausibility_metric,
+                                            history_match, implausibility,
+                                            implausibility_components)
 from socio_sim.validation.montecarlo import run_replicates
 from socio_sim.validation.sensitivity import first_order_indices
 from socio_sim.validation.targets import hill_exponent, load_targets
@@ -35,6 +37,17 @@ def test_benchmark_selection_flows_through_pipeline():
     a = run_and_analyze(RunConfig.test(jurisdictions=("EU",), benchmark="twitter_like"),
                         verify_replay=False)
     assert set(a.targets) == set(load_targets("twitter_like"))
+    assert a.implausibility_components
+    assert a.implausibility_dominant_metric in a.targets
+
+
+def test_validation_study_uses_selected_benchmark():
+    from socio_sim.validation.study import calibration_implausibility
+    c = calibration_implausibility(RunConfig.test(jurisdictions=("EU",),
+                                                  benchmark="facebook_like"))
+    assert set(c["targets"]) == set(load_targets("facebook_like"))
+    assert c["implausibility_components"]
+    assert c["implausibility_dominant_metric"] in c["targets"]
 
 
 def test_invalid_benchmark_rejected():
@@ -61,6 +74,17 @@ def test_implausibility_monotone():
     far = implausibility({"x": 8.0}, targets)
     assert 0 < near < far
     assert far == 3.0
+
+
+def test_implausibility_components_explain_dominant_metric():
+    targets = {
+        "x": {"value": 5.0, "tolerance": 1.0},
+        "y": {"value": 10.0, "tolerance": 2.0},
+    }
+    comps = implausibility_components({"x": 7.0, "y": 11.0}, targets)
+    assert {c["metric"] for c in comps} == {"x", "y"}
+    assert implausibility({"x": 7.0, "y": 11.0}, targets) == 2.0
+    assert dominant_implausibility_metric(comps) == "x"
 
 
 def test_hill_exponent_on_powerlaw_sample():
