@@ -54,12 +54,11 @@ rules:
   - rule_id: EU-FLAG-1
     trigger:
       conditions: [user_flagged]
-      categories: [hate, harassment, misinfo, fraud, illegal_goods, adult, self_harm]
     action: escalate
     notice_required: true
     appeal_allowed: true
     deadline_hours: 48
-    evidence_threshold: 0.50
+    evidence_threshold: 0.0
     log_required: true
     priority: 70
     source_citation: "DSA Art. 16 (notice mechanisms) & Art. 22 (trusted flaggers)"

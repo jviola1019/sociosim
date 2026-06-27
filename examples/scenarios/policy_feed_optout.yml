@@ -1,0 +1,27 @@
+scenario_id: policy_feed_optout
+version: "1.0"
+lab_mode: society_policy
+purpose: Explore non-personalized feed opt-out assumptions.
+intended_use:
+  - Compare chronological feed behavior against personalized ranking.
+prohibited_use:
+  - Do not claim real user satisfaction or legal compliance.
+primary_question: Within this configured synthetic model, how does chronological opt-out change exposure proxies?
+primary_metric: welfare_mean
+secondary_metrics:
+  - harmful_exposure_rate
+  - ad_impressions
+  - n_posts
+assumptions:
+  - Chronological feed is the current executable proxy for non-personalized opt-out.
+  - Feed diversity is interpreted as a model proxy only.
+provenance: model_derived
+research_only_notice: Synthetic scenario estimates only; not a real-world forecast.
+config:
+  profile: test
+  jurisdictions: [EU]
+  root_seed: 44
+  n_agents: 200
+  n_ticks: 48
+  feed_strategy: chronological
+  eu_optout_rate: 1.0

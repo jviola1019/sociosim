@@ -1,0 +1,29 @@
+scenario_id: market_paid_vs_organic
+version: "1.0"
+lab_mode: entrepreneur_market
+purpose: Synthetic paid-versus-organic incrementality experiment with a larger holdout.
+intended_use:
+  - Compare modeled paid exposure against organic baseline conversion behavior.
+prohibited_use:
+  - Do not report synthetic lift as real campaign incrementality.
+primary_question: Within this configured synthetic model, what is the holdout-based lift estimate?
+primary_metric: ad_lift_itt
+secondary_metrics:
+  - ad_ctr
+  - ad_cvr
+  - ad_roas
+assumptions:
+  - Organic conversion is simulated and available to exposed and holdout arms.
+  - Monetary values are synthetic inputs and outputs.
+provenance: synthetic_assumption
+research_only_notice: Synthetic scenario estimates only; not a real-world forecast.
+synthetic_money_notice: Synthetic scenario input/output. Not a forecast of real financial performance.
+config:
+  profile: test
+  jurisdictions: [US]
+  root_seed: 56
+  n_agents: 200
+  n_ticks: 48
+  ads_enabled: true
+  holdout_fraction: 0.35
+  ad_frequency_cap_per_day: 4

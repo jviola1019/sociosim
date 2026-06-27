@@ -84,6 +84,15 @@ def test_build_config_rejects_out_of_range_value():
         app._build_config({"holdout_fraction": 1.5})
 
 
+def test_build_config_rejects_oversized_web_runs():
+    with pytest.raises(ValueError, match="n_agents"):
+        app._build_config({"profile": "test", "n_agents": app.WEB_MAX_AGENTS + 1})
+    with pytest.raises(ValueError, match="n_ticks"):
+        app._build_config({"profile": "test", "n_ticks": app.WEB_MAX_TICKS + 1})
+    with pytest.raises(ValueError, match="n_topics"):
+        app._build_config({"profile": "test", "n_topics": app.WEB_MAX_TOPICS + 1})
+
+
 def test_all_presets_build_valid_configs():
     from socio_sim.presets import PRESETS
     for name, p in PRESETS.items():
@@ -430,5 +439,26 @@ def test_bad_job_id_404():
         except urllib.error.HTTPError as e:
             raised = (e.code == 404)
         assert raised
+    finally:
+        server.shutdown()
+
+
+def test_live_server_rejects_when_active_job_limit_reached(monkeypatch):
+    from http.server import ThreadingHTTPServer
+    import threading
+    port = _free_port()
+    server = ThreadingHTTPServer(("127.0.0.1", port), app.Handler)
+    monkeypatch.setattr(app, "WEB_MAX_ACTIVE_JOBS", 0)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        body = json.dumps({"profile": "test", "n_agents": 50, "n_ticks": 6,
+                           "jurisdictions": ["EU"]}).encode()
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/api/run", data=body,
+                                     headers={"Content-Type": "application/json"})
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            urllib.request.urlopen(req)
+        assert exc.value.code == 429
+        payload = json.loads(exc.value.read())
+        assert payload["error"] == "too many active jobs"
     finally:
         server.shutdown()

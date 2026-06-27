@@ -187,6 +187,7 @@ class ModerationSystem:
             "decision_rationale": d.rationale,
             "immunity": d.immunity,
             "retention_months": d.retention_months,
+            "human_review_required": d.human_review_required,
         }
         if extra:
             data.update(extra)

@@ -17,6 +17,8 @@ jobs:
         run: pip install -e .[dev]
       - name: Lint (ruff)
         run: ruff check socio_sim tests run.py
+      - name: Scenario lint
+        run: python -m socio_sim.experiments.scenario_lint examples/scenarios
       - name: Tests (pytest + coverage gate)
         run: pytest -q --cov=socio_sim --cov-report=term-missing --cov-fail-under=85
       - name: E2E browser smoke (Playwright)

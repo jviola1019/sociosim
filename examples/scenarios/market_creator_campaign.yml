@@ -1,0 +1,30 @@
+scenario_id: market_creator_campaign
+version: "1.0"
+lab_mode: entrepreneur_market
+purpose: Brand-safe fictional creator campaign with disclosure compliance enabled.
+intended_use:
+  - Test synthetic creator-style paid media under clear disclosure assumptions.
+prohibited_use:
+  - Do not target real creators, minors, or sensitive attributes.
+primary_question: Within this configured synthetic model, how does a compliant creator-style campaign perform?
+primary_metric: ad_ctr
+secondary_metrics:
+  - ad_lift_itt
+  - ad_roas
+  - ad_disclosure_rate
+assumptions:
+  - Creator influence is represented by existing campaign response parameters.
+  - Brand safety is interpreted through harmful-content environment proxies.
+provenance: synthetic_assumption
+research_only_notice: Synthetic scenario estimates only; not a real-world forecast.
+synthetic_money_notice: Synthetic scenario input/output. Not a forecast of real financial performance.
+config:
+  profile: test
+  jurisdictions: [US]
+  root_seed: 53
+  n_agents: 200
+  n_ticks: 48
+  ads_enabled: true
+  ftc_enabled: true
+  ftc_compliance: true
+  ad_frequency_cap_per_day: 5

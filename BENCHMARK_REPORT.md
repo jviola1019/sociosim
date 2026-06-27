@@ -16,7 +16,7 @@ Brier/log-loss are proper scoring rules (lower = better); the baseline is the no
 | spam_detection | 0.011 | 0.250 | 0.958 | 0.045 | 0.693 |
 
 ## Honest scope
-- These are REAL measured metrics on real public benchmarks — usable by businesses/governments under the datasets' licenses (CC0-1.0, Apache-2.0).
+- These are REAL measured classifier-component metrics on public benchmarks with documented licenses (CC0-1.0, Apache-2.0). They support component evaluation and reproducibility claims, not operational suitability claims.
 - The classifier is a transparent numpy logistic-regression over hashed features (auditable, deterministic), not a black-box LLM — a deliberate trade of peak accuracy for reproducibility + explainability.
 - Brier/log-loss are scored against the datasets' REAL labels (real outcomes), and beat the no-skill climatology baseline (positive Brier Skill Score). For honest context, published transformer SOTA on these tasks scores higher (toxicity AUC ~0.95+); this transparent numpy LR is a strong, auditable baseline, not SOTA. We do NOT claim to beat real-world market/production systems — that needs their outcome data and is out of scope (would be fabrication).
 - Measures the CLASSIFIER COMPONENT only; it does not make the synthetic agent-based simulation itself predictive of real platforms.

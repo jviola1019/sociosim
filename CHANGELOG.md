@@ -5,6 +5,14 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
 ## [Unreleased] — audit P0/P1 remediation
 
 ### Added
+- **Codex baseline audit + release gate:** added `AGENTS.md`, the
+  2026-06-27 baseline/remediation audit docs, scenario-as-code linting,
+  12 required example scenarios, a release verifier (`scripts/verify_release.py`),
+  and CI scenario linting. Fixed the shipped policy stress example, moved
+  campaign validation into `Campaign`, added web scale/job limits, made EU
+  user-flag review intake independent of classifier confidence, carried
+  `human_review_required` into event logs, and updated determinism baselines for
+  that intentional event-schema change.
 - **Audit-4 black-box remediation:** ad auctions now enforce hard campaign
   budgets, reports render undefined metrics as `n/a` instead of literal `nan`,
   minor-ad language is jurisdiction-aware, moderation/fairness outputs include

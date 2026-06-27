@@ -1,0 +1,31 @@
+scenario_id: market_product_launch
+version: "1.0"
+lab_mode: entrepreneur_market
+purpose: Fictional ethical product-launch scenario using synthetic audiences.
+intended_use:
+  - Generate a reproducible campaign configuration for a synthetic market run.
+prohibited_use:
+  - Do not treat synthetic reach, conversion, or ROAS as real business forecasts.
+primary_question: Within this configured synthetic model, what campaign metrics change versus holdout?
+primary_metric: ad_lift_itt
+secondary_metrics:
+  - ad_impressions
+  - ad_ctr
+  - ad_roas
+  - ad_disclosure_rate
+assumptions:
+  - Budget, conversion value, and LTV are scenario inputs.
+  - Holdout assignment is synthetic and seedable.
+provenance: synthetic_assumption
+research_only_notice: Synthetic scenario estimates only; not a real-world forecast.
+synthetic_money_notice: Synthetic scenario input/output. Not a forecast of real financial performance.
+config:
+  profile: test
+  jurisdictions: [US]
+  root_seed: 52
+  n_agents: 200
+  n_ticks: 48
+  ads_enabled: true
+  ftc_enabled: true
+  ftc_compliance: true
+  holdout_fraction: 0.25

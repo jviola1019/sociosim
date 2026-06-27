@@ -247,8 +247,10 @@ def render_validation_report(study: dict) -> str:
         f"{study['n_ticks']} ticks · seed {study['seed']}.",
         "",
         "## 1. Sensitivity of posts/agent to BehaviorParams",
-        f"First-order variance-based indices (LHS, n={s['n_samples']}; "
-        f"output mean {s['y_mean']:.4f}, sd {s['y_std']:.4f}).",
+        f"Screening first-order sensitivity indices (LHS/correlation-ratio "
+        f"approximation, n={s['n_samples']}; output mean {s['y_mean']:.4f}, "
+        f"sd {s['y_std']:.4f}). Treat small-n runs as ranking diagnostics, not "
+        "a validated Sobol decomposition.",
         "",
         "| BehaviorParam | first-order index S1 |",
         "|---|---|",
@@ -257,16 +259,17 @@ def render_validation_report(study: dict) -> str:
         lines.append(f"| `{name}` | {idx:.3f} |")
     lines += [
         "",
-        "Interpretation: parameters with high S1 dominate this output and MUST "
-        "be calibrated (or their dependent claims flagged uncalibrated) before "
-        "use. Low-S1 parameters are safe to leave at documented defaults.",
+        "Interpretation: parameters with high screening indices should be "
+        "calibrated (or dependent claims flagged uncalibrated) before use. "
+        "Low indices in small-n runs are not proof that a parameter can be "
+        "fixed.",
     ]
     ms = study.get("multi_sensitivity")
     if ms:
         lines += [
             "",
             "## 1b. Multi-output sensitivity (Sobol design, multi-seed)",
-            f"First-order indices for {len(ms['outputs'])} outputs over a Sobol "
+            f"Screening first-order indices for {len(ms['outputs'])} outputs over a Sobol "
             f"design (n={ms['n_samples']}) averaged across {ms['n_seeds']} seeds "
             "(mean ± sd of S1 across seeds).",
             "",
@@ -282,9 +285,10 @@ def render_validation_report(study: dict) -> str:
         lines += [
             "",
             "## 1c. Saltelli first-order + TOTAL-effect indices",
-            f"Gold-standard variance-based sensitivity for `{sa['output']}` "
+            f"Saltelli-style variance-based sensitivity for `{sa['output']}` "
             f"(A/B/AB_i design, {sa['n_eval']} model runs, N={sa['N']}). "
-            "ST ≥ S1; ST≈0 ⇒ the parameter can be fixed.",
+            "Finite-sample estimates are noisy; ST can fall below S1 in small "
+            "smoke runs and should be read as a robustness diagnostic.",
             "",
             "| BehaviorParam | S1 (first-order) | ST (total-effect) |",
             "|---|---|---|",
@@ -319,9 +323,10 @@ def render_validation_report(study: dict) -> str:
         "",
         "## 3. Limitations",
         "- Bounds are +/-50% of defaults, not empirically derived.",
-        "- Section 1b sweeps MULTIPLE outputs (Sobol, multi-seed); section 1c "
-        "adds Saltelli first-order S1 AND total-effect ST (interactions); "
-        "section 1 keeps the single-output correlation-ratio view for continuity.",
+        "- Sections 1 and 1b are screening diagnostics, not proof of a stable "
+        "Sobol decomposition at small sample sizes. Section 1c adds Saltelli "
+        "first-order S1 and total-effect ST, but finite-sample estimates can "
+        "be noisy.",
         "- Benchmark targets are coarse published aggregates with wide tolerances; "
         "use `--profile calibrated` for a history-matched, in-band configuration.",
         "- `degree_tail_exponent` / network targets depend on the graph model, "

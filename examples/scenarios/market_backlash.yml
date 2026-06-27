@@ -1,0 +1,38 @@
+scenario_id: market_backlash
+version: "1.0"
+lab_mode: entrepreneur_market
+purpose: Fictional backlash scenario with elevated harmful-content and adversary pressure.
+intended_use:
+  - Explore modeled brand-safety exposure and fatigue proxies.
+prohibited_use:
+  - Do not infer real reputation risk for a company or product.
+primary_question: Within this configured synthetic model, how do stress assumptions affect paid/organic outcomes?
+primary_metric: welfare_mean
+secondary_metrics:
+  - harmful_exposure_rate
+  - ad_impressions
+  - ad_lift_itt
+assumptions:
+  - Backlash is represented by elevated harmful content and amplifier pressure.
+  - Reputation risk is a proxy, not a measured business outcome.
+provenance: synthetic_assumption
+research_only_notice: Synthetic scenario estimates only; not a real-world forecast.
+synthetic_money_notice: Synthetic scenario input/output. Not a forecast of real financial performance.
+config:
+  profile: test
+  jurisdictions: [EU]
+  root_seed: 54
+  n_agents: 200
+  n_ticks: 48
+  ads_enabled: true
+  red_team: [misinfo_amplifier, spammer]
+  category_base_rates:
+    hate: 0.03
+    harassment: 0.04
+    fraud: 0.02
+    misinfo: 0.08
+    adult: 0.01
+    illegal_goods: 0.003
+    self_harm: 0.004
+    political: 0.15
+    ai_generated: 0.08

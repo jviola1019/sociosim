@@ -1,0 +1,29 @@
+scenario_id: market_jurisdiction_compare
+version: "1.0"
+lab_mode: compare
+purpose: Compare a synthetic product launch under US and EU-style ad restrictions.
+intended_use:
+  - Examine modeled effects of minor and sensitive-targeting restrictions.
+prohibited_use:
+  - Do not infer real jurisdictional performance or legal obligations.
+primary_question: Within this configured synthetic model, how do jurisdiction assumptions change ad metrics?
+primary_metric: ad_impressions
+secondary_metrics:
+  - ad_ctr
+  - ad_lift_itt
+  - ad_disclosure_rate
+assumptions:
+  - Common random numbers should be used for jurisdiction comparison.
+  - EU ad restrictions are research approximations.
+provenance: synthetic_assumption
+research_only_notice: Synthetic scenario estimates only; not a real-world forecast.
+synthetic_money_notice: Synthetic scenario input/output. Not a forecast of real financial performance.
+config:
+  profile: test
+  jurisdictions: [EU]
+  root_seed: 57
+  n_agents: 200
+  n_ticks: 48
+  ads_enabled: true
+  ftc_enabled: true
+  holdout_fraction: 0.2

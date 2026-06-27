@@ -61,6 +61,7 @@ class PolicyDecision:
     rationale: str
     immunity: str | None = None
     retention_months: int = 0
+    human_review_required: bool = False
     matched_categories: list = field(default_factory=list)
 
 
@@ -170,6 +171,7 @@ class PolicyEngine:
                     rationale=f"{rule['rule_id']}: {why}; action={rule['action']}",
                     immunity=rule.get("immunity"),
                     retention_months=int(rule.get("retention_months", 0)),
+                    human_review_required=bool(rule.get("human_review_required", False)),
                     matched_categories=hit_cats,
                 ))
 

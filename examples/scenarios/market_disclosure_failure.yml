@@ -1,0 +1,29 @@
+scenario_id: market_disclosure_failure
+version: "1.0"
+lab_mode: entrepreneur_market
+purpose: Synthetic campaign run with disclosure noncompliance to exercise FTC pack behavior.
+intended_use:
+  - Test whether disclosure violations are logged and corrected in the simulation.
+prohibited_use:
+  - Do not use to plan disclosure evasion.
+primary_question: Within this configured synthetic model, how are disclosure failures handled?
+primary_metric: ad_disclosure_rate
+secondary_metrics:
+  - ad_impressions
+  - ad_ctr
+  - ad_lift_itt
+assumptions:
+  - FTC rules are modeled as research approximations, not legal advice.
+  - Noncompliance is a synthetic stress condition.
+provenance: synthetic_assumption
+research_only_notice: Synthetic scenario estimates only; not a real-world forecast.
+synthetic_money_notice: Synthetic scenario input/output. Not a forecast of real financial performance.
+config:
+  profile: test
+  jurisdictions: [US]
+  root_seed: 55
+  n_agents: 200
+  n_ticks: 48
+  ftc_enabled: true
+  ftc_compliance: false
+  ads_enabled: true

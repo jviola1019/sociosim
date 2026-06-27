@@ -6,6 +6,7 @@ from socio_sim.engine import Simulation
 from socio_sim.logs.manifest import Manifest
 from socio_sim.logs.replay import verify
 from socio_sim.pipeline import run_and_analyze
+import pytest
 
 
 def custom_fn(cfg):
@@ -62,3 +63,31 @@ def test_campaign_measurement_uses_eligible_opportunity_itt():
     assert m["eligible_opportunities"] >= m["impressions"]
     assert m["n_exposed"] + m["n_holdout"] <= m["eligible_opportunities"]
     assert all("price" not in e["data"] for e in a.result.log.by_kind("ad_opportunity"))
+
+
+@pytest.mark.parametrize("kwargs, field", [
+    ({"bid": 0}, "bid"),
+    ({"budget": 0}, "budget"),
+    ({"base_ctr": 1.2}, "base_ctr"),
+    ({"base_cvr": -0.1}, "base_cvr"),
+    ({"conversion_value": -1}, "conversion_value"),
+    ({"ltv_multiplier": -1}, "ltv_multiplier"),
+    ({"holdout_fraction": 1.5}, "holdout_fraction"),
+    ({"attribution_window_ticks": -1}, "attribution_window_ticks"),
+    ({"targeting": []}, "targeting"),
+])
+def test_campaign_constructor_rejects_invalid_programmatic_inputs(kwargs, field):
+    base = dict(id="bad", advertiser="X", bid=1.0, budget=10.0)
+    base.update(kwargs)
+    with pytest.raises(ValueError, match=field):
+        Campaign(**base)
+
+
+def test_campaign_constructor_normalizes_valid_numeric_inputs():
+    c = Campaign(id="ok", advertiser="X", bid="1.5", budget="10",
+                 base_ctr="0.2", base_cvr="0.1",
+                 attribution_window_ticks=0, holdout_fraction="0.25")
+    assert c.bid == 1.5
+    assert c.budget == 10.0
+    assert c.attribution_window_ticks == 0
+    assert c.holdout_fraction == 0.25

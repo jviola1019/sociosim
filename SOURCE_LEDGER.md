@@ -25,10 +25,20 @@ targets. Policy packs are research approximations, NOT legal advice.
   estimation for the difference between independent proportions*, Statistics in
   Medicine. (Wilson-hybrid; used in `stats.newcombe_diff_ci`.)
 - **Bayesian A/B (Beta-difference posterior, P(lift>0))** — arXiv:2003.02769.
-- **False-discovery-rate control** — Benjamini & Hochberg (1995). (For
-  multi-campaign comparisons; planned guard.)
+- **False-discovery-rate control** — Benjamini & Hochberg (1995). Implemented
+  for multi-campaign comparisons as BH q-values (`ads.measure.apply_fdr`;
+  covered by `tests/test_ads.py`).
 - **Holdout / Ghost-Ads incrementality** — Johnson, Lewis & Nubbemeyer (Google),
   *Ghost Ads*; industry incrementality/iROAS guides (Measured, Improvado).
+
+## Component benchmark data
+
+- **Civil Comments toxicity sample** — bundled licensed aggregate/component
+  benchmark for classifier measurement; see `docs/DATA_MANIFEST.md` and
+  `BENCHMARK_REPORT.md`. Component-measured only; not ABM validation.
+- **Spam detection sample** — bundled licensed aggregate/component benchmark
+  for classifier measurement; see `docs/DATA_MANIFEST.md` and
+  `BENCHMARK_REPORT.md`. Component-measured only; not ABM validation.
 
 ## Calibration targets (`data/benchmarks/default_targets.json`)
 - Scale-free degree exponent 2–3 — Barabási & Albert (1999) and successors.

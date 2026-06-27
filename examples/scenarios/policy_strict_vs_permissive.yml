@@ -1,0 +1,37 @@
+scenario_id: policy_strict_vs_permissive
+version: "1.0"
+lab_mode: compare
+purpose: Compare stricter synthetic classifier operating points against a permissive baseline.
+intended_use:
+  - Explore within-model tradeoffs between exposure reduction and false positives.
+prohibited_use:
+  - Do not infer real-world censorship, enforcement, or legal requirements.
+primary_question: Within this configured synthetic model, how do stricter classifier assumptions change headline metrics?
+primary_metric: harmful_exposure_rate
+secondary_metrics:
+  - moderation_precision
+  - moderation_recall
+  - welfare_mean
+assumptions:
+  - Common random numbers should be used for baseline and intervention replicates.
+  - Classifier rates are scenario assumptions unless measured separately.
+provenance: synthetic_assumption
+research_only_notice: Synthetic scenario estimates only; not a real-world forecast.
+config:
+  profile: test
+  jurisdictions: [EU]
+  root_seed: 42
+  n_agents: 200
+  n_ticks: 48
+  classifier_targets:
+    hate: {precision: 0.8, recall: 0.75}
+    harassment: {precision: 0.8, recall: 0.75}
+    fraud: {precision: 0.8, recall: 0.75}
+    misinfo: {precision: 0.8, recall: 0.75}
+    adult: {precision: 0.8, recall: 0.75}
+    illegal_goods: {precision: 0.8, recall: 0.75}
+    self_harm: {precision: 0.8, recall: 0.75}
+    political: {precision: 0.8, recall: 0.75}
+    ad: {precision: 0.8, recall: 0.75}
+    sponsored: {precision: 0.8, recall: 0.75}
+    ai_generated: {precision: 0.8, recall: 0.75}

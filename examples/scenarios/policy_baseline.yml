@@ -1,0 +1,28 @@
+scenario_id: policy_baseline
+version: "1.0"
+lab_mode: society_policy
+purpose: Baseline EU synthetic platform run for policy comparisons.
+intended_use:
+  - Establish a fixed-seed baseline before changing moderation, feed, or ad assumptions.
+prohibited_use:
+  - Do not use to predict real platforms, events, groups, or legal compliance.
+primary_question: Within this configured synthetic model, what are baseline safety and reach metrics?
+primary_metric: harmful_exposure_rate
+secondary_metrics:
+  - moderation_precision
+  - moderation_recall
+  - appeal_grant_rate
+  - welfare_mean
+assumptions:
+  - Synthetic personas and content only.
+  - EU policy pack is a research approximation, not legal advice.
+provenance: model_derived
+research_only_notice: Synthetic scenario estimates only; not a real-world forecast.
+config:
+  profile: test
+  jurisdictions: [EU]
+  root_seed: 42
+  n_agents: 200
+  n_ticks: 48
+  feed_strategy: personalized
+  holdout_fraction: 0.1

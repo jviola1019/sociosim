@@ -1,0 +1,27 @@
+scenario_id: policy_appeals_capacity
+version: "1.0"
+lab_mode: society_policy
+purpose: Stress appeal timing and review-capacity assumptions in a synthetic EU run.
+intended_use:
+  - Examine modeled notice, appeal, and human-review timing metrics.
+prohibited_use:
+  - Do not use as legal compliance certification or staffing advice.
+primary_question: Within this configured synthetic model, how does delayed review affect appeal and notice outcomes?
+primary_metric: appeal_grant_rate
+secondary_metrics:
+  - harmful_exposure_rate
+  - moderation_recall
+  - welfare_mean
+assumptions:
+  - Human review delay is a scenario knob, not measured staffing data.
+  - Appeal grant rates are synthetic assumptions.
+provenance: synthetic_assumption
+research_only_notice: Synthetic scenario estimates only; not a real-world forecast.
+config:
+  profile: test
+  jurisdictions: [EU]
+  root_seed: 43
+  n_agents: 200
+  n_ticks: 72
+  human_review_delay_ticks: 18
+  appeal_grant_fp_rate: 0.75

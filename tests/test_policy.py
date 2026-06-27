@@ -73,6 +73,16 @@ def test_eu_user_flag_triggers_review():
     decisions = e.evaluate(item(), scores={"harassment": 0.55},
                            context={"user_flagged": True})
     assert any(d.action == "escalate" for d in decisions)
+    review = next(d for d in decisions if d.action == "escalate")
+    assert review.human_review_required is True
+
+
+def test_eu_user_flag_triggers_review_even_when_classifier_misses():
+    e = engine(("EU",))
+    decisions = e.evaluate(item(), scores={"harassment": 0.0},
+                           context={"user_flagged": True})
+    assert any(d.rule_id == "EU-FLAG-1" and d.action == "escalate"
+               for d in decisions)
 
 
 def test_cn_unlabeled_ai_content_gets_platform_label_and_retention():

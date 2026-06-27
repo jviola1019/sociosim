@@ -45,6 +45,10 @@ _CONTENT_TYPES = {".html": "text/html; charset=utf-8",
 
 #: Max JSON body accepted on POST (DoS guard; ASVS V5). 2 MB is ample for configs.
 MAX_BODY_BYTES = 2 * 1024 * 1024
+WEB_MAX_AGENTS = int(os.environ.get("SOCIOSIM_WEB_MAX_AGENTS", "10000"))
+WEB_MAX_TICKS = int(os.environ.get("SOCIOSIM_WEB_MAX_TICKS", str(28 * 24)))
+WEB_MAX_TOPICS = int(os.environ.get("SOCIOSIM_WEB_MAX_TOPICS", "32"))
+WEB_MAX_ACTIVE_JOBS = int(os.environ.get("SOCIOSIM_WEB_MAX_ACTIVE_JOBS", "1"))
 _LOOPBACK_HOSTS = LOOPBACK_HOSTS
 #: Response security headers set on EVERY response (OWASP Secure Headers; MDN).
 #: CSP allows the external app.js (script-src 'self') + inline styles the UI uses
@@ -266,7 +270,22 @@ def _build_config(body: dict) -> RunConfig:
     if body.get("llm_base_url"):
         overrides["llm_base_url"] = str(body["llm_base_url"])
     _validate_llm_url(overrides.get("llm_base_url", ""))   # SSRF guard (A10/CWE-918)
-    return factory(**overrides).validate()
+    cfg = factory(**overrides).validate()
+    _enforce_web_limits(cfg)
+    return cfg
+
+
+def _enforce_web_limits(cfg: RunConfig):
+    if cfg.n_agents > WEB_MAX_AGENTS:
+        raise ValueError(f"n_agents: web maximum is {WEB_MAX_AGENTS}")
+    if cfg.n_ticks > WEB_MAX_TICKS:
+        raise ValueError(f"n_ticks: web maximum is {WEB_MAX_TICKS}")
+    if cfg.n_topics > WEB_MAX_TOPICS:
+        raise ValueError(f"n_topics: web maximum is {WEB_MAX_TOPICS}")
+
+
+def _active_job_count() -> int:
+    return sum(1 for j in _JOBS.values() if j.get("status") == "running")
 
 
 def _normalize_campaign_specs(body: dict) -> list[dict]:
@@ -786,12 +805,17 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             _build_config(body)  # validates the baseline arm
+            if route == "/api/compare":
+                _build_config({**body, **(body.get("intervention") or {})})
             _normalize_campaign_specs(body)  # validates custom campaign rows
         except Exception as exc:
             self._send_json({"error": f"{type(exc).__name__}: {exc}"}, 400)
             return
         job_id = uuid.uuid4().hex[:12]
         with _LOCK:
+            if WEB_MAX_ACTIVE_JOBS >= 0 and _active_job_count() >= WEB_MAX_ACTIVE_JOBS:
+                self._send_json({"error": "too many active jobs"}, 429)
+                return
             _JOBS[job_id] = {"status": "running", "progress": 0.0,
                              "tick": 0, "phase": "queued"}
         target = _run_compare if route == "/api/compare" else _run_job

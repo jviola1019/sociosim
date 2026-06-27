@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, fields
 from copy import deepcopy
+import math
 
 from socio_sim.content.items import ContentItem
 
@@ -33,6 +34,45 @@ class Campaign:
     _initial_budget: float | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self):
+        if not str(self.id or "").strip():
+            raise ValueError("campaign.id: must be non-empty")
+        if not str(self.advertiser or "").strip():
+            raise ValueError("campaign.advertiser: must be non-empty")
+        self.bid = _finite_float("campaign.bid", self.bid)
+        self.budget = _finite_float("campaign.budget", self.budget)
+        self.base_ctr = _finite_float("campaign.base_ctr", self.base_ctr)
+        self.base_cvr = _finite_float("campaign.base_cvr", self.base_cvr)
+        self.conversion_value = _finite_float(
+            "campaign.conversion_value", self.conversion_value)
+        self.ltv_multiplier = _finite_float(
+            "campaign.ltv_multiplier", self.ltv_multiplier)
+        if self.bid <= 0:
+            raise ValueError("campaign.bid: must be positive")
+        if self.budget <= 0:
+            raise ValueError("campaign.budget: must be positive")
+        if not 0.0 <= self.base_ctr <= 1.0:
+            raise ValueError("campaign.base_ctr: must be in [0, 1]")
+        if not 0.0 <= self.base_cvr <= 1.0:
+            raise ValueError("campaign.base_cvr: must be in [0, 1]")
+        if self.conversion_value < 0:
+            raise ValueError("campaign.conversion_value: must be non-negative")
+        if self.ltv_multiplier < 0:
+            raise ValueError("campaign.ltv_multiplier: must be non-negative")
+        if not isinstance(self.attribution_window_ticks, int):
+            if isinstance(self.attribution_window_ticks, float) and self.attribution_window_ticks.is_integer():
+                self.attribution_window_ticks = int(self.attribution_window_ticks)
+            else:
+                raise ValueError("campaign.attribution_window_ticks: must be an integer")
+        if self.attribution_window_ticks < 0:
+            raise ValueError("campaign.attribution_window_ticks: must be non-negative")
+        if self.holdout_fraction is not None:
+            self.holdout_fraction = _finite_float(
+                "campaign.holdout_fraction", self.holdout_fraction)
+            if not 0.0 <= self.holdout_fraction <= 1.0:
+                raise ValueError("campaign.holdout_fraction: must be in [0, 1]")
+        if not isinstance(self.targeting, dict):
+            raise ValueError("campaign.targeting: must be a mapping")
+        self.targeting = deepcopy(self.targeting)
         self._initial_budget = float(self.budget)
 
     @property
@@ -82,3 +122,15 @@ def campaigns_from_specs(specs: list[dict] | None) -> list[Campaign] | None:
     allowed = {f.name for f in fields(Campaign) if not f.name.startswith("_")}
     return [Campaign(**{k: deepcopy(v) for k, v in spec.items() if k in allowed})
             for spec in specs]
+
+
+def _finite_float(name: str, value) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"{name}: must be numeric")
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{name}: must be numeric")
+    if not math.isfinite(parsed):
+        raise ValueError(f"{name}: must be finite")
+    return parsed

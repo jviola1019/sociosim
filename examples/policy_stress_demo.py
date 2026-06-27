@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from socio_sim.analytics.metrics import (appeal_stats, harmful_exposure,
                                          moderation_confusion, notice_stats)
 from socio_sim.config import RunConfig
-from socio_sim.experiments.runner import compare
+from socio_sim.experiments.compare import compare
 
 
 def metrics(result):
