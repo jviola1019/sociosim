@@ -117,8 +117,8 @@ design (GDPR Art. 22 / EU AI Act / project ethics).
 
 | Benchmark | Task | License | F1 | ROC-AUC |
 |---|---|---|---|---|
-| Civil Comments | toxicity | CC0-1.0 | ~0.72 | ~0.78 |
-| Deysi spam-detection | spam | Apache-2.0 | ~0.98 | ~1.00 |
+| Civil Comments | toxicity | CC0-1.0 | ~0.74 | ~0.81 |
+| Deysi spam-detection | spam | Apache-2.0 | ~0.99 | ~1.00 |
 
 A transparent numpy logistic-regression over hashed features — auditable and
 deterministic, trading peak accuracy for reproducibility + explainability. Data

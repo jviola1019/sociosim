@@ -16,8 +16,8 @@ list; this file tracks what remains open or newly surfaced.
   calibrated profile when calibration consistency matters.
 - **Top rung reached for the classifier** (`run.py --measure-classifier`,
   `BENCHMARK_REPORT.md`): the moderation classifier is **measured on REAL,
-  license-clean public benchmarks** — Civil Comments toxicity (CC0): F1≈0.72,
-  ROC-AUC≈0.78; Deysi spam (Apache-2.0): F1≈0.98, ROC-AUC≈1.00 (deterministic,
+  license-clean public benchmarks** — Civil Comments toxicity (CC0): F1≈0.74,
+  ROC-AUC≈0.81; Deysi spam (Apache-2.0): F1≈0.99, ROC-AUC≈1.00 (deterministic,
   PII-scrubbed; `docs/DATA_MANIFEST.md`). Provenance `measured-on-benchmark`.
   Honest scope: this measures the CLASSIFIER COMPONENT on real text; it does not
   make the synthetic agent-based simulation predictive of any real platform, and

@@ -61,7 +61,7 @@ diagrams + full model definitions. DONE+verified:
   provenance script scripts/fetch_moderation_benchmarks.py; package-data + wheel
   ship verified.
 - validation/benchmark_eval.py: deterministic split + numpy LR -> MEASURED P/R/F1
-  + tie-corrected ROC-AUC. Results: toxicity F1=0.72/AUC=0.78; spam F1=0.98/AUC=
+  + tie-corrected ROC-AUC. Results: toxicity F1=0.74/AUC=0.81; spam F1=0.99/AUC=
   1.00 (baseline ~0.52). Provenance 'measured-on-benchmark' (top rung).
 - run.py --measure-classifier -> BENCHMARK_REPORT.md; DATA_MANIFEST entries
   (verified license/PII/redistribution). Tests +4.
