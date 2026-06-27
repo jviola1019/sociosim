@@ -61,6 +61,16 @@ _UNSAFE_PHRASES = (
     "real person's",
 )
 
+# Category-specific keyword signals used by _reclass_check.
+# If the template generated safe content (empty true_categories) but the LLM
+# text fires one of these, the generated text is rejected to avoid leakage.
+_RECLASS_SIGNALS: dict[str, tuple[str, ...]] = {
+    "hate": ("hate", "n-word", "slur", "racial", "kill all"),
+    "self_harm": ("suicide", "self-harm", "cut myself", "end my life"),
+    "fraud": ("phishing", "scam", "wire transfer", "send money", "bank details"),
+    "harassment": ("i will find you", "you will regret", "destroy you"),
+}
+
 
 class LLMAdapter:
     def __init__(self, base: TemplateGenerator, cache_path: str | Path,
@@ -127,6 +137,10 @@ class LLMAdapter:
                 if not text:
                     raise ValueError("empty LLM response")
                 text = self._safe_generated_text(text)
+                reclass_violation = self._reclass_check(text, item)
+                if reclass_violation:
+                    raise ValueError(
+                        f"generated text failed reclassification check: {reclass_violation}")
                 self._cache[key] = {
                     "text": text,
                     "metadata": {
@@ -136,6 +150,7 @@ class LLMAdapter:
                         "prompt_version": "llm_adapter_v2_safety_boundaries",
                         "provenance": "generated_presentation_text",
                         "state_mutation_allowed": False,
+                        "reclass_check": "passed",
                     },
                 }
                 self._save_cache()
@@ -168,6 +183,26 @@ class LLMAdapter:
         if "```" in text or "<script" in lowered:
             raise ValueError("generated text failed executable-content guard")
         return text
+
+    def _reclass_check(self, text: str, item) -> str | None:
+        """Secondary consistency check: if the template assigned safe categories
+        (empty true_categories) but the LLM text fires a harm-category signal,
+        reject the text to prevent leakage into what should be safe content.
+
+        Returns a non-empty violation string if the check fails, else None.
+        Categories that were intentionally harmful in the template are exempt —
+        the template already decided the content type; LLM surface text for
+        intentional harm items is controlled by the broader _safe_generated_text
+        guard.
+        """
+        if item.true_categories:
+            return None  # template already asserted a category; no leakage risk
+        lowered = text.lower()
+        for category, signals in _RECLASS_SIGNALS.items():
+            for signal in signals:
+                if signal in lowered:
+                    return f"safe-template item contains {category!r} signal: {signal!r}"
+        return None
 
     # -- transports ----------------------------------------------------------
     def _http_transport(self, prompt: str) -> str:

@@ -116,6 +116,100 @@ def test_engine_runs_with_ollama_mode_offline(tmp_path):
     assert result.log.by_kind("degradation")
 
 
+def test_cache_hash_stable_across_instances(tmp_path):
+    """cache_hash() must return the same value for two adapters reading the same file."""
+    gen, personas = setup()
+    adapter_a = LLMAdapter(base=gen, cache_path=tmp_path / "cache.json",
+                           backend="ollama", transport=lambda p: "test post text")
+    adapter_a.generate(1, personas, tick=0)
+    hash_a = adapter_a.cache_hash()
+    assert hash_a is not None
+
+    adapter_b = LLMAdapter(base=setup()[0], cache_path=tmp_path / "cache.json",
+                           backend="ollama", transport=lambda p: "should not be called")
+    hash_b = adapter_b.cache_hash()
+    assert hash_b == hash_a, "cache_hash must be stable across adapter instances for same file"
+
+
+def test_cache_hash_changes_on_new_entry(tmp_path):
+    """cache_hash() must change when a new entry is added to the cache."""
+    gen, personas = setup()
+    calls = iter(["first post", "second post"])
+    adapter = LLMAdapter(base=gen, cache_path=tmp_path / "cache.json",
+                         backend="ollama", transport=lambda p: next(calls))
+    adapter.generate(1, personas, tick=0)
+    hash_before = adapter.cache_hash()
+
+    adapter.generate(2, personas, tick=1)
+    hash_after = adapter.cache_hash()
+    assert hash_after != hash_before, "cache_hash must differ after a new cache entry"
+
+
+def test_reclass_check_degrades_safe_item_with_hate_signal(tmp_path):
+    """If the template says safe (empty categories) but LLM emits hate signal, degrade."""
+    gen, personas = setup()
+    degradations = []
+
+    original_generate = gen.generate
+
+    def safe_template(author_id, p, tick):
+        item = original_generate(author_id, p, tick)
+        item.true_categories = set()  # force safe template item
+        return item
+
+    gen.generate = safe_template
+
+    adapter = LLMAdapter(
+        base=gen,
+        cache_path=tmp_path / "reclass.json",
+        backend="ollama",
+        transport=lambda p: "I hate all racial groups",
+        on_degradation=degradations.append,
+    )
+    item = adapter.generate(1, personas, tick=0)
+    assert item.text  # fell back to template text
+    assert degradations
+    assert "reclass" in degradations[0].lower() or "failed" in degradations[0].lower()
+    assert not (tmp_path / "reclass.json").exists()  # not cached on reclass failure
+
+
+def test_reclass_check_passes_intentional_harm_item(tmp_path):
+    """If the template already assigned a harmful category, reclass check is skipped."""
+    gen, personas = setup()
+    call_count = []
+
+    def fake_transport(prompt):
+        call_count.append(1)
+        return "I hate all racial groups"
+
+    original_generate = gen.generate
+
+    def patched_generate(author_id, personas, tick):
+        item = original_generate(author_id, personas, tick)
+        item.true_categories = {"hate"}
+        return item
+
+    gen.generate = patched_generate
+
+    adapter = LLMAdapter(base=gen, cache_path=tmp_path / "harm.json",
+                         backend="ollama", transport=fake_transport)
+    item = adapter.generate(1, personas, tick=0)
+    assert call_count, "transport must have been called"
+    assert item.text == "I hate all racial groups"
+
+
+def test_cache_entry_includes_reclass_check_field(tmp_path):
+    """Cached entries must include reclass_check='passed' in metadata."""
+    gen, personas = setup()
+    adapter = LLMAdapter(base=gen, cache_path=tmp_path / "meta.json",
+                         backend="ollama", transport=lambda p: "ordinary safe post")
+    adapter.generate(1, personas, tick=0)
+    import json
+    cache = json.loads((tmp_path / "meta.json").read_text())
+    entry = next(iter(cache.values()))
+    assert entry["metadata"]["reclass_check"] == "passed"
+
+
 def test_engine_llm_events_label_presentation_text_only(tmp_path):
     from socio_sim.engine import Simulation
     cfg = RunConfig.test(n_agents=40, n_ticks=4, content_mode="ollama",
