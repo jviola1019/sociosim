@@ -20,18 +20,39 @@ HARMFUL = {"hate", "harassment", "fraud", "misinfo", "adult",
 TERMINAL_ACTIONS = {"remove", "downrank"}
 
 METRIC_PROVENANCE = {
+    # --- Volume ---
     "n_posts": {
         "provenance": "model_derived",
         "unit": "count",
         "definition": "Number of post events in the synthetic event log.",
         "limitations": "Descriptive count for one configured run.",
     },
+    "n_impressions": {
+        "provenance": "model_derived",
+        "unit": "count",
+        "definition": "Number of feed impression events logged across all agents.",
+        "limitations": "Descriptive count; driven by feed size and agent activity model.",
+    },
+    "n_engagements": {
+        "provenance": "model_derived",
+        "unit": "count",
+        "definition": "Number of engagement events (likes, shares, replies) logged.",
+        "limitations": "Synthetic engagement probability; not measured user behaviour.",
+    },
+    # --- Harmful-exposure ---
     "harmful_exposure_rate": {
         "provenance": "model_derived",
         "unit": "rate per impression",
         "definition": "Harmful impressions divided by total impressions.",
         "limitations": "Depends on synthetic truth labels and feed logging.",
     },
+    "harmful_exposure_ci": {
+        "provenance": "model_derived",
+        "unit": "rate per impression (95% CI)",
+        "definition": "Bootstrap 95% CI of per-agent harmful-impression rates.",
+        "limitations": "Within-run bootstrap noise only; not MC-replicated variance.",
+    },
+    # --- Moderation ---
     "moderation_precision": {
         "provenance": "model_derived",
         "unit": "rate",
@@ -44,18 +65,110 @@ METRIC_PROVENANCE = {
         "definition": "True positive moderation actions divided by harmful items.",
         "limitations": "Undefined when no harmful items occur.",
     },
+    "moderation_fpr": {
+        "provenance": "model_derived",
+        "unit": "rate",
+        "definition": "False-positive rate: benign items wrongly actioned / total benign.",
+        "limitations": "Denominator is synthetic benign item count.",
+    },
+    "moderation_fnr": {
+        "provenance": "model_derived",
+        "unit": "rate",
+        "definition": "False-negative rate: harmful items missed / total harmful.",
+        "limitations": "Denominator is synthetic harmful item count.",
+    },
+    # --- Fairness ---
+    "moderation_fpr_by_group": {
+        "provenance": "model_derived",
+        "unit": "rate per group",
+        "definition": "FPR broken out by author age-group, ideology bucket, and vulnerability flag.",
+        "limitations": "Group sizes may be too small for stable estimates (flagged as insufficient_sample).",
+    },
+    "moderation_fnr_by_group": {
+        "provenance": "model_derived",
+        "unit": "rate per group",
+        "definition": "FNR broken out by author demographic group.",
+        "limitations": "Same as fpr_by_group; synthetic group assignments.",
+    },
+    # --- Appeals ---
     "appeal_grant_rate": {
         "provenance": "model_derived",
         "unit": "rate",
         "definition": "Granted appeals divided by resolved appeals.",
         "limitations": "Sensitive to synthetic appeal-filing assumptions.",
     },
+    "appeal_mean_resolution_ticks": {
+        "provenance": "model_derived",
+        "unit": "ticks (hours)",
+        "definition": "Mean simulated time from appeal filing to resolution.",
+        "limitations": "Determined by human_review_delay_ticks config parameter.",
+    },
+    "appeal_deadline_miss_rate": {
+        "provenance": "model_derived",
+        "unit": "rate",
+        "definition": "Share of human reviews that exceeded the configured deadline.",
+        "limitations": "Sensitive to reviewer capacity and backlog assumptions.",
+    },
+    # --- Notices ---
+    "removal_notice_coverage": {
+        "provenance": "model_derived",
+        "unit": "rate",
+        "definition": "Share of removal actions that had a corresponding notice event.",
+        "limitations": "Binary coverage metric; does not measure notice quality.",
+    },
+    # --- Cascades ---
+    "cascade_count": {
+        "provenance": "model_derived",
+        "unit": "count",
+        "definition": "Number of distinct share cascades (root posts with at least one reply).",
+        "limitations": "Cascade shape depends on graph topology and engagement model.",
+    },
+    "cascade_mean_size": {
+        "provenance": "model_derived",
+        "unit": "count",
+        "definition": "Mean cascade size (posts per cascade tree).",
+        "limitations": "Skewed by large outlier cascades; consider max alongside mean.",
+    },
+    "cascade_max_size": {
+        "provenance": "model_derived",
+        "unit": "count",
+        "definition": "Size of the largest single cascade observed in this run.",
+        "limitations": "Single-run max; high variance; compare across replicates.",
+    },
+    # --- Welfare ---
     "welfare_mean": {
         "provenance": "model_derived",
         "unit": "index",
-        "definition": "Engagement affinity minus harm and attention penalties.",
+        "definition": "Engagement affinity minus harm and attention penalties, normalised per impression.",
         "limitations": "A model proxy, not measured human welfare.",
     },
+    "welfare_ci": {
+        "provenance": "model_derived",
+        "unit": "index (95% CI)",
+        "definition": "Bootstrap 95% CI of per-agent welfare scores.",
+        "limitations": "Within-run bootstrap noise only.",
+    },
+    # --- Minor protection ---
+    "minor_ad_rate": {
+        "provenance": "model_derived",
+        "unit": "rate",
+        "definition": "Share of ad impressions delivered to simulated minors.",
+        "limitations": "Depends on synthetic is_minor persona flag prevalence.",
+    },
+    # --- Graph ---
+    "graph_clustering": {
+        "provenance": "model_derived",
+        "unit": "coefficient 0–1",
+        "definition": "Average clustering coefficient of the final agent social graph.",
+        "limitations": "Varies with graph model choice and homophily settings.",
+    },
+    "graph_degree_mean": {
+        "provenance": "model_derived",
+        "unit": "edges per node",
+        "definition": "Mean degree in the final agent social graph.",
+        "limitations": "Scale-free graphs have high-degree hubs that inflate the mean.",
+    },
+    # --- Ad campaign secondary ---
     "ad_ctr": {
         "provenance": "model_derived",
         "unit": "rate",
@@ -65,7 +178,7 @@ METRIC_PROVENANCE = {
     "ad_lift_itt": {
         "provenance": "model_derived",
         "unit": "rate delta",
-        "definition": "Exposed conversion rate minus randomized holdout rate.",
+        "definition": "Exposed conversion rate minus randomized holdout rate (ITT estimand).",
         "limitations": "Synthetic holdout diagnostic; not real incrementality.",
     },
     "ad_roas": {
@@ -73,6 +186,42 @@ METRIC_PROVENANCE = {
         "unit": "ratio",
         "definition": "Synthetic revenue divided by synthetic spend.",
         "limitations": "Synthetic scenario input/output, not real financial performance.",
+    },
+    "ad_spend": {
+        "provenance": "synthetic_assumption",
+        "unit": "currency (synthetic)",
+        "definition": "Cumulative synthetic spend from budget drawdown.",
+        "limitations": "Budget and bid are scenario inputs, not real dollar amounts.",
+    },
+    "ad_mde": {
+        "provenance": "model_derived",
+        "unit": "rate delta",
+        "definition": "Minimum detectable effect at 80% power given observed sample sizes.",
+        "limitations": "Analytical estimate; assumes binary outcome and large-n normal approx.",
+    },
+    "ad_lift_pvalue": {
+        "provenance": "model_derived",
+        "unit": "p-value",
+        "definition": "Two-sided p-value for the difference in conversion rates (Newcombe method).",
+        "limitations": "Synthetic sample; underpowered for typical lift sizes in small runs.",
+    },
+    "ad_lift_qvalue_bh": {
+        "provenance": "model_derived",
+        "unit": "q-value (BH-FDR)",
+        "definition": "Benjamini-Hochberg q-value across all campaigns for multi-comparison control.",
+        "limitations": "FDR control is meaningful only when n_campaigns >= ~5.",
+    },
+    "ad_iroas": {
+        "provenance": "synthetic_assumption",
+        "unit": "ratio",
+        "definition": "Incremental revenue divided by spend (iROAS); uses ITT lift as numerator.",
+        "limitations": "Synthetic economics; depends on conversion_value scenario assumption.",
+    },
+    "ad_cac": {
+        "provenance": "synthetic_assumption",
+        "unit": "currency (synthetic) per conversion",
+        "definition": "Spend divided by attributed conversions.",
+        "limitations": "Attribution window and conversion definition are scenario inputs.",
     },
 }
 

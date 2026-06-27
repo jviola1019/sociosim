@@ -204,6 +204,46 @@ def test_report_states_uncertainty_provenance():
     assert "provenance" in low or "not monte carlo" in low or "single-run" in low
 
 
+def test_metric_provenance_covers_secondary_metrics():
+    """METRIC_PROVENANCE must include all documented secondary metrics."""
+    from socio_sim.analytics.metrics import METRIC_PROVENANCE
+    required = {
+        # volume
+        "n_posts", "n_impressions", "n_engagements",
+        # harmful exposure
+        "harmful_exposure_rate", "harmful_exposure_ci",
+        # moderation
+        "moderation_precision", "moderation_recall",
+        "moderation_fpr", "moderation_fnr",
+        "moderation_fpr_by_group", "moderation_fnr_by_group",
+        # appeals
+        "appeal_grant_rate", "appeal_mean_resolution_ticks", "appeal_deadline_miss_rate",
+        # notices
+        "removal_notice_coverage",
+        # cascades
+        "cascade_count", "cascade_mean_size", "cascade_max_size",
+        # welfare
+        "welfare_mean", "welfare_ci",
+        # minor protection
+        "minor_ad_rate",
+        # graph
+        "graph_clustering", "graph_degree_mean",
+        # ad secondary
+        "ad_ctr", "ad_lift_itt", "ad_roas", "ad_spend", "ad_mde",
+        "ad_lift_pvalue", "ad_lift_qvalue_bh", "ad_iroas", "ad_cac",
+    }
+    missing = required - set(METRIC_PROVENANCE)
+    assert not missing, f"METRIC_PROVENANCE missing entries: {sorted(missing)}"
+    for key, meta in METRIC_PROVENANCE.items():
+        assert "provenance" in meta, f"{key} missing 'provenance'"
+        assert "unit" in meta, f"{key} missing 'unit'"
+        assert "limitations" in meta, f"{key} missing 'limitations'"
+        assert meta["provenance"] in {
+            "model_derived", "synthetic_assumption", "component_measured",
+            "aggregate_backtested", "calibration_consistent", "unsupported",
+        }, f"{key} has unknown provenance value: {meta['provenance']}"
+
+
 def test_dynamic_graph_report_uses_final_topology():
     cfg = RunConfig.test(jurisdictions=("EU",), n_ticks=72,
                          follow_rate=0.1, unfollow_rate=0.1, churn_rate=0.04)
