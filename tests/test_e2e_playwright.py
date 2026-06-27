@@ -171,6 +171,21 @@ def test_e2e_dashboard_runs_and_renders():
                     " const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;"
                     " let n=0; for(let i=3;i<d.length;i+=4) if(d[i]>0) n++; return n; }")
                 assert drawn > 0
+                # charts tab: SVGs have role=img + aria-label; data tables exist
+                page.evaluate("document.querySelector('#outTabs button[data-otab=charts]').click()")
+                page.wait_for_timeout(80)
+                chart_a11y = page.evaluate("""() => {
+                  const svgs = [...document.querySelectorAll('#charts .chart svg[role=img]')];
+                  const tables = [...document.querySelectorAll('#charts details.chart-data-table table')];
+                  return {
+                    svgsWithRole: svgs.length,
+                    svgsWithAriaLabel: svgs.filter(s => s.getAttribute('aria-label')).length,
+                    dataTables: tables.length,
+                  };
+                }""")
+                assert chart_a11y["svgsWithRole"] >= 4, chart_a11y
+                assert chart_a11y["svgsWithAriaLabel"] >= 4, chart_a11y
+                assert chart_a11y["dataTables"] >= 4, chart_a11y
                 # the audit-log explorer renders rows
                 page.evaluate("document.querySelector('#outTabs button[data-otab=audit]').click()")
                 rows = page.evaluate("document.querySelectorAll('#audit table tbody tr').length")

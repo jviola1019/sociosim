@@ -347,6 +347,12 @@ ul.garm li { font-size: 12px; line-height: 1.6; color: var(--ink-2, var(--ink));
 @keyframes draw { to { stroke-dashoffset: 0; } }
 .chart rect.bar-g { transform: scaleY(0); transform-origin: bottom; animation: barg .6s var(--ease) forwards; }
 @keyframes barg { to { transform: scaleY(1); } }
+.chart-data-table { margin-top: 12px; font-size: 11px; }
+.chart-data-table summary { cursor: pointer; color: var(--ink-3); user-select: none; padding: 2px 0; }
+.chart-data-table summary:hover { color: var(--blue); }
+.chart-data-table table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+.chart-data-table th { text-align: left; font-weight: 600; color: var(--ink-2); border-bottom: 1px solid var(--line); padding: 3px 6px; }
+.chart-data-table td { padding: 2px 6px; color: var(--ink-3); border-bottom: 1px solid var(--line); font-family: var(--mono); }
 
 .confusion { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 480px; }
 .cell { border: 1px solid var(--line); border-radius: var(--r); padding: 18px; text-align: center; background: var(--surface); box-shadow: var(--sh-1); animation: cardin .45s var(--ease) backwards; }

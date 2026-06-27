@@ -565,14 +565,29 @@ function dualLine(a, b, { w = 460, h = 170 } = {}) {
 }
 function activateDraw(root) { $$("path.draw", root).forEach(p => p.style.setProperty("--len", p.getTotalLength())); }
 let _charts = null;
+function tableAlt(headers, rows) {
+  const det = document.createElement("details"); det.className = "chart-data-table";
+  const sum = document.createElement("summary"); sum.textContent = "Data table"; det.appendChild(sum);
+  const tab = document.createElement("table");
+  const hrow = document.createElement("tr");
+  headers.forEach(h => { const th = document.createElement("th"); th.textContent = h; hrow.appendChild(th); });
+  const thead = document.createElement("thead"); thead.appendChild(hrow); tab.appendChild(thead);
+  const tbody = document.createElement("tbody");
+  rows.forEach(row => { const tr = document.createElement("tr"); row.forEach(v => { const td = document.createElement("td"); td.textContent = v; tr.appendChild(td); }); tbody.appendChild(tr); });
+  tab.appendChild(tbody); det.appendChild(tab); return det;
+}
 function renderCharts(ch) {
   _charts = ch; const host = $("#charts"); host.innerHTML = "";
   const hours = [...Array(24)].map((_, i) => (i % 6 === 0 ? i : ""));
-  const cc = (title, sub, node) => { const d = document.createElement("div"); d.className = "chart"; d.innerHTML = `<div class="ct">${title}</div><div class="cs">${sub}</div>`; node.setAttribute("role", "img"); node.setAttribute("aria-label", `${title} — ${sub}`); d.appendChild(node); return d; };
-  host.appendChild(cc("Diurnal Posting", "posts by hour of day", areaChart(ch.diurnal, { color: "#30c0b4", xlabels: hours })));
-  host.appendChild(cc("Degree Distribution", "agents by follower count", barChart(ch.degree_hist.map(d => [Math.round(d[0]), d[1]]), { color: "#0a84ff", labelEvery: 4 })));
-  host.appendChild(cc("Activity Timeline", "posts (teal) vs moderation actions (blue)", dualLine(ch.timeline_posts, ch.timeline_removed)));
-  host.appendChild(cc("Cascade Sizes", "share-tree size distribution", barChart(ch.cascade, { color: "#ff9500", labelEvery: Math.max(1, Math.ceil(ch.cascade.length / 8)) })));
+  const cc = (title, sub, node, alt) => { const d = document.createElement("div"); d.className = "chart"; d.innerHTML = `<div class="ct">${title}</div><div class="cs">${sub}</div>`; node.setAttribute("role", "img"); node.setAttribute("aria-label", `${title} — ${sub}`); d.appendChild(node); if (alt) d.appendChild(alt); return d; };
+  const diurnalRows = ch.diurnal.map((v, i) => [i, v]);
+  host.appendChild(cc("Diurnal Posting", "posts by hour of day", areaChart(ch.diurnal, { color: "#30c0b4", xlabels: hours }), tableAlt(["Hour", "Posts"], diurnalRows)));
+  const degRows = ch.degree_hist.map(d => [Math.round(d[0]), d[1]]);
+  host.appendChild(cc("Degree Distribution", "agents by follower count", barChart(degRows, { color: "#0a84ff", labelEvery: 4 }), tableAlt(["Degree", "Count"], degRows)));
+  const tlRows = ch.timeline_posts.map((v, i) => [i, v, ch.timeline_removed[i] ?? 0]);
+  host.appendChild(cc("Activity Timeline", "posts (teal) vs moderation actions (blue)", dualLine(ch.timeline_posts, ch.timeline_removed), tableAlt(["Tick", "Posts", "Moderation Actions"], tlRows)));
+  const cascRows = (ch.cascade || []).map(d => [d[0], d[1]]);
+  host.appendChild(cc("Cascade Sizes", "share-tree size distribution", barChart(ch.cascade, { color: "#ff9500", labelEvery: Math.max(1, Math.ceil(ch.cascade.length / 8)) }), tableAlt(["Size", "Count"], cascRows)));
   requestAnimationFrame(() => activateDraw(host));
 }
 function redrawCharts() { if (_charts) renderCharts(_charts); }

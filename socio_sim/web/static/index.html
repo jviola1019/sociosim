@@ -38,7 +38,7 @@
       <button type="button" role="tab" data-tab="feedads" data-lens="marketing">Feed &amp; Ads</button>
       <button type="button" role="tab" data-tab="marketing" data-lens="marketing">Marketing</button>
     </nav>
-    <p class="lens-legend" aria-hidden="true"><span class="lens-dot government"></span>Government / Regulatory <span class="lens-dot marketing"></span>Marketing <span class="lens-dot core"></span>Core</p>
+    <p class="lens-legend"><span class="lens-dot government" aria-hidden="true"></span>Government / Regulatory <span class="lens-dot marketing" aria-hidden="true"></span>Marketing <span class="lens-dot core" aria-hidden="true"></span>Core</p>
 
     <form id="cfgForm" class="cfg-body">
       <!-- SCENARIO -->
@@ -204,10 +204,10 @@
         <label class="field" title="Show one ad slot every N feed items (1 ad per N organic)."><span class="lbl">Ad Slot Interval <i>1 ad / N items</i></span><input type="number" id="ad_slot_interval" value="5" min="1"></label>
         <hr>
         <span class="lbl">Campaigns <i>blank = 3 default campaigns</i></span>
-        <div class="camp-head" aria-hidden="true">
-          <span>Advertiser</span><span>Bid</span><span>Budget</span><span>CTR</span>
-          <span>CVR</span><span>Value</span><span>LTVx</span><span>Window</span>
-          <span>Segment</span><span>Market</span><span></span>
+        <div class="camp-head" role="row" aria-label="Campaign column headers">
+          <span role="columnheader">Advertiser</span><span role="columnheader">Bid</span><span role="columnheader">Budget</span><span role="columnheader">CTR</span>
+          <span role="columnheader">CVR</span><span role="columnheader">Value</span><span role="columnheader">LTVx</span><span role="columnheader">Window</span>
+          <span role="columnheader">Segment</span><span role="columnheader">Market</span><span role="presentation"></span>
         </div>
         <div id="campaigns" class="campaigns"></div>
         <button type="button" id="addCampaign" class="pill" style="margin-top:8px">+ Add campaign</button>
