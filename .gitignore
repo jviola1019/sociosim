@@ -11,3 +11,13 @@ out/
 *.png
 !socio_sim/web/static/assets/
 !socio_sim/web/static/assets/*.png
+
+# Local dev/tunnel utility scripts — not part of the project
+get_ip.bat
+open_site.html
+public_ip.txt
+start_tunnel.bat
+start_web.bat
+start_web.log
+tunnel.log
+*.log
