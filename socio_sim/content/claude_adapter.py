@@ -15,6 +15,8 @@ import os
 from pathlib import Path
 from typing import Callable
 
+from socio_sim.content._safety import (CN_LABEL_PREFIX, reclass_violation,
+                                       safe_generated_text)
 from socio_sim.content.generate import TOPICS, TemplateGenerator
 from socio_sim.content.items import ContentItem
 
@@ -25,7 +27,6 @@ _PROMPT_TEMPLATE = (
     "{tone} tone. Persona: {age} year-old, ideology {ideo:+.1f} on a -1..1 "
     "scale. Simulation day {day}. Output only the post text."
 )
-_CN_LABEL_PREFIX = "[AI-generated content] "
 
 
 class ClaudeAdapter:
@@ -73,7 +74,7 @@ class ClaudeAdapter:
         item = self.base.generate(author_id, personas, tick)
         key = self.prompt_key(author_id, personas, tick, item.topic, item.stance)
         if key in self._cache:
-            item.text = (_CN_LABEL_PREFIX if item.explicit_label else "") + self._cache[key]
+            item.text = (CN_LABEL_PREFIX if item.explicit_label else "") + self._cache[key]
             return item
         if self._client is None:
             self.on_degradation("no API key or anthropic package; template text used")
@@ -84,12 +85,19 @@ class ClaudeAdapter:
                 model=self.MODEL, max_tokens=80,
                 messages=[{"role": "user", "content": prompt}],
             )
-            text = resp.content[0].text.strip()
+            # Same safety + reclassification guards as the local adapter: the
+            # generated surface text is normalised, PII/harm-checked, and
+            # reclassified against the item's labelled categories before use.
+            text = safe_generated_text(resp.content[0].text.strip())
+            violation = reclass_violation(text, item)
+            if violation:
+                raise ValueError(
+                    f"generated text failed reclassification check: {violation}")
             self._cache[key] = text
             self.cache_path.parent.mkdir(parents=True, exist_ok=True)
             self.cache_path.write_text(
                 json.dumps(self._cache, sort_keys=True), encoding="utf-8")
-            item.text = (_CN_LABEL_PREFIX if item.explicit_label else "") + text
+            item.text = (CN_LABEL_PREFIX if item.explicit_label else "") + text
             return item
         except Exception as exc:  # degrade loudly, keep the run going
             self.on_degradation(f"LLM call failed: {exc!r}; template text used")

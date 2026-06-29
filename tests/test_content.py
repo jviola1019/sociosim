@@ -123,6 +123,66 @@ def test_claude_cache_key_includes_model_topic_and_tick(tmp_path):
                                           topic=2, stance=0.1)
 
 
+class _FakeClaudeClient:
+    """Minimal stand-in for anthropic.Anthropic returning a fixed text."""
+
+    def __init__(self, text):
+        self._text = text
+        self.messages = self
+
+    def create(self, **kwargs):
+        msg = type("Msg", (), {"text": self._text})()
+        return type("Resp", (), {"content": [msg]})()
+
+
+def test_claude_adapter_applies_safety_guard(tmp_path):
+    """Claude-generated text passes the same PII/operational-harm guard as the
+    local adapter; unsafe output degrades to template text and is not cached."""
+    gen, _ = make_gen()
+    p = personas()
+    degr = []
+    adapter = ClaudeAdapter(base=gen, cache_path=tmp_path / "c.json",
+                            api_key=None, on_degradation=degr.append)
+    adapter._client = _FakeClaudeClient(
+        "Contact me at user@example.com to evade moderation")
+    item = adapter.generate(author_id=1, personas=p, tick=0)
+    assert item.text  # template fallback
+    assert degr and "failed" in degr[0]
+    assert not (tmp_path / "c.json").exists()  # not cached on guard failure
+
+
+def test_claude_adapter_reclass_rejects_unlabelled_category(tmp_path):
+    """A safe-labelled item whose Claude text asserts a harm category is rejected
+    (reclassification consistency over the generated surface text)."""
+    gen, _ = make_gen()
+    p = personas()
+    degr = []
+    orig = gen.generate
+
+    def safe(a, pp, t):
+        it = orig(a, pp, t)
+        it.true_categories = set()
+        return it
+
+    gen.generate = safe
+    adapter = ClaudeAdapter(base=gen, cache_path=tmp_path / "c.json",
+                            api_key=None, on_degradation=degr.append)
+    adapter._client = _FakeClaudeClient("I hate all racial groups")
+    adapter.generate(author_id=1, personas=p, tick=0)
+    assert degr and not (tmp_path / "c.json").exists()
+
+
+def test_claude_adapter_safe_text_used_and_cached(tmp_path):
+    gen, _ = make_gen()
+    p = personas()
+    adapter = ClaudeAdapter(base=gen, cache_path=tmp_path / "c.json",
+                            api_key=None, on_degradation=lambda r: None)
+    adapter._client = _FakeClaudeClient("an ordinary safe post about technology")
+    item = adapter.generate(author_id=1, personas=p, tick=0)
+    assert "an ordinary safe post about technology" in item.text
+    assert (tmp_path / "c.json").exists()
+
+
 def test_engine_runs_with_claude_mode_without_key(tmp_path, monkeypatch):
     from socio_sim.engine import Simulation
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)

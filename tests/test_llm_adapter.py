@@ -210,6 +210,29 @@ def test_cache_entry_includes_reclass_check_field(tmp_path):
     assert entry["metadata"]["reclass_check"] == "passed"
 
 
+def test_reclass_rejects_harm_item_drifting_to_other_category(tmp_path):
+    """A harm-labelled item whose surface text asserts a DIFFERENT harm category
+    is rejected — reclassification consistency over the generated text, not just
+    leakage into safe items."""
+    gen, personas = setup()
+    degr = []
+    original_generate = gen.generate
+
+    def patched(author_id, p, tick):
+        item = original_generate(author_id, p, tick)
+        item.true_categories = {"misinfo"}  # labelled misinfo, not fraud
+        return item
+
+    gen.generate = patched
+    adapter = LLMAdapter(
+        base=gen, cache_path=tmp_path / "drift.json", backend="ollama",
+        transport=lambda p: "send money via wire transfer using these bank details",
+        on_degradation=degr.append)
+    adapter.generate(1, personas, tick=0)
+    assert degr and "reclass" in degr[0].lower()
+    assert not (tmp_path / "drift.json").exists()  # not cached on reclass failure
+
+
 def test_engine_llm_events_label_presentation_text_only(tmp_path):
     from socio_sim.engine import Simulation
     cfg = RunConfig.test(n_agents=40, n_ticks=4, content_mode="ollama",
