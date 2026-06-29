@@ -15,6 +15,11 @@ sync_playwright = pytest.importorskip(
 
 from socio_sim.web import app  # noqa: E402
 
+try:  # optional automated accessibility engine (axe-core); part of the [e2e] extra
+    from axe_playwright_python.sync_playwright import Axe as _Axe
+except Exception:  # pragma: no cover - only when extra not installed
+    _Axe = None
+
 
 def _free_port():
     s = socket.socket()
@@ -228,6 +233,54 @@ def test_e2e_dashboard_runs_and_renders():
                   return row.scrollWidth <= row.clientWidth + 1;
                 }""")
                 assert fits
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+
+
+def test_e2e_accessibility_axe_zero_violations():
+    """Automated accessibility scan: run axe-core over every dashboard tab of a
+    real rendered run and assert ZERO violations (any impact). Animations are
+    settled first so contrast is measured on final colours."""
+    if _Axe is None:
+        import pytest as _pytest
+        _pytest.skip("axe-playwright-python not installed (install the [e2e] extra)")
+    port = _free_port()
+    server = ThreadingHTTPServer(("127.0.0.1", port), app.Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    base = f"http://127.0.0.1:{port}"
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                page = browser.new_page()
+                page.goto(base)
+                page.wait_for_function(
+                    "document.querySelectorAll('#preset option').length > 0")
+                page.evaluate(_RUN_AND_RENDER)
+                # Settle entry animations so axe samples final (not mid-fade) colours.
+                page.emulate_media(reduced_motion="reduce")
+                page.add_style_tag(content=(
+                    "*,*::before,*::after{animation:none!important;"
+                    "transition:none!important}"))
+                page.wait_for_timeout(150)
+                axe = _Axe()
+                for t in ["scenario", "network", "content", "moderation",
+                          "feedads", "marketing"]:
+                    page.evaluate(
+                        f"document.querySelector('#cfgTabs button[data-tab={t}]')?.click()")
+                violations = []
+                for t in ["overview", "feed", "charts", "network", "cascade",
+                          "fairness", "ads", "calib", "compare", "audit", "log"]:
+                    page.evaluate(
+                        f"document.querySelector('#outTabs button[data-otab={t}]')?.click()")
+                    page.wait_for_timeout(60)
+                    res = axe.run(page)
+                    for v in res.response.get("violations", []):
+                        violations.append((t, v["id"], v.get("impact"),
+                                           len(v["nodes"])))
+                assert not violations, f"axe accessibility violations: {violations}"
             finally:
                 browser.close()
     finally:

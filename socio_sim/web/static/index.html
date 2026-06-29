@@ -9,6 +9,7 @@
 </head>
 <body>
 <header class="nav">
+  <h1 class="sr-only">SocioSim — research social-simulation studio</h1>
   <div class="brand">
     <span class="brand-mark" aria-hidden="true"></span>
     <span class="brand-name">SocioSim</span>
@@ -25,7 +26,7 @@
     </button>
   </div>
 </header>
-<p class="notice" id="ticker"></p>
+<p class="notice" id="ticker" role="region" aria-label="Research-use notice"></p>
 
 <main class="studio">
   <!-- ============ CONFIG ============ -->
@@ -342,8 +343,8 @@
         <section data-opanel="network" class="opanel"><div id="network" class="network"></div></section>
         <section data-opanel="cascade" class="opanel"><div id="cascade" class="network"></div></section>
         <section data-opanel="fairness" class="opanel">
-          <h4>Moderation Confusion</h4><div id="confusion" class="confusion"></div>
-          <h4>False-Positive / False-Negative Rate by Group</h4><div id="fairness"></div>
+          <h2>Moderation Confusion</h2><div id="confusion" class="confusion"></div>
+          <h2>False-Positive / False-Negative Rate by Group</h2><div id="fairness"></div>
         </section>
         <section data-opanel="ads" class="opanel"><div id="ads"></div></section>
         <section data-opanel="calib" class="opanel"><p class="dim small" id="implaus"></p><div id="calib" class="calib"></div></section>
