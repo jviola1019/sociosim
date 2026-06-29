@@ -186,6 +186,22 @@ def test_e2e_dashboard_runs_and_renders():
                 assert chart_a11y["svgsWithRole"] >= 4, chart_a11y
                 assert chart_a11y["svgsWithAriaLabel"] >= 4, chart_a11y
                 assert chart_a11y["dataTables"] >= 4, chart_a11y
+                # Every secondary visualization carries an honest provenance badge.
+                page.evaluate("document.querySelector('#outTabs button[data-otab=network]').click()")
+                page.evaluate("document.querySelector('#outTabs button[data-otab=fairness]').click()")
+                prov = page.evaluate("""() => ({
+                  charts: document.querySelectorAll('#charts .prov-badge').length,
+                  network: document.querySelectorAll('#network .prov-badge').length,
+                  confusion: document.querySelectorAll('#confusion .prov-badge').length,
+                  fairness: document.querySelectorAll('#fairness .prov-badge').length,
+                  cascadeOk: document.querySelector('#cascade .prov-badge') !== null
+                    || /No multi-post cascade/.test(document.querySelector('#cascade').innerText),
+                })""")
+                assert prov["charts"] >= 4, prov
+                assert prov["network"] >= 1, prov
+                assert prov["confusion"] >= 1, prov
+                assert prov["fairness"] >= 1, prov
+                assert prov["cascadeOk"], prov
                 # the audit-log explorer renders rows
                 page.evaluate("document.querySelector('#outTabs button[data-otab=audit]').click()")
                 rows = page.evaluate("document.querySelectorAll('#audit table tbody tr').length")

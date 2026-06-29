@@ -29,7 +29,8 @@ import numpy as np
 from socio_sim import (NO_REAL_PERSON_DATA_NOTICE, NOT_LEGAL_ADVICE_NOTICE,
                        RESEARCH_USE_NOTICE, __version__)
 from socio_sim.analytics.lens import run_lens
-from socio_sim.analytics.metrics import cascade_sizes, cascade_tree
+from socio_sim.analytics.metrics import (METRIC_PROVENANCE, cascade_sizes,
+                                         cascade_tree)
 from socio_sim.config import ADVERSARIES, CATEGORIES, RunConfig
 from socio_sim.llm_bootstrap import ensure_model, ensure_server, server_up
 from socio_sim.pipeline import run_and_analyze
@@ -412,6 +413,22 @@ def _chart_data(result, summary) -> dict:
     cascade = [[i + 1, c] for i, c in enumerate(chist)]
 
     graph_stats = result.graph_stats.get("final", result.graph_stats)
+    # Provenance label per secondary visualization, sourced from the metric
+    # catalogue so every chart in the dashboard carries an honest provenance
+    # badge (none of these are measured on real data; all are model-derived).
+    def _prov(key: str) -> str:
+        return METRIC_PROVENANCE.get(key, {}).get("provenance", "model_derived")
+
+    provenance = {
+        "diurnal": "model_derived",
+        "degree_hist": _prov("graph_degree_mean"),
+        "cascade": _prov("cascade_count"),
+        "timeline": "model_derived",
+        "network": _prov("graph_clustering"),
+        "cascade_tree": _prov("cascade_max_size"),
+        "confusion": "model_derived",
+        "fairness": "model_derived",
+    }
     return {
         "diurnal": diurnal,
         "degree_hist": graph_stats.get("degree_hist", []),
@@ -420,6 +437,7 @@ def _chart_data(result, summary) -> dict:
         "timeline_removed": removed_t,
         "timeline_buckets": nb,
         "cascade_tree": cascade_tree(result.log),
+        "provenance": provenance,
     }
 
 

@@ -353,6 +353,9 @@ ul.garm li { font-size: 12px; line-height: 1.6; color: var(--ink-2, var(--ink));
 .chart-data-table table { width: 100%; border-collapse: collapse; margin-top: 6px; }
 .chart-data-table th { text-align: left; font-weight: 600; color: var(--ink-2); border-bottom: 1px solid var(--line); padding: 3px 6px; }
 .chart-data-table td { padding: 2px 6px; color: var(--ink-3); border-bottom: 1px solid var(--line); font-family: var(--mono); }
+.prov-badge { display: inline-block; font-size: 10px; line-height: 1.5; padding: 0 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-3); background: transparent; white-space: nowrap; vertical-align: middle; }
+.prov-badge.prov-synthetic_assumption { border-color: #c8922e; color: #8a5a00; }
+.prov-caption { margin: 0 0 10px; }
 
 .confusion { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 480px; }
 .cell { border: 1px solid var(--line); border-radius: var(--r); padding: 18px; text-align: center; background: var(--surface); box-shadow: var(--sh-1); animation: cardin .45s var(--ease) backwards; }

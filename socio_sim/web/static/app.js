@@ -573,30 +573,44 @@ function tableAlt(headers, rows) {
   rows.forEach(row => { const tr = document.createElement("tr"); row.forEach(v => { const td = document.createElement("td"); td.textContent = v; tr.appendChild(td); }); tbody.appendChild(tr); });
   tab.appendChild(tbody); det.appendChild(tab); return det;
 }
+const PROV_LABEL = { model_derived: "model-derived", synthetic_assumption: "synthetic assumption", measured_on_benchmark: "measured on benchmark" };
+const PROV_TITLE = {
+  model_derived: "Model-derived: synthetic simulation output, not a measurement of any real platform.",
+  synthetic_assumption: "Synthetic assumption: depends on scenario inputs (e.g. conversion value), not measured.",
+  measured_on_benchmark: "Measured on a real licensed benchmark dataset.",
+};
+// Every secondary visualization carries an honest provenance badge so a viewer
+// never mistakes a model-derived chart for a real-world measurement.
+function provBadge(prov) {
+  if (!prov) return "";
+  const label = PROV_LABEL[prov] || String(prov).replace(/_/g, " ");
+  return `<span class="prov-badge prov-${esc(prov)}" title="${esc(PROV_TITLE[prov] || "")}">provenance: ${esc(label)}</span>`;
+}
 function renderCharts(ch) {
   _charts = ch; const host = $("#charts"); host.innerHTML = "";
   const hours = [...Array(24)].map((_, i) => (i % 6 === 0 ? i : ""));
-  const cc = (title, sub, node, alt) => { const d = document.createElement("div"); d.className = "chart"; d.innerHTML = `<div class="ct">${title}</div><div class="cs">${sub}</div>`; node.setAttribute("role", "img"); node.setAttribute("aria-label", `${title} — ${sub}`); d.appendChild(node); if (alt) d.appendChild(alt); return d; };
+  const P = ch.provenance || {};
+  const cc = (title, sub, node, alt, prov) => { const d = document.createElement("div"); d.className = "chart"; d.innerHTML = `<div class="ct">${title}</div><div class="cs">${sub} ${provBadge(prov)}</div>`; node.setAttribute("role", "img"); node.setAttribute("aria-label", `${title} — ${sub}${prov ? " — provenance: " + (PROV_LABEL[prov] || prov) : ""}`); d.appendChild(node); if (alt) d.appendChild(alt); return d; };
   const diurnalRows = ch.diurnal.map((v, i) => [i, v]);
-  host.appendChild(cc("Diurnal Posting", "posts by hour of day", areaChart(ch.diurnal, { color: "#30c0b4", xlabels: hours }), tableAlt(["Hour", "Posts"], diurnalRows)));
+  host.appendChild(cc("Diurnal Posting", "posts by hour of day", areaChart(ch.diurnal, { color: "#30c0b4", xlabels: hours }), tableAlt(["Hour", "Posts"], diurnalRows), P.diurnal));
   const degRows = ch.degree_hist.map(d => [Math.round(d[0]), d[1]]);
-  host.appendChild(cc("Degree Distribution", "agents by follower count", barChart(degRows, { color: "#0a84ff", labelEvery: 4 }), tableAlt(["Degree", "Count"], degRows)));
+  host.appendChild(cc("Degree Distribution", "agents by follower count", barChart(degRows, { color: "#0a84ff", labelEvery: 4 }), tableAlt(["Degree", "Count"], degRows), P.degree_hist));
   const tlRows = ch.timeline_posts.map((v, i) => [i, v, ch.timeline_removed[i] ?? 0]);
-  host.appendChild(cc("Activity Timeline", "posts (teal) vs moderation actions (blue)", dualLine(ch.timeline_posts, ch.timeline_removed), tableAlt(["Tick", "Posts", "Moderation Actions"], tlRows)));
+  host.appendChild(cc("Activity Timeline", "posts (teal) vs moderation actions (blue)", dualLine(ch.timeline_posts, ch.timeline_removed), tableAlt(["Tick", "Posts", "Moderation Actions"], tlRows), P.timeline));
   const cascRows = (ch.cascade || []).map(d => [d[0], d[1]]);
-  host.appendChild(cc("Cascade Sizes", "share-tree size distribution", barChart(ch.cascade, { color: "#ff9500", labelEvery: Math.max(1, Math.ceil(ch.cascade.length / 8)) }), tableAlt(["Size", "Count"], cascRows)));
+  host.appendChild(cc("Cascade Sizes", "share-tree size distribution", barChart(ch.cascade, { color: "#ff9500", labelEvery: Math.max(1, Math.ceil(ch.cascade.length / 8)) }), tableAlt(["Size", "Count"], cascRows), P.cascade));
   requestAnimationFrame(() => activateDraw(host));
 }
 function redrawCharts() { if (_charts) renderCharts(_charts); }
 
 /* ---------- network topology (deterministic force layout) ---------- */
 let _net3dRaf = null;
-function renderNetwork(gs) {
+function renderNetwork(gs, prov) {
   if (_net3dRaf) { cancelAnimationFrame(_net3dRaf); _net3dRaf = null; }
   const host = $("#network"); if (!host) return;
   if (!gs || !gs.nodes || !gs.nodes.length) { host.innerHTML = `<p class="dim small">No graph sample for this run.</p>`; return; }
   const W = 640, H = 440;
-  host.innerHTML = `<div class="chart" style="position:relative"><div class="ct">Social Graph — 3D perspective (top ${gs.nodes.length} hubs)</div><div class="cs">depth = front/back · size = degree · colour = ideology · drag to rotate · hover a node to inspect</div><canvas id="net3d" width="${W}" height="${H}" style="width:100%" role="img" aria-label="3D perspective view of the sampled social network: ${gs.nodes.length} highest-degree agents coloured by ideology with edges among them"></canvas><div id="net3dTip" class="net-tip" hidden></div></div>`;
+  host.innerHTML = `<div class="chart" style="position:relative"><div class="ct">Social Graph — 3D perspective (top ${gs.nodes.length} hubs)</div><div class="cs">depth = front/back · size = degree · colour = ideology · drag to rotate · hover a node to inspect ${provBadge(prov)}</div><canvas id="net3d" width="${W}" height="${H}" style="width:100%" role="img" aria-label="3D perspective view of the sampled social network: ${gs.nodes.length} highest-degree agents coloured by ideology with edges among them"></canvas><div id="net3dTip" class="net-tip" hidden></div></div>`;
   const cv = $("#net3d"); if (!cv) return;
   const ctx = cv.getContext("2d");
   const nodes = gs.nodes.map(n => ({ ...n })), idx = {};
@@ -673,7 +687,7 @@ function renderNetwork(gs) {
 }
 
 /* ---------- cascade propagation replay ---------- */
-function renderCascade(t) {
+function renderCascade(t, prov) {
   const host = $("#cascade"); if (!host) return;
   if (!t || !t.nodes || t.nodes.length < 2) { host.innerHTML = `<p class="dim small">No multi-post cascade (share tree) in this run.</p>`; return; }
   const W = 640, H = 380, nodes = t.nodes.map(n => ({ ...n })), idx = {};
@@ -689,7 +703,7 @@ function renderCascade(t) {
   [...nodes].sort((a, b) => a.tick - b.tick).forEach((n, i) => n.delay = i * 45);
   const e = t.edges.map(([u, v]) => { const a = nodes[idx[u]], b = nodes[idx[v]]; return `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="#e4e4e9" stroke-width="1"/>`; }).join("");
   const c = nodes.map(n => `<circle class="casc-node" style="animation-delay:${n.delay}ms" cx="${n.x.toFixed(1)}" cy="${n.y.toFixed(1)}" r="${(5 - n.depth * 0.5 < 3 ? 3 : 5 - n.depth * 0.5).toFixed(1)}" fill="#ff9500"><title>${esc(n.id)} · tick ${n.tick} · depth ${n.depth}</title></circle>`).join("");
-  host.innerHTML = `<div class="chart"><div class="ct">Largest cascade — ${t.size} posts</div><div class="cs">share tree, left→right by depth; nodes appear in posting-time order (propagation replay)</div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Largest share cascade: ${nodes.length} posts revealed in posting-time order showing propagation">${e}${c}</svg></div>`;
+  host.innerHTML = `<div class="chart"><div class="ct">Largest cascade — ${t.size} posts</div><div class="cs">share tree, left→right by depth; nodes appear in posting-time order (propagation replay) ${provBadge(prov)}</div><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Largest share cascade: ${nodes.length} posts revealed in posting-time order showing propagation">${e}${c}</svg></div>`;
 }
 
 /* ---------- interval bar ---------- */
@@ -737,14 +751,15 @@ function render(r) {
   $$(".card").forEach((c, i) => { c.style.animationDelay = (i * 45) + "ms"; });
   setTimeout(() => $$("#cards .v [data-count]").forEach(countUp), 120);
 
+  const cp = (r.charts && r.charts.provenance) || {};
   renderFeed(r.feed || []);
   renderCharts(r.charts);
-  renderNetwork(r.summary.graph && r.summary.graph.graph_sample);
-  renderCascade(r.charts && r.charts.cascade_tree);
+  renderNetwork(r.summary.graph && r.summary.graph.graph_sample, cp.network);
+  renderCascade(r.charts && r.charts.cascade_tree, cp.cascade_tree);
   renderAudit(r.event_sample, r.event_kinds);
 
-  $("#confusion").innerHTML = `<div class="cell tp"><div class="cl">true positive</div><div class="cv">${mod.tp}</div></div><div class="cell fp"><div class="cl">false positive</div><div class="cv">${mod.fp}</div></div><div class="cell fn"><div class="cl">false negative</div><div class="cv">${mod.fn}</div></div><div class="cell tn"><div class="cl">true negative</div><div class="cv">${mod.tn}</div></div>`;
-  $("#fairness").innerHTML = Object.entries(s.fairness).map(([dim, gs]) => `<div class="fgrp">${esc(dim.replace(/_/g, " "))}</div><table class="read"><thead><tr><th>group</th><th>FPR</th><th>FNR</th><th>posts</th><th>harm</th><th>benign</th><th>status</th></tr></thead><tbody>${Object.entries(gs).map(([g, d]) => `<tr><td>${esc(g)}</td><td class="num">${fmt(d.fpr, 4)}</td><td class="num">${fmt(d.fnr, 3)}</td><td class="num">${d.n_posts}</td><td class="num">${d.n_harmful ?? "—"}</td><td class="num">${d.n_benign ?? "—"}</td><td>${d.insufficient_sample ? "directional only" : "screened"}</td></tr>`).join("")}</tbody></table>`).join("");
+  $("#confusion").innerHTML = `<div class="prov-caption" style="grid-column:1/-1">${provBadge(cp.confusion)}</div><div class="cell tp"><div class="cl">true positive</div><div class="cv">${mod.tp}</div></div><div class="cell fp"><div class="cl">false positive</div><div class="cv">${mod.fp}</div></div><div class="cell fn"><div class="cl">false negative</div><div class="cv">${mod.fn}</div></div><div class="cell tn"><div class="cl">true negative</div><div class="cv">${mod.tn}</div></div>`;
+  $("#fairness").innerHTML = `<div class="prov-caption">${provBadge(cp.fairness)}</div>` + Object.entries(s.fairness).map(([dim, gs]) => `<div class="fgrp">${esc(dim.replace(/_/g, " "))}</div><table class="read"><thead><tr><th>group</th><th>FPR</th><th>FNR</th><th>posts</th><th>harm</th><th>benign</th><th>status</th></tr></thead><tbody>${Object.entries(gs).map(([g, d]) => `<tr><td>${esc(g)}</td><td class="num">${fmt(d.fpr, 4)}</td><td class="num">${fmt(d.fnr, 3)}</td><td class="num">${d.n_posts}</td><td class="num">${d.n_harmful ?? "—"}</td><td class="num">${d.n_benign ?? "—"}</td><td>${d.insufficient_sample ? "directional only" : "screened"}</td></tr>`).join("")}</tbody></table>`).join("");
 
   renderAds(Object.values(s.ads));
   $("#compare").innerHTML = `<p class="dim small">No comparison run for this result.</p>`;
