@@ -15,6 +15,7 @@ import json
 import math
 import os
 import secrets
+import sys
 import threading
 import time
 import uuid
@@ -558,8 +559,11 @@ def _run_job(job_id: str, body: dict):
         # reopened, compared, or exported later.
         try:
             _STORE.save(job_id, job["result"], label=body.get("label", ""))
-        except Exception:  # nosec B110
-            pass  # history is best-effort; never fail a run over it
+        except Exception as exc:
+            # History is best-effort; never fail a run over it — but surface the
+            # failure to stderr so a corrupt/locked DB is visible, not silent.
+            print(f"WARNING: run-history persistence failed for job {job_id}: "
+                  f"{type(exc).__name__}: {exc}", file=sys.stderr)
         job["status"] = "done"
         job["progress"] = 1.0
     except Exception as exc:

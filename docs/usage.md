@@ -5,8 +5,10 @@
 ```bash
 python -m venv .venv
 .venv\Scripts\activate            # Windows (source .venv/bin/activate on POSIX)
-pip install -e .[dev]
-pytest                            # full test suite; -m "not slow" to skip stats tests
+pip install -e ".[dev]"           # quote the extras so zsh/PowerShell don't glob
+python -m pytest                  # full test suite; -m "not slow" to skip stats tests
+# `python -m pytest` (not bare `pytest`) binds to THIS interpreter — important on
+# Windows, where the Microsoft-Store `pytest.exe` shim can miss the venv packages.
 ```
 
 ## Web console (browser dashboard)

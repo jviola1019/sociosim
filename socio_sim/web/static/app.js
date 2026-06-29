@@ -102,9 +102,6 @@ function authHeaders() {
   const tok = ACCESS_TOKEN || (META && META.token);
   return tok ? { "X-SocioSim-Token": tok } : {};
 }
-function authQuery() {
-  return "";
-}
 async function fetchProtected(url, opts = {}) {
   const headers = { ...(opts.headers || {}), ...authHeaders() };
   return fetch(url, { ...opts, headers });
@@ -812,7 +809,6 @@ function renderAds(ads) {
     const src = remoteProtected ? "" : ` src="${img}"`;
     return `<div class="adcard" style="animation-delay:${i * 50}ms"><div class="creative"><img class="creative-img protected-creative"${src} data-src="${img}" alt="Generated ad creative for ${name} targeting ${targeting}">${disc}<button type="button" class="dl-creative" data-download="${img}" data-filename="creative-${key}.png" title="Download deterministic creative">download</button></div><div class="ad-body"><div class="adname">${name}</div><div class="adtarget">${targeting}</div><div class="adstat"><span>CTR <b>${fmt(a.ctr, 4)}</b></span><span>lift <b>${fmt(a.lift, 4)}</b></span><span>iROAS <b>${fmt(a.iroas, 2)}</b></span></div></div></div>`;
   }).join("");
-  const table = `<div class="table-wrap"><table class="read"><thead><tr><th>campaign</th><th>impr</th><th>eligible</th><th>CTR</th><th>CVR</th><th>lift 95% CI</th><th>CUPED lift</th><th>p</th><th>MDE</th><th>ROAS</th><th>iROAS</th><th>CAC</th><th>LTV</th><th>holdout</th><th>attr W</th></tr></thead><tbody>${ads.map(a => `<tr><td>${esc(a.campaign_id)}</td><td class="num">${a.impressions}</td><td class="num">${a.eligible_opportunities ?? "—"}</td><td class="num">${fmt(a.ctr, 4)}</td><td class="num">${fmt(a.cvr, 4)}</td><td class="num">${fmt(a.lift_ci[0], 4)}–${fmt(a.lift_ci[1], 4)}</td><td class="num">${fmt(a.lift_cuped, 4)}</td><td class="num">${fmt(a.lift_pvalue, 3)}</td><td class="num">${fmt(a.mde, 4)}</td><td class="num">${fmt(a.roas, 2)}</td><td class="num">${fmt(a.iroas, 2)}</td><td class="num">${fmt(a.cac, 2)}</td><td class="num">${fmt(a.ltv, 2)}</td><td class="num">${a.n_holdout}</td><td class="num">${a.attribution_window_ticks}</td></tr>`).join("")}</tbody></table></div>`;
   const tableV2 = `<div class="table-wrap"><table class="read"><thead><tr><th>campaign</th><th>impr</th><th>eligible</th><th>budget</th><th>CTR</th><th>CVR</th><th>lift raw CI</th><th>CUPED lift</th><th>p(raw)</th><th>q(BH)</th><th>MDE</th><th>ROAS*</th><th>iROAS*</th><th>CAC*</th><th>LTV*</th><th>holdout</th><th>attr W</th></tr></thead><tbody>${ads.map(a => `<tr><td>${esc(a.campaign_id)}</td><td class="num">${a.impressions}</td><td class="num">${a.eligible_opportunities ?? "—"}</td><td class="num">${fmt(a.spend, 2)} / ${fmt(a.budget_configured, 2)}</td><td class="num">${fmt(a.ctr, 4)}</td><td class="num">${fmt(a.cvr, 4)}</td><td class="num">${a.lift_ci ? `${fmt(a.lift_ci[0], 4)}-${fmt(a.lift_ci[1], 4)}` : "—"}</td><td class="num">${fmt(a.lift_cuped, 4)}</td><td class="num">${fmt(a.lift_pvalue_raw ?? a.lift_pvalue, 3)}</td><td class="num">${fmt(a.lift_qvalue_bh, 3)}</td><td class="num">${fmt(a.mde, 4)}</td><td class="num">${fmt(a.roas, 2)}</td><td class="num">${fmt(a.iroas, 2)}</td><td class="num">${fmt(a.cac, 2)}</td><td class="num">${fmt(a.ltv, 2)}</td><td class="num">${a.n_holdout}</td><td class="num">${a.attribution_window_ticks}</td></tr>`).join("")}</tbody></table><p class="hint">* Scenario economics are assumption-derived from conversion value, LTV multiplier, and attribution window inputs.</p></div>`;
   // Campaign screen — each campaign is measured against its own holdout. This is
   // not a direct creative-vs-creative randomized contrast.

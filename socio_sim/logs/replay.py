@@ -19,8 +19,8 @@ def verify(manifest: Manifest, original_stream_hash: str,
     new_hash = replayed.stream_hash()
     if new_hash == original_stream_hash:
         return True, f"replay ok: {new_hash}"
-    n_old, n_new = "?", len(replayed.events)
     return False, (
         f"replay mismatch: original {original_stream_hash[:12]}… vs "
-        f"replayed {new_hash[:12]}… (replayed events: {n_new}, original: {n_old})"
+        f"replayed {new_hash[:12]}… ({len(replayed.events)} replayed events; "
+        f"original event count not retained for comparison)"
     )

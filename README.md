@@ -220,9 +220,9 @@ Infrastructure flags: `--web` (browser console), `--port N` / `--bind HOST`
 - **Transparency:** every run emits a DSA/§230/CN/FTC-style transparency tally
   (web export `?fmt=transparency`); policy packs carry statute citations and
   `legal_uncertainty` notes.
-- **Tests/CI:** `pytest` (including property-based tests) + `ruff`, ~93%
-  coverage in the 2026-06-27 baseline audit; GitHub Actions enforces both with
-  an 85% coverage gate and scenario linting. See
+- **Tests/CI:** `python -m pytest` (including property-based tests) + `ruff`,
+  92.43% coverage in the latest release-gate run (296 tests); GitHub Actions
+  enforces both with an 85% coverage gate and scenario linting. See
   `AUDIT_LOG.md`, `KNOWN_LIMITATIONS.md`, `SOURCE_LEDGER.md`, `CHANGELOG.md`.
 - **Docker:** `docker build -t sociosim . && docker run --rm sociosim`
   (deterministic CLI run; web console notes inside the `Dockerfile`).
