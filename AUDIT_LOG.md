@@ -34,6 +34,24 @@ Status: OPEN / IN-PROGRESS / DONE (with commit) / DEFERRED (-> HANDOFF.md).
 
 \*S3 is P1 specifically for marketing/government usefulness scores.
 
+## Session 2026-06-30: independent re-verification of PR #4 (`fix/p0-llm-cache-and-audit-hardening`, PR #5)
+
+PR #4 was merged despite GitHub Actions showing `failure`; its remediation
+report was treated as unverified per project policy and re-checked from a
+clean `main` checkout. Full detail and evidence in `AUDIT_REMEDIATION_REPORT.md`
+addendum.
+
+| ID | Sev | File:line | Issue | Fix | Test | Status |
+|----|-----|-----------|-------|-----|------|--------|
+| R1-CI | P0 | `.github/workflows/ci.yml:16-30` | Full pytest run (incl. Playwright e2e test) executed before any step installed Chromium -> clean-runner CI failure, later gates skipped | Install Playwright browsers before the test step | `tests/test_ci_workflow.py` (workflow-ordering assertion) + GitHub Actions run `28481398083` green | **DONE** (`d8aea1f`) |
+| R2-LLMCACHE | P0 | `socio_sim/content/llm_adapter.py:106-123` (pre-fix) | Cached `status=="blocked"` LLM response served verbatim on a later identical request (same adapter or fresh instance reloading the cache file); guard never re-checked; no degradation event | Branch on `cached["status"]` before the read path; never serve a blocked entry as content; deterministic degradation event with preserved reason codes; `_BLOCKED_GUARD_VERSION` is the only deliberate invalidation path | 9 new tests in `tests/test_llm_adapter.py` | **DONE** (`e0a96d4`) |
+| R3-CALPROFILE | P1 | `socio_sim/web/app.py:139` (pre-fix) | `profile=="calibrated"` still accepted as a first-class public API value (only hidden from the UI dropdown, not gated behind migration) | Remove from `_PROFILES`; add `_migrate_legacy_profile` so only the migration path reaches `aggregate_matched_prototype` | `tests/test_web.py::test_calibrated_profile_not_publicly_advertised` + 2 more | **DONE** (`8975ee5`) |
+| R4-ASSETQA | P2 | `scripts/asset_qa.py:135-146` (pre-fix) | Legacy-v3-reference allowlist incomplete (missed `BASELINE_AUDIT_SNAPSHOT.md`, `scripts/claim_scan.py`) -> gate failed locally despite correct asset migration | Widen allowlist; label snapshot doc as historical | re-ran `python scripts/asset_qa.py` -> pass, 92 records | **DONE** (`9a9c524`) |
+| R5-COVERAGE | P3 | `.coverage` (tracked) | Generated coverage DB tracked in git, churns on every local run (already flagged, not fixed, in original report) | `.gitignore` + `git rm --cached` | n/a | **DONE** (`9a9c524`) |
+| R6-EVIDENCEGRAIN | P1 | `socio_sim/data/evidence_registry.json` | 7 broad-category records, not per-numeric-default provenance; violates "no generic assumption record may stand in for dozens of unrelated numeric defaults" | Map every decision-facing numeric default individually | none yet | **OPEN** (sized, not started; see HANDOFF) |
+| R7-ASSETART | P1 | `scripts/generate_v4_assets.py:40-73` | Still procedural gradient/ellipse/noise generation (the exact pattern the brief says to delete); 3 roles, not 8 required visual families; only 92 of 96+ required | Replace with deliberately authored, art-directed compositions across 8 families | none yet | **OPEN** (sized, not started; see HANDOFF) |
+| R8-CLAIMSCAN | P2 | `scripts/claim_scan.py:10-21` | 10-phrase literal blacklist, not the context-aware policy scanner required | Rebuild as context-aware scan (term + context + historical-doc allowance) | none yet | **OPEN** (not started) |
+
 ## Determinism baselines (locked pre-refactor)
 - test/EU: `a8a8b243e5958c1620d5e4ed0e9bee55c866c78d4459993c57eeca3bf848bc36`
 - test/US: `f7473dc24c1ff189045e807f7f1e8798ed2416a5bf43020ca8f2344edbd27190`
