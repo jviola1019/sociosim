@@ -135,7 +135,7 @@ def test_report_contains_disclaimer_and_intervals():
     md = render(summary, result.manifest)
     assert "Research use only" in md
     assert "not legal advice" in md
-    assert "95%" in md
+    assert "descriptive resampling interval" in md
     assert result.manifest.config_hash[:8] in md
     assert not re.search(r"\bnan\b", md.lower())
     assert not re.search(r"\binfinity\b", md.lower())

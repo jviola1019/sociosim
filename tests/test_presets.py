@@ -23,7 +23,7 @@ def test_preset_builds_runs_and_applies_fields(name):
     report = render(summary, result.manifest)
     lens = run_lens(cfg.to_dict(), summary)
     assert "Research use only" in report
-    assert "95%" in report
+    assert "descriptive resampling interval" in report
     assert summary["harmful_exposure"]["ci"]
     assert summary["moderation"]["precision_ci"]
     assert summary["appeals"]["granted_rate_ci"]

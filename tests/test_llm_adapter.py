@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -7,6 +8,7 @@ from socio_sim.agents.personas import Personas
 from socio_sim.config import RunConfig
 from socio_sim.content.generate import TemplateGenerator
 from socio_sim.content.llm_adapter import LLMAdapter
+from socio_sim.content.semantic_guard import check_generated_text
 from socio_sim.rng import SeedTree
 
 
@@ -32,7 +34,7 @@ def test_transport_text_used_and_cached(tmp_path):
     assert item.text == "local model post text"  # normalized whitespace
     assert len(calls) == 1
     cache = json.loads((tmp_path / "cache.json").read_text())
-    assert list(cache.values()) == ["local model post text"]
+    assert list(cache.values())[0]["text"] == "local model post text"
 
     # Second adapter instance: cache hit, no transport call needed
     def exploding(prompt):
@@ -94,3 +96,42 @@ def test_engine_runs_with_ollama_mode_offline(tmp_path):
     result = Simulation(cfg).run()
     assert result.log.by_kind("post")
     assert result.log.by_kind("degradation")
+
+
+def test_semantic_guard_blocks_pii_like_output(tmp_path):
+    gen, personas = setup()
+    degradations = []
+    adapter = LLMAdapter(
+        base=gen, cache_path=tmp_path / "cache.json", backend="ollama",
+        transport=lambda prompt: "local news email me at a@b.com",
+        on_degradation=degradations.append)
+    item = adapter.generate(1, personas, tick=3)
+    assert "email me" not in item.text
+    assert any("semantic_mismatch" in d and "pii_like_output" in d
+               for d in degradations)
+    cache = json.loads((tmp_path / "cache.json").read_text())
+    assert list(cache.values())[0]["status"] == "blocked"
+
+
+def test_semantic_guard_flags_category_topic_and_harmful_contradictions():
+    item = SimpleNamespace(true_categories=set(), topic=3, stance=0.0)
+    assert "category_contradiction:fraud" in check_generated_text(
+        "claimprize freemoney", item)
+    assert "category_contradiction:hate" in check_generated_text(
+        "slurplaceholder grouptarget", item)
+    assert "topic_contradiction" in check_generated_text(
+        "stock earnings crypto rally", item)
+
+
+def test_cache_hash_stable_and_changes(tmp_path):
+    gen, personas = setup()
+    cache = tmp_path / "cache.json"
+    adapter = LLMAdapter(base=gen, cache_path=cache, backend="ollama",
+                         transport=lambda prompt: "local model post text")
+    adapter.generate(1, personas, tick=3)
+    h1 = adapter.cache_hash()
+    adapter2 = LLMAdapter(base=setup()[0], cache_path=cache, backend="ollama",
+                          transport=lambda prompt: "unused")
+    assert adapter2.cache_hash() == h1
+    adapter2.generate(2, personas, tick=4)
+    assert adapter2.cache_hash() != h1

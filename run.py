@@ -105,12 +105,12 @@ def run_sim(cfg: RunConfig, n_replicates: int = 1, workers: int = 1, media: int 
         for e in posts:
             seed = zlib.crc32(str(e["content_id"]).encode())  # stable per content id
             (mdir / f"{e['content_id']}.png").write_bytes(synth_image(seed, 256, 256))
-        if posts:  # one real animated-PNG (APNG) video sample
+        if posts:  # one deterministic animated-PNG (APNG) video sample
             vseed = zlib.crc32(str(posts[0]["content_id"]).encode())
             (mdir / "sample_video.png").write_bytes(synth_video(vseed, 10, 192, 192))
-        print(f"Synthesized {len(posts)} real PNG images + 1 APNG video -> {mdir}")
+        print(f"Synthesized {len(posts)} synthetic PNG images + 1 APNG video -> {mdir}")
 
-    print(f"\nCalibration vs published benchmarks "
+    print(f"\nAggregate-fit diagnostics vs legacy benchmark targets "
           f"(implausibility I={a.implausibility:.2f}, cutoff 3.0):")
     for name, value in a.observed.items():
         spec = a.targets.get(name)
@@ -162,15 +162,16 @@ def main():
                    help="generate post text with a free local Ollama model "
                         "(auto starts server + pulls model)")
     p.add_argument("--profile", default="quick",
-                   choices=["quick", "test", "standard", "calibrated"],
+                   choices=["quick", "test", "standard", "aggregate_matched_prototype"],
                    help="quick=1k/7d (default), test=200/48t, standard=10k/28d, "
-                        "calibrated=history-matched (current default I=1.25 < 3)")
+                        "aggregate_matched_prototype=synthetic aggregate-fit prototype")
     p.add_argument("--jurisdictions", default="EU",
                    help="comma list of US,EU,CN (default EU)")
     p.add_argument("--benchmark", default="default",
-                   help="calibration target set: default | twitter_like | facebook_like")
-    p.add_argument("--classifier", default="noise", choices=["noise", "trained"],
-                   help="moderation classifier: noise model (default) or a real trained one")
+                   help="legacy aggregate target set: default | twitter_like | facebook_like")
+    p.add_argument("--classifier", default="synthetic_noise_classifier",
+                   choices=["synthetic_noise_classifier", "synthetic_template_classifier"],
+                   help="moderation classifier mechanics mode; both options are synthetic")
     p.add_argument("--dynamic-graph", action="store_true",
                    help="enable daily follow/unfollow/churn graph evolution "
                         "(off by default = static graph)")
@@ -187,19 +188,18 @@ def main():
                    help="parallel processes for Research Monte Carlo replicates "
                         "(default 1; results are identical to sequential)")
     p.add_argument("--validate", action="store_true",
-                   help="run a BehaviorParams sensitivity + calibration study, "
+                   help="run BehaviorParams sensitivity + aggregate-fit diagnostics, "
                         "write VALIDATION_REPORT.md, and exit")
     p.add_argument("--backtest", action="store_true",
-                   help="held-out aggregate backtest (calibrate on a train subset "
-                        "of public aggregates, validate held-out metrics) + stylized-"
-                        "facts validation, write BACKTEST_REPORT.md, and exit")
+                   help="held-out aggregate-fit diagnostics plus synthetic mechanism "
+                        "checks, write BACKTEST_REPORT.md, and exit")
     p.add_argument("--measure-classifier", action="store_true",
-                   help="measure the moderation classifier on bundled REAL licensed "
-                        "benchmarks (F1/ROC-AUC) -> BENCHMARK_REPORT.md, and exit")
+                   help="measure classifier algorithm components on bundled licensed "
+                        "benchmark samples (F1/ROC-AUC) -> BENCHMARK_REPORT.md, and exit")
     p.add_argument("--sens-samples", type=int, default=24,
                    help="LHS samples for --validate sensitivity (default 24)")
     p.add_argument("--media", type=int, default=0,
-                   help="synthesize real PNG images for the first N posts into "
+                   help="synthesize deterministic PNG previews for the first N posts into "
                         "<out>/media/ (deterministic, offline procedural)")
     p.add_argument("--out", default="out/run", help="output directory")
     args = p.parse_args()
@@ -209,7 +209,7 @@ def main():
     if args.validate:
         from socio_sim.validation.study import (render_validation_report,
                                                 run_validation_study)
-        print(f"Validation study: profile={args.profile}, "
+        print(f"Validation-ladder diagnostics: profile={args.profile}, "
               f"{args.sens_samples} sensitivity samples, seed {args.seed}...")
         study = run_validation_study(profile=args.profile,
                                      n_samples=args.sens_samples, seed=args.seed)
@@ -223,23 +223,24 @@ def main():
         from socio_sim.validation.backtest import (leave_out_backtest,
                                                    render_backtest_report)
         from socio_sim.validation.stylized import evaluate_stylized_facts
-        prof = args.profile if args.profile in ("quick", "calibrated", "standard") else "quick"
-        print(f"Backtest: held-out aggregate calibration on '{args.benchmark}' aggregates "
-              f"(profile={prof}) + stylized-facts validation...")
+        prof = args.profile if args.profile in (
+            "quick", "aggregate_matched_prototype", "standard") else "quick"
+        print(f"Aggregate-fit diagnostics on '{args.benchmark}' legacy aggregates "
+              f"(profile={prof}) + synthetic mechanism checks...")
         bt = leave_out_backtest(benchmark=args.benchmark, profile=prof, seed=args.seed)
         sf = evaluate_stylized_facts()
         (ROOT / "BACKTEST_REPORT.md").write_text(
             render_backtest_report(bt, sf), encoding="utf-8")
-        print(f"Wrote BACKTEST_REPORT.md (held-out test_pass={bt['test_pass']}, "
-              f"I_test={bt['implausibility_test']:.2f}; stylized "
+        print(f"Wrote BACKTEST_REPORT.md (diagnostic_test_pass={bt['test_pass']}, "
+              f"I_test={bt['implausibility_test']:.2f}; mechanism checks "
               f"{sf['n_pass']}/{sf['n_total']})")
         return 0
 
     if args.measure_classifier:
         from socio_sim.validation.benchmark_eval import (evaluate_all,
                                                          render_benchmark_report)
-        print("Measuring the moderation classifier on bundled REAL licensed "
-              "benchmarks (Civil Comments CC0; Deysi spam Apache-2.0)...")
+        print("Running classifier component benchmark diagnostics on bundled "
+              "licensed benchmark samples...")
         res = evaluate_all(seed=args.seed)
         (ROOT / "BENCHMARK_REPORT.md").write_text(
             render_benchmark_report(res), encoding="utf-8")
@@ -269,7 +270,8 @@ def main():
 
     factory = {"quick": RunConfig.quick, "test": RunConfig.test,
                "standard": RunConfig.standard,
-               "calibrated": RunConfig.calibrated}[args.profile]
+               "aggregate_matched_prototype":
+               RunConfig.aggregate_matched_prototype}[args.profile]
     overrides = dict(
         jurisdictions=tuple(j.strip() for j in args.jurisdictions.split(",")),
         root_seed=args.seed, out_dir=args.out, content_mode=content_mode,

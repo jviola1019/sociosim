@@ -64,10 +64,10 @@ def test_e2e_dashboard_runs_and_renders():
                 assert clean["graph_kind"] == "ba"
                 assert clean["content_mode"] == "template"
                 assert clean["follow_rate"] == 0
-                page.evaluate("document.querySelector('#classifier_mode').value = 'trained'; document.querySelector('#classifier_mode').dispatchEvent(new Event('change'))")
+                page.evaluate("document.querySelector('#classifier_mode').value = 'synthetic_template_classifier'; document.querySelector('#classifier_mode').dispatchEvent(new Event('change'))")
                 assert page.locator("#classifier_precision").is_disabled()
                 assert page.locator("#classifier_recall").is_disabled()
-                page.evaluate("document.querySelector('#classifier_mode').value = 'noise'; document.querySelector('#classifier_mode').dispatchEvent(new Event('change'))")
+                page.evaluate("document.querySelector('#classifier_mode').value = 'synthetic_noise_classifier'; document.querySelector('#classifier_mode').dispatchEvent(new Event('change'))")
                 out = page.evaluate(_RUN_AND_RENDER)
                 assert out["events"] > 0
                 assert out["cards"] >= 6                  # overview metric cards
@@ -89,9 +89,9 @@ def test_e2e_dashboard_runs_and_renders():
                     }""", tab)
                     assert has_output, f"{tab} tab rendered no output"
                 assert page.locator("#ads img.creative-img[alt]").count() >= 1
-                assert "/api/creative" in page.locator("#ads img.creative-img").first.get_attribute("src")
+                assert "/static/assets/v4/ad-creative-v4-" in page.locator("#ads img.creative-img").first.get_attribute("src")
                 assert page.locator("#feedWrap img.feed-img[alt]").count() >= 1
-                assert "feed-cover-v3-" in page.locator("#feedWrap img.feed-img").first.get_attribute("src")
+                assert "feed-cover-v4-" in page.locator("#feedWrap img.feed-img").first.get_attribute("src")
                 page.evaluate("document.querySelector('#outTabs button[data-otab=feed]').click()")
                 for width in (1440, 768, 390, 320):
                     page.set_viewport_size({"width": width, "height": 900})
@@ -122,7 +122,7 @@ def test_e2e_dashboard_runs_and_renders():
                   const feedSrcs = new Set(feeds.map(i => i.getAttribute('src')));
                   return {
                     adsLoaded: ads.every(i => i.complete && i.naturalWidth > 0 && i.naturalHeight > 0),
-                    feedsLoaded: feeds.every(i => i.complete && i.naturalWidth === 900 && i.naturalHeight === 600),
+                    feedsLoaded: feeds.every(i => i.complete && i.naturalWidth === 1200 && i.naturalHeight === 800),
                     adsFit: ads.every(i => getComputedStyle(i).objectFit === 'contain'),
                     feedsFit: feeds.every(i => getComputedStyle(i).objectFit === 'contain'),
                     variedFeed: feedSrcs.size >= Math.min(3, feeds.length),

@@ -22,7 +22,7 @@ class Campaign:
     bid: float                      # per impression
     budget: float
     targeting: dict = field(default_factory=dict)  # {age_groups: [...], topics: [...], ideology: ...}
-    base_ctr: float = 0.01          # benchmark-calibrated click prior
+    base_ctr: float = 0.01          # scenario click-through assumption
     base_cvr: float = 0.05
     conversion_value: float = 1.0
     ltv_multiplier: float = 3.0     # SYNTHETIC assumption: LTV = value x this

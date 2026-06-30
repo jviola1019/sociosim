@@ -304,7 +304,7 @@ def test_attribution_window_limits_credited_conversions():
 
 
 def test_marketing_metrics_present_and_consistent():
-    """ROAS/iROAS/CAC/LTV + CUPED lift + lift p-value are reported and coherent
+    """ROAS/iROAS/CAC/LTV + oracle diagnostic + lift p-value are reported and coherent
     under a strong (clearly incremental) ad effect."""
     camp = [Campaign(id="m", advertiser="M", bid=5.0, budget=100_000,
                      base_ctr=1.0, base_cvr=1.0, conversion_value=2.0)]
@@ -322,7 +322,8 @@ def test_marketing_metrics_present_and_consistent():
     m = measure_campaign(log, camp[0], ads, n_agents=100)
     apply_fdr([m])
     for k in ("roas", "iroas", "cac", "ltv", "incremental_ltv",
-              "lift_cuped", "lift_pvalue", "lift_pvalue_raw", "lift_qvalue_bh",
+              "oracle_covariate_adjusted_simulation_diagnostic",
+              "lift_pvalue", "lift_pvalue_raw", "lift_qvalue_bh",
               "lift_significant", "lift_significant_bh_fdr", "mde",
               "budget_configured", "budget_remaining", "budget_exhausted",
               "economics_provenance", "economic_inputs", "lift_ci_method",
@@ -339,7 +340,7 @@ def test_marketing_metrics_present_and_consistent():
     assert m["spend"] <= m["budget_configured"] + 1e-9
     assert m["economics_provenance"] == "scenario_assumption"
     assert m["lift_ci_method"] == "uncorrected_newcombe_95"
-    assert np.isfinite(m["lift_cuped"])
+    assert np.isfinite(m["oracle_covariate_adjusted_simulation_diagnostic"])
     assert m["ltv"] == 2.0 * camp[0].ltv_multiplier
 
 

@@ -22,6 +22,7 @@ from typing import Callable
 
 from socio_sim.content.generate import TOPICS, TemplateGenerator
 from socio_sim.content.items import ContentItem
+from socio_sim.content.semantic_guard import check_generated_text, semantic_hash
 
 DEFAULT_MODELS = {
     "ollama": "qwen2.5:0.5b",          # ~400MB pull; adequate for short posts
@@ -98,7 +99,8 @@ class LLMAdapter:
         item = self.base.generate(author_id, personas, tick)
         prompt = self._prompt(author_id, personas, item.topic, tick)
         key = self.prompt_key(prompt)
-        text = self._cache.get(key)
+        cached = self._cache.get(key)
+        text = cached.get("text") if isinstance(cached, dict) else cached
         if text is None:
             if self._disabled:
                 return item  # already gave up; serve template silently
@@ -107,7 +109,24 @@ class LLMAdapter:
                 if not text:
                     raise ValueError("empty LLM response")
                 text = " ".join(text.split())[:280]
-                self._cache[key] = text
+                reasons = check_generated_text(text, item)
+                if reasons:
+                    self._cache[key] = {
+                        "text": text,
+                        "semantic_hash": semantic_hash(text),
+                        "status": "blocked",
+                        "reason_codes": reasons,
+                    }
+                    self._save_cache()
+                    self.on_degradation(
+                        f"semantic_mismatch:{','.join(reasons)}; template text used")
+                    return item
+                self._cache[key] = {
+                    "text": text,
+                    "semantic_hash": semantic_hash(text),
+                    "status": "accepted",
+                    "reason_codes": [],
+                }
                 self._save_cache()
                 self._fail_streak = 0
             except Exception as exc:
@@ -152,7 +171,7 @@ class LLMAdapter:
 
         req = urllib.request.Request(url, data=json.dumps(payload).encode(),
                                      headers=headers)
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
             body = json.loads(resp.read().decode("utf-8"))
         if self.backend == "ollama":
             return body["response"]

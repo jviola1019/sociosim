@@ -1,10 +1,8 @@
-"""Stylized-facts validation (Rung 2 on the validation ladder).
+"""Synthetic mechanism checks on documented qualitative patterns.
 
 Does the simulator reproduce DOCUMENTED empirical regularities of real social
 systems? Each fact is a named, cited, qualitative check with a pass band. This
-is *face validity against known patterns* — provenance ``stylized-fact-validated``
-— NOT point-prediction of any real platform. Run on the calibrated profile (the
-configuration meant to mirror real platforms).
+is a synthetic mechanism check, not point-prediction of any real platform.
 """
 
 from __future__ import annotations
@@ -17,7 +15,7 @@ from socio_sim.analytics.metrics import cascade_sizes, summarize_run
 from socio_sim.config import RunConfig
 from socio_sim.engine import Simulation
 
-PROVENANCE = "stylized-fact-validated"
+PROVENANCE = "synthetic_mechanism_check"
 
 
 def _fact(name, observed, lo, hi, source):
@@ -83,7 +81,7 @@ def stylized_facts(result, summary) -> list:
 
 
 def evaluate_stylized_facts(cfg: RunConfig | None = None) -> dict:
-    """Run the calibrated profile (or a given cfg) and score the stylized facts."""
+    """Run the aggregate-matched prototype (or a given cfg) and score checks."""
     cfg = cfg or RunConfig.calibrated(jurisdictions=("EU",))
     result = Simulation(cfg).run()
     facts = stylized_facts(result, summarize_run(result))

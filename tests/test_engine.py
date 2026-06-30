@@ -84,17 +84,17 @@ def test_static_graph_is_default_and_emits_no_dynamics_events():
     assert not r.log.by_kind("churn")
 
 
-def test_trained_classifier_mode_runs_and_is_deterministic():
-    """The real trained-classifier mode runs end-to-end, emits classify +
+def test_synthetic_template_classifier_mode_runs_and_is_deterministic():
+    """The synthetic template-classifier mode runs end-to-end, emits classify +
     moderation events, and is deterministic/replayable."""
-    cfg = RunConfig.test(jurisdictions=("EU",), classifier_mode="trained",
+    cfg = RunConfig.test(jurisdictions=("EU",), classifier_mode="synthetic_template_classifier",
                          category_base_rates=boosted_rates())
     h1 = Simulation(cfg).run().log.stream_hash()
     h2 = Simulation(cfg).run().log.stream_hash()
     assert h1 == h2
     res = Simulation(cfg).run()
     assert res.log.by_kind("classify") and res.log.by_kind("post")
-    assert res.manifest.config["classifier_mode"] == "trained"
+    assert res.manifest.config["classifier_mode"] == "synthetic_template_classifier"
 
 
 def test_default_llm_cache_path_is_not_derived_from_out_dir(tmp_path):

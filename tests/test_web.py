@@ -62,18 +62,18 @@ def test_build_config_rejects_invalid_api_values():
         app._build_config({"ftc_enabled": "not-a-bool"})
 
 
-def test_build_config_parses_boolean_strings_and_preserves_calibrated_profile():
-    cfg = app._build_config({"profile": "calibrated", "ftc_enabled": "false",
+def test_build_config_parses_boolean_strings_and_preserves_aggregate_profile():
+    cfg = app._build_config({"profile": "aggregate_matched_prototype", "ftc_enabled": "false",
                              "ads_enabled": "true"})
     assert cfg.graph_kind == "plc"
     assert cfg.graph_params == {"m": 5, "p": 0.7}
     assert cfg.ftc_enabled is False and cfg.ads_enabled is True
 
 
-def test_trained_classifier_ignores_precision_targets_for_identity():
-    a = app._build_config({"classifier_mode": "trained",
+def test_template_classifier_ignores_precision_targets_for_identity():
+    a = app._build_config({"classifier_mode": "synthetic_template_classifier",
                            "classifier_precision": 0.5, "classifier_recall": 0.5})
-    b = app._build_config({"classifier_mode": "trained",
+    b = app._build_config({"classifier_mode": "synthetic_template_classifier",
                            "classifier_precision": 0.99, "classifier_recall": 0.99})
     assert a.classifier_targets == b.classifier_targets
     assert a.config_hash() == b.config_hash()
@@ -186,8 +186,8 @@ def test_live_server_runs_simulation_end_to_end():
         server.shutdown()
 
 
-def test_creative_endpoint_serves_real_bounded_png():
-    """/api/creative returns a real deterministic PNG, dimensions clamped."""
+def test_creative_endpoint_serves_registered_v4_png():
+    """/api/creative returns a deterministic registered v4 PNG."""
     import struct
     from http.server import ThreadingHTTPServer
     import threading
@@ -200,13 +200,12 @@ def test_creative_endpoint_serves_real_bounded_png():
         data = r.read()
         assert r.headers.get("Content-Type") == "image/png"
         assert data[:8] == b"\x89PNG\r\n\x1a\n"
-        assert struct.unpack(">II", data[16:24]) == (300, 150)   # IHDR dims
-        # oversized request is clamped (DoS guard)
+        assert struct.unpack(">II", data[16:24]) == (1200, 600)
         big = urllib.request.urlopen(f"{base}/api/creative?key=x&w=9999&h=9999").read()
-        assert struct.unpack(">II", big[16:24]) == (1024, 1024)
+        assert struct.unpack(">II", big[16:24]) == (1200, 600)
         a = urllib.request.urlopen(f"{base}/api/creative?key=brand-a&w=1024&h=512").read()
         b = urllib.request.urlopen(f"{base}/api/creative?key=brand-b&w=1024&h=512").read()
-        assert struct.unpack(">II", a[16:24]) == (1024, 512)
+        assert struct.unpack(">II", a[16:24]) == (1200, 600)
         assert a != b
         assert urllib.request.urlopen(
             f"{base}/api/creative?key=brand-a&w=1024&h=512").read() == a
@@ -281,15 +280,16 @@ def test_campaign_specs_reject_non_deliverable_or_malformed_rows():
             app._normalize_campaign_specs({"campaigns": [spec]})
 
 
-def test_bundled_atlas_assets_exist_and_are_unignored():
+def test_bundled_v4_assets_exist_and_are_unignored():
     root = Path(__file__).resolve().parents[1]
     assets = root / "socio_sim" / "web" / "static" / "assets"
-    assert (assets / "feed-atlas-v3.png").is_file()
-    assert (assets / "ad-atlas-v3.png").is_file()
-    assert len(list(assets.glob("feed-cover-v3-*.png"))) == 12
-    assert len(list(assets.glob("ad-creative-v3-*.png"))) == 12
+    v4 = assets / "v4"
+    assert (v4 / "registry.json").is_file()
+    assert len(list(v4.glob("feed-cover-v4-*.png"))) == 48
+    assert len(list(v4.glob("ad-creative-v4-*.png"))) == 32
+    assert len(list(v4.glob("editorial-v4-*.png"))) == 12
     gitignore = (root / ".gitignore").read_text(encoding="utf-8")
-    assert "!socio_sim/web/static/assets/*.png" in gitignore
+    assert "!socio_sim/web/static/assets/v4/*.png" in gitignore
 
 
 def test_dynamic_graph_chart_data_uses_final_degree_hist():

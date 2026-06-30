@@ -1,5 +1,5 @@
 {
-  "description": "Social-network (Facebook-like) calibration targets: PUBLISHED AGGREGATE statistics only (no individual-level data). NOTE: the Facebook friend-degree distribution is NOT a clean power-law (Ugander et al. 2011), so degree_tail_exponent is deliberately OMITTED rather than fabricated.",
+  "description": "Social-network (Facebook-like) legacy aggregate targets: PUBLISHED AGGREGATE statistics only (no individual-level data). NOTE: the Facebook friend-degree distribution is NOT a clean power-law (Ugander et al. 2011), so degree_tail_exponent is deliberately OMITTED rather than fabricated.",
   "targets": {
     "clustering": {
       "value": 0.60,

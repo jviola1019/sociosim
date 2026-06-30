@@ -1,10 +1,10 @@
-"""Real media synthesis (Spec §6 was "media simulated as typed objects only").
+"""Deterministic synthetic media synthesis.
 
 Deterministic, offline, zero-dependency procedural raster synthesis: a seeded
-numpy composition (gradient field + soft colour blobs) encoded to real PNG bytes
+numpy composition (gradient field + soft colour blobs) encoded to PNG bytes
 with a tiny stdlib (zlib) encoder. Seeded by content id, so every item gets a
 unique, reproducible image; replays are bit-identical. `synth_video` encodes a
-real, playable animated-PNG (APNG) container; `synth_frames` exposes the raw
+playable animated-PNG (APNG) container; `synth_frames` exposes the raw
 frames. Deliberate generative art — not an AI-image aesthetic.
 
 An external diffusion/image-model backend can be plugged in via
@@ -83,7 +83,7 @@ def synth_image(seed: int, w: int = 256, h: int = 256) -> bytes:
 
 
 def synth_frames(seed: int, n_frames: int = 8, w: int = 128, h: int = 128) -> list:
-    """Deterministic frame sequence (real PNG bytes per frame)."""
+    """Deterministic frame sequence (PNG bytes per frame)."""
     return [_png(_compose(int(seed), w, h, phase=i / max(n_frames, 1)))
             for i in range(n_frames)]
 

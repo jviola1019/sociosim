@@ -1,5 +1,5 @@
 """Run analytics (Spec §3.8): exposure, moderation quality, appeals, cascades,
-welfare proxy, fairness diagnostics — every aggregate with a bootstrap 95% CI.
+welfare proxy, and fairness diagnostics with evidence-labelled intervals.
 
 All functions are pure over the event log (plus personas where grouping is
 needed), so they work identically on live results and replayed logs.
@@ -10,6 +10,7 @@ from __future__ import annotations
 import numpy as np
 
 from socio_sim.ads.measure import apply_fdr, measure_campaign
+from socio_sim.evidence import metric_evidence
 from socio_sim.logs.events import EventLog
 from socio_sim.rng import SeedTree
 from socio_sim.stats import wilson_interval  # re-exported for callers/tests
@@ -22,6 +23,27 @@ TERMINAL_ACTIONS = {"remove", "downrank"}
 #: Welfare proxy weights (design §1): satisfaction per engagement, penalty per
 #: harmful impression, small attention cost per impression.
 W_ENGAGE, W_HARM, W_ATTENTION = 1.0, 2.0, 0.01
+
+
+METRIC_EVIDENCE_IDS = {
+    "n_posts": "ev.scenario_assumption.default_parameters",
+    "n_impressions": "ev.scenario_assumption.default_parameters",
+    "n_engagements": "ev.scenario_assumption.default_parameters",
+    "harmful_exposure": "ev.scenario_assumption.default_parameters",
+    "moderation": "ev.synthetic_engineering.classifier_noise",
+    "appeals": "ev.scenario_assumption.default_parameters",
+    "notices": "ev.scenario_assumption.default_parameters",
+    "cascades": "ev.scenario_assumption.default_parameters",
+    "welfare": "ev.scenario_assumption.default_parameters",
+    "fairness": "ev.scenario_assumption.default_parameters",
+    "minor_protection": "ev.scenario_assumption.default_parameters",
+    "ads": "ev.scenario_assumption.default_parameters",
+    "graph": "ev.scenario_assumption.default_parameters",
+}
+
+
+def metric_provenance() -> dict:
+    return {name: metric_evidence(eid) for name, eid in METRIC_EVIDENCE_IDS.items()}
 
 
 def _truth_map(log: EventLog) -> dict:
@@ -290,6 +312,7 @@ def summarize_run(result, rng: np.random.Generator | None = None) -> dict:
         "minor_protection": minor_protection(log, result.personas),
         "ads": _ads_with_fdr(log, result),
         "graph": result.graph_stats,
+        "metric_provenance": metric_provenance(),
     }
 
 
