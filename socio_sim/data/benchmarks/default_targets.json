@@ -4,37 +4,44 @@
     "degree_tail_exponent": {
       "value": 2.5,
       "tolerance": 0.5,
-      "source": "Scale-free social networks: power-law exponent typically 2-3 (Barabasi & Albert 1999 and successors)"
+      "source": "Scale-free social networks: power-law exponent typically 2-3 (Barabasi & Albert 1999 and successors)",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     },
     "clustering": {
       "value": 0.2,
       "tolerance": 0.1,
-      "source": "Online social networks: average clustering commonly 0.1-0.3 (e.g., Mislove et al. 2007 measurements)"
+      "source": "Online social networks: average clustering commonly 0.1-0.3 (e.g., Mislove et al. 2007 measurements)",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     },
     "diurnal_peak_hour": {
       "value": 17,
       "tolerance": 2,
-      "source": "Circadian posting studies: activity peaks ~16-18h local time"
+      "source": "Circadian posting studies: activity peaks ~16-18h local time",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     },
     "diurnal_trough_hour": {
       "value": 5,
       "tolerance": 2,
-      "source": "Circadian posting studies: troughs ~04-06h local time"
+      "source": "Circadian posting studies: troughs ~04-06h local time",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     },
     "posts_per_agent_day": {
       "value": 0.5,
       "tolerance": 0.35,
-      "source": "Median platform posting rates: most users post < 1x/day; heavy tail above"
+      "source": "Median platform posting rates: most users post < 1x/day; heavy tail above",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     },
     "ad_ctr": {
       "value": 0.01,
       "tolerance": 0.008,
-      "source": "Industry display/social ad click-through rates ~0.5-2%"
+      "source": "Industry display/social ad click-through rates ~0.5-2%",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     },
     "appeal_grant_rate": {
       "value": 0.25,
       "tolerance": 0.15,
-      "source": "Platform transparency reports: appeal reinstatement rates ~10-40%"
+      "source": "Platform transparency reports: appeal reinstatement rates ~10-40%",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     }
   }
 }

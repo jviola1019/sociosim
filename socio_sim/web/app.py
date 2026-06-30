@@ -30,6 +30,7 @@ from socio_sim import (NO_REAL_PERSON_DATA_NOTICE, NOT_LEGAL_ADVICE_NOTICE,
 from socio_sim.analytics.lens import run_lens
 from socio_sim.analytics.metrics import cascade_sizes, cascade_tree
 from socio_sim.config import ADVERSARIES, CATEGORIES, RunConfig
+from socio_sim.evidence import EvidenceKind, get_evidence
 from socio_sim.llm_bootstrap import ensure_model, ensure_server, server_up
 from socio_sim.pipeline import run_and_analyze
 from socio_sim.presets import PRESETS
@@ -118,6 +119,27 @@ def _asset_registry() -> dict:
         "human_review": data.get("human_review", {}),
         "evidence_id": "ev.synthetic_engineering.assets_v4",
     }
+
+
+def _targets_metadata_complete(targets: dict) -> bool:
+    """True only if every target carries an evidence record whose kind is
+    not 'unsupported'. Drives whether the UI may show a target-distance
+    comparison at all -- the legacy bundled benchmark targets are all
+    'unsupported' (missing source version/date range/population/source
+    hash/tolerance rationale), so this is currently always False; it flips
+    automatically if a fully-sourced target set is ever added."""
+    if not targets:
+        return False
+    for t in targets.values():
+        evidence_id = t.get("evidence_id")
+        if not evidence_id:
+            return False
+        try:
+            if get_evidence(evidence_id).kind is EvidenceKind.UNSUPPORTED:
+                return False
+        except KeyError:
+            return False
+    return True
 
 
 def _jsonable(obj):
@@ -543,6 +565,7 @@ def _run_job(job_id: str, body: dict):
             "campaign_specs": campaign_specs,
             "observed": a.observed,
             "targets": a.targets,
+            "targets_metadata_complete": _targets_metadata_complete(a.targets),
             "implausibility": a.implausibility,
             "implausibility_components": a.implausibility_components,
             "implausibility_dominant_metric": a.implausibility_dominant_metric,

@@ -13,20 +13,52 @@ operational-use claims.
 
 ## Evidence Registry
 
-- Machine-readable evidence records live in
-  `socio_sim/data/evidence_registry.json`.
-- Scenario assumptions live in `socio_sim/data/scenario_assumptions.json`.
+- Machine-readable evidence-kind records (source metadata: title, URL,
+  revision, retrieval date, license, population, limitations, valid/invalid
+  uses) live in `socio_sim/data/evidence_registry.json`.
+- Individual decision-facing numeric defaults live in
+  `socio_sim/data/scenario_assumptions.json`: **64 entries, one per default**
+  (13 BehaviorParams fields, 9 category base rates, 2 classifier operating
+  points, 15 RunConfig/graph/auction defaults, 4 profile-scale presets, 12
+  persona distributions, 5 Campaign defaults, 3 demo-campaign entries), each
+  with its own `path`, current `value`, `units`, and `rationale` — not one
+  record standing in for a whole module. Most share the single
+  `ev.scenario_assumption.default_parameters` evidence-kind record, which is
+  legitimate (it describes the *kind* of source — "no external empirical
+  source" — common to all of them; the per-default identity is in the
+  assumption entry, not the evidence record).
+- `socio_sim/evidence.py::missing_numeric_default_provenance()` mechanically
+  cross-checks BehaviorParams/Campaign/category_base_rates/classifier_targets
+  fields against the registry and fails `validate_registry()` (wired into
+  `scripts/evidence_gate.py`, a required CI step) if a new numeric default is
+  added without a provenance entry. It does not (yet) cover bare module-level
+  constants or inline literals outside those four structures — those are
+  tracked by hand; see `AUDIT_LOG.md` R6-EVIDENCEGRAIN for the full inventory
+  method and `HANDOFF.md` for what's still unmapped.
 - Every decision-facing metric is expected to carry evidence metadata in JSON/web
   payloads and rendered reports.
 
 ## Legacy Aggregate Targets
 
-- `socio_sim/data/benchmarks/*.json` are legacy aggregate target manifests.
+- `socio_sim/data/benchmarks/*.json` (`default_targets.json`,
+  `twitter_like.json`, `facebook_like.json`) are legacy aggregate target
+  manifests, 7 (6 for facebook_like) targets each with their own one-line
+  citation and tolerance, now also carrying an `evidence_id` field pointing
+  at `ev.unsupported.aggregate_targets_legacy`.
 - They lack complete source version, date range, population, unit, source hash,
-  and tolerance-rationale metadata.
+  and tolerance-rationale metadata (the one-line `source` string is not a
+  substitute for that schema). Finding real, verifiable URLs/DOIs for these
+  is deferred — see `HANDOFF.md` item 4 — rather than fabricated from memory.
 - Valid use: aggregate-fit diagnostics and synthetic mechanism checks.
 - Invalid use: empirical validation, calibration seals, backtest seals,
   operational decisions, or real-platform prediction.
+- As of 2026-06-30, the web UI enforces this: `_targets_metadata_complete()`
+  in `web/app.py` checks each target's evidence-record kind, and the
+  "Target Comparison" tab (formerly labeled "Calibration") shows a plain
+  "Unsupported legacy target comparison" with no pass/fail seal and no
+  "closer to published benchmarks" claim whenever any loaded target is
+  `kind=unsupported` — which is always true today, since all three bundled
+  target sets share that evidence record.
 
 ## Classifier Benchmarks
 

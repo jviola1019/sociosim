@@ -164,6 +164,20 @@ def file_sha256(path: str | Path) -> str:
     return h.hexdigest()
 
 
+#: Required per-default fields on every scenario_assumptions.json entry. Each
+#: entry maps ONE decision-facing numeric default (not a whole module/class)
+#: to its own identity, current value, and a short rationale -- this is what
+#: keeps a single evidence_id (the shared "what kind of source is this"
+#: record) from standing in for dozens of unrelated numeric defaults.
+ASSUMPTION_REQUIRED_FIELDS = (
+    "id", "evidence_id", "label", "path", "value", "units", "scope", "rationale",
+)
+
+#: Placeholder strings that must never appear as a live label/rationale -- if
+#: present, the entry was drafted but never actually written.
+_PLACEHOLDER_MARKERS = ("TODO", "TBD", "FIXME", "xxx", "lorem ipsum")
+
+
 def validate_registry() -> list[str]:
     errors: list[str] = []
     for rec in evidence_registry().values():
@@ -174,10 +188,80 @@ def validate_registry() -> list[str]:
         for field in ("known_limitations", "valid_uses", "invalid_uses"):
             if not getattr(rec, field):
                 errors.append(f"{rec.id}: {field} must be non-empty")
+    _absent = object()
+    # "value" may legitimately be 0, 0.0, or False (e.g. a disabled-by-default
+    # rate), so presence is checked by key, not truthiness; the other fields
+    # are all non-empty strings and truthiness is the right check for those.
+    seen_paths: dict[str, str] = {}
     for item in scenario_assumptions().values():
-        evidence_id = str(item.get("evidence_id", ""))
+        item_id = str(item.get("id", "<missing id>"))
+        missing = [f for f in ASSUMPTION_REQUIRED_FIELDS
+                   if item.get(f, _absent) is _absent
+                   or (f != "value" and not item.get(f))]
+        if missing:
+            errors.append(f"{item_id}: missing/empty required fields {missing}")
+            continue
+        evidence_id = str(item["evidence_id"])
         if evidence_id not in evidence_registry():
-            errors.append(f"{item.get('id')}: unknown evidence_id {evidence_id}")
+            errors.append(f"{item_id}: unknown evidence_id {evidence_id}")
         elif evidence_registry()[evidence_id].kind is not EvidenceKind.SCENARIO_ASSUMPTION:
-            errors.append(f"{item.get('id')}: assumption must use scenario_assumption evidence")
+            errors.append(f"{item_id}: assumption must use scenario_assumption evidence")
+        path = str(item["path"])
+        if path in seen_paths:
+            errors.append(
+                f"{item_id}: path {path!r} duplicates {seen_paths[path]!r} -- "
+                "one numeric default must not be claimed by two entries")
+        seen_paths[path] = item_id
+        for field in ("label", "rationale"):
+            text = str(item[field])
+            if any(marker.lower() in text.lower() for marker in _PLACEHOLDER_MARKERS):
+                errors.append(f"{item_id}: {field} contains a placeholder marker")
+    errors.extend(
+        f"numeric default missing a scenario_assumptions.json provenance entry: {p}"
+        for p in sorted(missing_numeric_default_provenance())
+    )
     return errors
+
+
+def missing_numeric_default_provenance() -> set[str]:
+    """Decision-facing numeric defaults in code that have no matching `path`
+    in scenario_assumptions.json. Covers the dataclass/dict-based registries
+    that can be introspected mechanically (BehaviorParams, Campaign,
+    category_base_rates, classifier_targets); does not (yet) cover defaults
+    expressed as bare module-level constants or inline literals, which are
+    tracked by hand (see AUDIT_LOG.md R6)."""
+    from dataclasses import fields as dc_fields
+
+    from socio_sim.ads.campaigns import Campaign
+    from socio_sim.behavior import BehaviorParams
+    from socio_sim.config import _default_base_rates, _default_classifier_targets
+
+    present = {str(item["path"]) for item in scenario_assumptions().values()
+               if item.get("path")}
+    expected: set[str] = set()
+
+    for f in dc_fields(BehaviorParams):
+        expected.add(f"socio_sim.behavior.BehaviorParams.{f.name}")
+
+    for cat in _default_base_rates():
+        expected.add(f"socio_sim.config._default_base_rates['{cat}']")
+
+    # classifier_targets applies one precision and one recall value uniformly
+    # across every category (see assumption.classifier_target.*), not a
+    # distinct claim per category.
+    sample_target = next(iter(_default_classifier_targets().values()))
+    if "precision" in sample_target:
+        expected.add("socio_sim.config._default_classifier_targets()[*]['precision']")
+    if "recall" in sample_target:
+        expected.add("socio_sim.config._default_classifier_targets()[*]['recall']")
+
+    campaign_exempt = {
+        "id", "advertiser", "bid", "budget", "targeting",
+        "holdout_fraction", "ftc_override",
+    }
+    for f in dc_fields(Campaign):
+        if f.name.startswith("_") or f.name in campaign_exempt:
+            continue
+        expected.add(f"socio_sim.ads.campaigns.Campaign.{f.name}")
+
+    return expected - present

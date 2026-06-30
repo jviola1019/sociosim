@@ -60,8 +60,11 @@ class Personas:
         interests = rng.dirichlet(np.ones(n_topics) * 0.7, size=n)
         # Latent organic-conversion propensity: fixed per agent, drawn LAST so
         # all prior persona draws (and thus determinism) are unchanged. Beta(2,50)
-        # -> mean ~3.8%, a realistic baseline organic conversion rate. This is the
-        # ad-independent counterfactual that makes holdout lift a real estimate.
+        # -> mean ~3.8%, a plausible-order-of-magnitude SCENARIO ASSUMPTION (not
+        # a measured conversion-rate study; see assumption.persona.base_conversion_
+        # distribution in scenario_assumptions.json). This is the ad-independent
+        # counterfactual that makes holdout lift a real (within-scenario) estimate
+        # rather than a tautology.
         base_conversion = rng.beta(2.0, 50.0, size=n)
         # DSA Art. 22 trusted flaggers: a small designated set whose flags get
         # priority review. Drawn last so all prior persona draws are unchanged.
