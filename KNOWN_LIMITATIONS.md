@@ -26,7 +26,7 @@ list; this file tracks what remains open or newly surfaced.
 - **Now validated one rung higher** (`run.py --backtest`, `BACKTEST_REPORT.md`):
   the calibrated world reproduces 5 cited **stylized facts** (heavy-tail degree,
   clustering≫random, cascade skew, participation inequality, diurnal cycle) and
-  passes a **held-out aggregate backtest** (calibrate on a train subset of public aggregates -> held-out metrics within tolerance, I_test approx 0.12). Honest ceiling:
+  passes a **held-out aggregate backtest** (calibrate on a train subset of public aggregates -> held-out metrics within tolerance, I_test approx 0.78 in the bundled smoke). Honest ceiling:
   this is aggregate/pattern agreement, NOT point-prediction of a real platform;
   agent behavioural magnitudes stay calibrated assumptions (no real-person
   microdata — lawful by design; see `docs/DATA_MANIFEST.md`).
@@ -88,8 +88,13 @@ list; this file tracks what remains open or newly surfaced.
 - **Settings** carry units + researched reference ranges as tooltips.
 - **Security:** hardened per `SECURITY.md` (token, Origin/Host check, CSP +
   headers, body/Content-Type limits, SSRF allow-list on the LLM URL).
-- Remaining UI polish: full a11y pass (slider aria-valuetext, focus order, data
-  tables) and provenance badges on individual content cards.
+- **Accessibility:** an automated **axe-core** scan runs over every dashboard tab
+  in the Playwright E2E and asserts **zero** violations (contrast, landmarks,
+  heading order, control names, focusable scroll regions), on top of the manual
+  ARIA hardening (tablist/tab, aria-live, SVG role+label, data-table alternates).
+- **Provenance:** every **secondary visualization** (the four charts, the 3D
+  network, cascade replay, confusion grid, fairness table) now carries a
+  server-driven provenance badge (`model-derived` / `synthetic assumption`).
 
 ## Formerly out-of-scope (spec §6) — now delivered, with honest caveats
 - **Real image/video synthesis:** deterministic procedural PNG **and a real
@@ -113,8 +118,11 @@ list; this file tracks what remains open or newly surfaced.
 ## Tooling
 - ruff is a dev dependency and a CI gate (lint passes clean); pytest-cov enforces
   an 85% coverage floor (actual ~92%). Local audit verification currently passes
-  ruff plus 265 pytest tests; GitHub Actions runs ruff + pytest + a real
-  Playwright E2E + a wheel build with a data-asset assertion.
+  ruff plus 301 pytest tests; GitHub Actions runs ruff + pytest + a real
+  Playwright E2E (including an automated **axe-core** accessibility scan) +
+  **Bandit** and **pip-audit** (both blocking) + a **Docker image build** + a
+  wheel build with a data-asset assertion. `bandit` and `pip-audit` ship in the
+  `[dev]` extra so the documented install runs them.
 
 See `AUDIT_LOG.md` for the full issue ledger with status, and `HANDOFF.md` for
 the resume plan.

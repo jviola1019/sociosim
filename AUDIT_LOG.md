@@ -25,7 +25,7 @@ Status: OPEN / IN-PROGRESS / DONE (with commit) / DEFERRED (-> HANDOFF.md).
 | Q-REVIEW | P2 | moderation/workflow.py:106-157 | Reviewer ground-truth heuristic + uncited appeal magic | Document/expose params | reviewer convergence | OPEN |
 | S1 | P2 | web/static/app.js:79-84 | Presets are additive, not reset -> stale values persist across preset switches | Reset to defaults then apply overrides | preset-applies-clean-state | **DONE** (P6) |
 | S2 | P2 | web/app.py:100-101 | SBM block_sizes hardcoded [500,500], ignores n_agents | Derive blocks from n_agents | sbm-respects-n | **DONE** (P5b) |
-| S3 | P1* | engine.py:50-62 (UI) | No campaign-level marketing controls in UI (budget/bid/targeting/variants) | Add campaign editor feeding campaigns | campaign-editor roundtrip | DEFERRED (P6 full UI) |
+| S3 | P1* | engine.py:50-62 (UI) | No campaign-level marketing controls in UI (budget/bid/targeting/variants) | Add campaign editor feeding campaigns | campaign-editor roundtrip | **DONE** (P6; campaign editor live, web/static + usage.md) |
 | S4 | P2 | UI | No n_replicates control (blocked on Q-MC) | Expose in Research mode | live-research-http | **DONE** (P6) |
 | S5 | P3 | index.html:56; config.py:160 | tick_hours UI allows non-divisors of 24 -> validation error | Constrain to divisor select | n/a | **DONE** (P6) |
 | S6 | P3 | engine.py:96; web | Classifier global-only; political base rate not exposed; homophily attr hardcoded | Optional per-category; expose political rate | n/a | OPEN |
@@ -39,3 +39,21 @@ Status: OPEN / IN-PROGRESS / DONE (with commit) / DEFERRED (-> HANDOFF.md).
 - test/US: `f7473dc24c1ff189045e807f7f1e8798ed2416a5bf43020ca8f2344edbd27190`
 - test/CN: `3f3c6f2bb509e64e69ea5f7cbf716a078932bc8e5c73d137afa9db785cb8cd14`
 Baseline suite: 108 tests passing at branch point.
+
+## P2 completion (2026-06-29)
+
+The five remaining P2 items from the multi-persona audit
+(`docs/audits/2026-06-29-p2-completion-multiperson-audit.md`) are now implemented
+and verified (301 tests, ruff/bandit/pip-audit clean, axe 0 violations):
+
+| Item | Resolution | Commit prefix |
+|------|-----------|---------------|
+| LLM reclassification over generated text | shared `content/_safety.py`; reclass is a real consistency check over surface text applied to ALL items; ClaudeAdapter now applies the same guards | `feat(p2-1)` |
+| Provenance on every secondary visualization | server-driven badge via `_chart_data`; rendered on all charts, network, cascade, confusion, fairness; E2E asserts | `feat(p2-2)` |
+| Automated axe/accessibility checks | `axe-playwright-python` wired into the E2E over every tab, asserts 0 violations; real contrast/landmark/heading/label/scroll fixes | `feat(p2-3)` |
+| Dependency/security scanning enforced | bandit + pip-audit folded into `[dev]`; pip-audit now blocking in CI | `feat(p2-4)` |
+| Docker hardening | `.dockerignore` + `HEALTHCHECK` + a CI job that builds the image and smoke-runs the CLI | `feat(p2-5)` |
+
+Lower-priority ledger items **Q-REVIEW** (P2, reviewer/appeal heuristic
+documentation) and **S6** (P3, classifier global-only / political base rate)
+remain OPEN — out of scope for this P2 slice.
