@@ -135,12 +135,21 @@ def main() -> int:
     tracked = subprocess.run(["git", "grep", "-nE",
                               "feed-atlas-v3|ad-atlas-v3|feed-cover-v3|ad-creative-v3"],
                              cwd=ROOT, text=True, capture_output=True)
+    # Files allowed to mention legacy v3 filenames: the scanners themselves
+    # (which must contain the literal strings to detect them), this script's
+    # own report/doc outputs, and BASELINE_AUDIT_SNAPSHOT.md -- an explicitly
+    # labeled historical record of pre-remediation state, not a current claim.
+    _ALLOWED_STALE_REFS = (
+        "AUDIT_REMEDIATION_REPORT",
+        "ASSET_QA",
+        "scripts/asset_qa.py",
+        "scripts/claim_scan.py",
+        "tests/test_asset_v4.py",
+        "BASELINE_AUDIT_SNAPSHOT.md",
+    )
     stale_lines = [
         line for line in tracked.stdout.splitlines()
-        if "AUDIT_REMEDIATION_REPORT" not in line
-        and "ASSET_QA" not in line
-        and "scripts/asset_qa.py" not in line
-        and "tests/test_asset_v4.py" not in line
+        if not any(allowed in line for allowed in _ALLOWED_STALE_REFS)
     ]
     if stale_lines:
         errors.append("legacy asset references remain:\n" + "\n".join(stale_lines[:40]))

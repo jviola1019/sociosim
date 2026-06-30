@@ -8,6 +8,7 @@ out/
 .pytest_cache/
 .ipynb_checkpoints/
 .playwright-mcp/
+.coverage
 *.png
 !socio_sim/web/static/assets/
 !socio_sim/web/static/assets/*.png
