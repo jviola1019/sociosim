@@ -11,3 +11,6 @@ out/
 *.png
 !socio_sim/web/static/assets/
 !socio_sim/web/static/assets/*.png
+!socio_sim/web/static/assets/v4/
+!socio_sim/web/static/assets/v4/*.png
+!socio_sim/web/static/assets/v4/*.json

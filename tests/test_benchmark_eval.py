@@ -26,8 +26,13 @@ def test_benchmarks_bundled_balanced_and_scrubbed():
 def test_measured_metrics_beat_baseline():
     for name in available_benchmarks():
         r = evaluate_benchmark(name, seed=0)
-        assert r["provenance"] == "measured-on-benchmark"
+        assert r["provenance"] == "component_benchmark"
         assert r["license"] in ("CC0-1.0", "Apache-2.0")
+        assert r["source_sha256"]
+        assert r["model_hash"]
+        assert r["leakage_pass"]
+        assert "bootstrap_ci" in r and "reliability_diagram" in r
+        assert "threshold_sweep" in r
         assert r["auc"] >= 0.75, (name, r["auc"])        # MEASURED on real data
         assert r["f1"] >= 0.65, (name, r["f1"])
         assert r["f1"] > r["baseline_majority_acc"] - 0.5  # clearly learning

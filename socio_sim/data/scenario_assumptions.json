@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "assumptions": [
+    {
+      "id": "assumption.behavior_defaults",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Behavior parameter defaults",
+      "units": "probabilities, ticks, and scalar multipliers",
+      "scope": "Synthetic agent mechanics",
+      "path": "socio_sim.behavior.BehaviorParams"
+    },
+    {
+      "id": "assumption.persona_distributions",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Persona distributions",
+      "units": "synthetic categorical and probability distributions",
+      "scope": "Synthetic agents",
+      "path": "socio_sim.agents.personas"
+    },
+    {
+      "id": "assumption.category_base_rates",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Content category base rates",
+      "units": "probability per generated post",
+      "scope": "Synthetic content generation",
+      "path": "socio_sim.config._default_base_rates"
+    },
+    {
+      "id": "assumption.classifier_operating_points",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Synthetic classifier operating points",
+      "units": "precision and recall scenario inputs",
+      "scope": "Noisy classifier mechanics",
+      "path": "socio_sim.config._default_classifier_targets"
+    },
+    {
+      "id": "assumption.ad_campaign_defaults",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Ad campaign defaults",
+      "units": "bid, budget, CTR, CVR, value, LTV multiplier, attribution ticks",
+      "scope": "Synthetic advertising mechanics",
+      "path": "socio_sim.ads.campaigns.Campaign"
+    },
+    {
+      "id": "assumption.policy_timing_defaults",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Policy and review timing defaults",
+      "units": "probability and ticks",
+      "scope": "Synthetic policy workflow mechanics",
+      "path": "socio_sim.config.RunConfig"
+    },
+    {
+      "id": "assumption.profile_defaults",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Run profile defaults",
+      "units": "agents, ticks, graph parameters, replicates",
+      "scope": "Synthetic run scale presets",
+      "path": "socio_sim.config.RunConfig"
+    }
+  ]
+}

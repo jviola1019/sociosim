@@ -26,13 +26,13 @@ def test_config_hash_stable_and_sensitive():
         out_dir="out/b").config_hash()
 
 
-def test_config_hash_ignores_noise_targets_in_trained_classifier_mode():
+def test_config_hash_ignores_noise_targets_in_template_classifier_mode():
     targets_a = RunConfig.test().classifier_targets
     targets_b = {k: {"precision": 0.5, "recall": 0.5} for k in targets_a}
-    a = RunConfig.test(classifier_mode="trained", classifier_targets=targets_a)
-    b = RunConfig.test(classifier_mode="trained", classifier_targets=targets_b)
+    a = RunConfig.test(classifier_mode="synthetic_template_classifier", classifier_targets=targets_a)
+    b = RunConfig.test(classifier_mode="synthetic_template_classifier", classifier_targets=targets_b)
     assert a.config_hash() == b.config_hash()
-    c = RunConfig.test(classifier_mode="noise", classifier_targets=targets_b)
+    c = RunConfig.test(classifier_mode="synthetic_noise_classifier", classifier_targets=targets_b)
     assert a.config_hash() != c.config_hash()
 
 

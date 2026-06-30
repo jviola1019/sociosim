@@ -1,5 +1,4 @@
-"""Ad experiment: FTC disclosure compliance toggle + per-campaign measurement
-with Bayesian credible intervals and RCT holdout lift.
+"""Ad experiment: FTC disclosure compliance toggle + per-campaign diagnostics.
 
 Usage: python examples/ad_experiment_demo.py [--profile test|quick]
 """
@@ -32,14 +31,14 @@ def main():
                   if e["data"].get("ftc_violation")]
     print(f"FTC disclosure violations caught and fixed: {len(violations)}")
 
-    print(f"\n{'campaign':16s} {'impr':>6s} {'CTR':>8s} {'CTR 95% CI':>20s} "
+    print(f"\n{'campaign':16s} {'impr':>6s} {'CTR':>8s} {'CTR diag interval':>20s} "
           f"{'lift':>8s} {'spend':>8s}")
     for c in result.campaigns:
         m = measure_campaign(result.log, c, result.ads, cfg.n_agents)
         lo, hi = m["ctr_ci"]
         print(f"{c.id:16s} {m['impressions']:6d} {m['ctr']:8.4f} "
               f"[{lo:.4f}, {hi:.4f}]    {m['lift']:8.4f} {m['spend']:8.2f}")
-    print("\nIntervals are Beta-Binomial posteriors; lift = exposed minus "
+    print("\nIntervals are synthetic-run diagnostics; lift = exposed minus "
           "holdout conversion rate. Research use only.")
 
 

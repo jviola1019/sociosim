@@ -1,11 +1,11 @@
-"""Validation study: sensitivity of headline outputs to BehaviorParams + a
-calibration (implausibility) check against the published benchmark targets.
+"""Validation-ladder diagnostics for BehaviorParams sensitivity and aggregate fit.
 
 This is the FIRST place the model's OWN behaviour parameters are
-sensitivity-tested and checked against empirical targets (audit P4 / Q-PARAM).
-Results are rendered to VALIDATION_REPORT.md. Provenance: synthetic exploratory
-— a parameter with high sensitivity index must be calibrated (or its dependent
-outputs flagged) before being treated as more than a scenario assumption.
+sensitivity-tested and checked against legacy aggregate targets (audit P4 /
+Q-PARAM). Results are rendered to VALIDATION_REPORT.md. Provenance:
+scenario-assumption / aggregate-fit check only. Parameters with high
+sensitivity indices remain scenario assumptions unless complete external
+evidence metadata is added.
 """
 
 from __future__ import annotations
@@ -162,12 +162,13 @@ def calibration_implausibility(cfg: RunConfig) -> dict:
 def posterior_calibrated_mc(profile: str = "test", n_samples: int = 24,
                             seed: int = 42,
                             metric: str = "posts_per_agent_day") -> dict:
-    """Chain calibration -> uncertainty: history-match BehaviorParams against a
+    """Chain aggregate matching -> uncertainty: history-match BehaviorParams against a
     behaviour-controllable target, build an ABC posterior, then propagate that
     parameter posterior into an interval for `metric`. This is genuine
     parameter-uncertainty propagation (not single-run noise)."""
     factory = {"test": RunConfig.test, "quick": RunConfig.quick,
                "standard": RunConfig.standard,
+               "aggregate_matched_prototype": RunConfig.aggregate_matched_prototype,
                "calibrated": RunConfig.calibrated}[profile]
     cfg = factory(jurisdictions=("EU",), root_seed=seed)
     rng = np.random.default_rng(seed)
@@ -198,7 +199,9 @@ def posterior_calibrated_mc(profile: str = "test", n_samples: int = 24,
 
 
 _PROFILES = {"test": RunConfig.test, "quick": RunConfig.quick,
-             "standard": RunConfig.standard, "calibrated": RunConfig.calibrated}
+             "standard": RunConfig.standard,
+             "aggregate_matched_prototype": RunConfig.aggregate_matched_prototype,
+             "calibrated": RunConfig.calibrated}
 
 
 def run_validation_study(profile: str = "test", n_samples: int = 24,
@@ -226,9 +229,10 @@ def _pm_line(pm: dict) -> str:
         return ("ABC posterior propagation: no plausible parameter sets at this "
                 "scale/seed (try more samples).")
     lo, hi = pm["output_ci"]
-    return (f"Calibrated `{pm['metric']}` over {pm['n_accepted']} accepted "
-            f"parameter sets (provenance: {pm['provenance']}): median "
-            f"{pm['output_median']:.4f}, 95% [{lo:.4f}, {hi:.4f}].")
+    return (f"Posterior-propagated `{pm['metric']}` over {pm['n_accepted']} "
+            f"accepted parameter sets (provenance: {pm['provenance']}): median "
+            f"{pm['output_median']:.4f}, 95% posterior interval "
+            f"[{lo:.4f}, {hi:.4f}].")
 
 
 def render_validation_report(study: dict) -> str:
@@ -236,12 +240,11 @@ def render_validation_report(study: dict) -> str:
     pm = study.get("posterior_mc") or {}
     ranked = sorted(s["indices"].items(), key=lambda kv: kv[1], reverse=True)
     lines = [
-        "# SocioSim Validation Report",
+        "# SocioSim Validation-Ladder Diagnostics",
         "",
-        "> Provenance: **synthetic exploratory**. Behaviour parameters are not "
-        "empirically calibrated; this report records their sensitivity and the "
-        "run's distance from published aggregate benchmarks. It is NOT evidence "
-        "that the simulator predicts real behaviour.",
+        "> Scope: synthetic mechanism and aggregate-fit diagnostics only. "
+        "Legacy target metadata is incomplete, so this report cannot display "
+        "validation, calibration, backtest, confidence, or real-model seals.",
         "",
         f"Profile `{study['profile']}` · {study['n_agents']} agents × "
         f"{study['n_ticks']} ticks · seed {study['seed']}.",
@@ -258,7 +261,7 @@ def render_validation_report(study: dict) -> str:
     lines += [
         "",
         "Interpretation: parameters with high S1 dominate this output and MUST "
-        "be calibrated (or their dependent claims flagged uncalibrated) before "
+        "be user-supplied or evidence-backed before "
         "use. Low-S1 parameters are safe to leave at documented defaults.",
     ]
     ms = study.get("multi_sensitivity")
@@ -294,7 +297,7 @@ def render_validation_report(study: dict) -> str:
                          f"{sa['ST'][name]:.3f} |")
     lines += [
         "",
-        "## 2. Calibration vs published benchmarks",
+        "## 2. Aggregate-fit diagnostics vs legacy benchmarks",
         f"Implausibility **I = {c['implausibility']:.2f}** "
         "(history-matching cutoff 3.0; I<3 = not implausible).",
         f"Diurnal distribution KS gap = {c.get('diurnal_ks', float('nan')):.3f} "
@@ -322,8 +325,9 @@ def render_validation_report(study: dict) -> str:
         "- Section 1b sweeps MULTIPLE outputs (Sobol, multi-seed); section 1c "
         "adds Saltelli first-order S1 AND total-effect ST (interactions); "
         "section 1 keeps the single-output correlation-ratio view for continuity.",
-        "- Benchmark targets are coarse published aggregates with wide tolerances; "
-        "use `--profile calibrated` for a history-matched, in-band configuration.",
+        "- Benchmark targets are coarse legacy aggregate summaries with incomplete "
+        "metadata; use `--profile aggregate_matched_prototype` only as a "
+        "synthetic scenario preset.",
         "- `degree_tail_exponent` / network targets depend on the graph model, "
         "not BehaviorParams.",
     ]

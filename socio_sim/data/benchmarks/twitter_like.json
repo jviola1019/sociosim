@@ -1,5 +1,5 @@
 {
-  "description": "Microblog (Twitter/X-like) calibration targets: PUBLISHED AGGREGATE statistics only (no individual-level data). Research approximations with citations; tolerances are deliberately wide where the literature disagrees.",
+  "description": "Microblog (Twitter/X-like) legacy aggregate targets: PUBLISHED AGGREGATE statistics only (no individual-level data). Research approximations with citations; tolerances are deliberately wide where the literature disagrees.",
   "targets": {
     "degree_tail_exponent": {
       "value": 2.3,

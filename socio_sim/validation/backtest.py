@@ -1,10 +1,10 @@
-"""Held-out aggregate backtest (Rung 3 on the validation ladder).
+"""Held-out aggregate-fit diagnostic (validation-ladder aggregate rung).
 
-Calibrate the graph on a TRAIN subset of the bundled published-aggregate
-benchmark, then validate that the HELD-OUT metrics fall within tolerance —
+Select the graph on a TRAIN subset of the bundled published-aggregate
+benchmark, then check whether the HELD-OUT metrics fall within tolerance —
 metrics that were never used to choose the parameter. This is a held-out
-aggregate sanity check (provenance ``held-out-aggregate``), distinct from
-in-sample calibration; it is not a broad platform-generalization proof.
+aggregate sanity check (provenance ``aggregate_fit_check``), distinct from
+in-sample aggregate matching; it is not a broad platform-generalization proof.
 
 Uses ONLY bundled public AGGREGATE targets (cited, no individual-level data; see
 docs/DATA_MANIFEST.md). Offline, deterministic, no scraping. The same harness
@@ -24,9 +24,11 @@ from socio_sim.engine import Simulation
 from socio_sim.validation.calibrate import implausibility
 from socio_sim.validation.targets import compute_observed, load_targets
 
-PROVENANCE = "held-out-aggregate"
+PROVENANCE = "aggregate_fit_check"
 _PROFILES = {"test": RunConfig.test, "quick": RunConfig.quick,
-             "standard": RunConfig.standard, "calibrated": RunConfig.calibrated}
+             "standard": RunConfig.standard,
+             "aggregate_matched_prototype": RunConfig.aggregate_matched_prototype,
+             "calibrated": RunConfig.calibrated}
 
 #: Default held-out metrics: a small held-out aggregate check. Passing these is
 #: useful face validity, not proof of generalization to a specific platform.
@@ -79,22 +81,19 @@ def _fmt(x, d=4):
 
 def render_backtest_report(bt: dict, stylized: dict) -> str:
     lines = [
-        "# SocioSim Backtest & Stylized-Facts Report",
+        "# SocioSim Aggregate-Fit Diagnostics Report",
         "",
-        "> Provenance: **held-out-aggregate** + **stylized-fact-validated**. "
-        "Calibration uses only bundled PUBLISHED AGGREGATE targets (no individual-"
-        "level data; see `docs/DATA_MANIFEST.md`). This validates AGGREGATE / PATTERN "
-        "agreement with real systems — NOT point-prediction of any specific platform "
-        "or person (Rung 2–3 of the validation ladder; see `docs/usage.md`).",
+        "> Scope: synthetic aggregate-fit diagnostics only. Legacy target files "
+        "have incomplete source metadata and cannot support validation, backtest, "
+        "calibration, or confidence seals.",
         "",
-        f"## 1. Held-out aggregate backtest — `{bt['benchmark']}` (profile `{bt['profile']}`)",
-        f"Calibrated graph triad p = **{bt['chosen_p']}** on the TRAIN metrics "
+        f"## 1. Held-out aggregate diagnostic — `{bt['benchmark']}` (profile `{bt['profile']}`)",
+        f"Selected graph triad p = **{bt['chosen_p']}** on the TRAIN metrics "
         f"({', '.join(bt['train_metrics'])}); implausibility I_train = "
         f"{_fmt(bt['implausibility_train'], 2)}.",
         "",
-        f"Held-out metrics — never used to choose p — scored as aggregate sanity checks "
-        f"(I_test = {_fmt(bt['implausibility_test'], 2)}): "
-        f"**{'PASS' if bt['test_pass'] else 'FAIL'}**.",
+        f"Held-out metrics are reported as synthetic diagnostics "
+        f"(I_test = {_fmt(bt['implausibility_test'], 2)}).",
         "",
         "| held-out metric | observed | target ± tol | z | within? |",
         "|---|---|---|---|---|",
@@ -105,8 +104,8 @@ def render_backtest_report(bt: dict, stylized: dict) -> str:
                      f"{'yes' if r['within_tolerance'] else 'NO'} |")
     lines += [
         "",
-        "## 2. Stylized facts — face validity vs documented regularities",
-        f"{stylized['n_pass']}/{stylized['n_total']} empirical regularities reproduced.",
+        "## 2. Synthetic mechanism checks",
+        f"{stylized['n_pass']}/{stylized['n_total']} mechanism checks fell inside their bands.",
         "",
         "| stylized fact | observed | band | passes | source |",
         "|---|---|---|---|---|",
@@ -118,9 +117,8 @@ def render_backtest_report(bt: dict, stylized: dict) -> str:
     lines += [
         "",
         "## Limitations / honest scope",
-        "- Validates **aggregate / pattern** agreement against PUBLISHED AGGREGATES "
-        "only — not point-prediction of a specific platform or individual.",
-        "- Synthetic agents: behavioural magnitudes remain calibrated assumptions; "
+        "- Does not validate aggregate or pattern agreement with a real platform.",
+        "- Synthetic agents: behavioural magnitudes remain scenario assumptions; "
         "real-person microdata is deliberately NOT used (lawful by design — no PII, "
         "no scraping). Decisions about real individuals are out of scope.",
     ]

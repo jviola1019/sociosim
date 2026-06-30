@@ -15,9 +15,15 @@ from socio_sim.behavior import BehaviorParams
 
 VALID_JURISDICTIONS = {"US", "EU", "CN"}
 VALID_FEED_STRATEGIES = {"personalized", "chronological", "random"}
-#: noise = calibrated noise model (default, fast, fully synthetic); trained = a
-#: REAL numpy classifier trained on category-signal content with measured P/R.
-VALID_CLASSIFIER_MODES = {"noise", "trained"}
+#: Public classifier modes. Both are synthetic mechanics modes. Legacy manifest
+#: values ("noise", "trained") are mapped only in from_dict for old run replay.
+SYNTHETIC_NOISE_CLASSIFIER = "synthetic_noise_classifier"
+SYNTHETIC_TEMPLATE_CLASSIFIER = "synthetic_template_classifier"
+VALID_CLASSIFIER_MODES = {SYNTHETIC_NOISE_CLASSIFIER, SYNTHETIC_TEMPLATE_CLASSIFIER}
+LEGACY_CLASSIFIER_MODE_ALIASES = {
+    "noise": SYNTHETIC_NOISE_CLASSIFIER,
+    "trained": SYNTHETIC_TEMPLATE_CLASSIFIER,
+}
 #: template = deterministic (default); claude = Anthropic API (needs key);
 #: ollama / openai_compatible = free, keyless local LLM servers.
 VALID_CONTENT_MODES = {"template", "claude", "ollama", "openai_compatible"}
@@ -90,7 +96,7 @@ class RunConfig:
 
     # Content
     content_mode: str = "template"
-    classifier_mode: str = "noise"   # "noise" | "trained" (real numpy classifier)
+    classifier_mode: str = SYNTHETIC_NOISE_CLASSIFIER
     n_topics: int = 8
     classifier_targets: dict = field(default_factory=_default_classifier_targets)
     category_base_rates: dict = field(default_factory=_default_base_rates)
@@ -149,14 +155,22 @@ class RunConfig:
         return cls(**base)
 
     @classmethod
-    def calibrated(cls, **overrides) -> "RunConfig":
-        """History-matched profile: a Holme-Kim graph (m=5, p=0.7) keeps the
-        bundled benchmark calibration-consistent (current default I=1.25 < 3.0;
-        see CALIBRATION_REPORT.md). Quick scale by default."""
+    def aggregate_matched_prototype(cls, **overrides) -> "RunConfig":
+        """Aggregate-matched prototype profile.
+
+        This is a synthetic scenario preset, not an empirical calibration seal.
+        Legacy docs called it "calibrated"; that label is intentionally not used
+        for decision-facing output.
+        """
         base = dict(n_agents=1_000, n_ticks=7 * 24, n_replicates=20,
                     graph_kind="plc", graph_params={"m": 5, "p": 0.7})
         base.update(overrides)
         return cls(**base)
+
+    @classmethod
+    def calibrated(cls, **overrides) -> "RunConfig":
+        """Legacy alias for old code/tests/manifests; not decision-facing."""
+        return cls.aggregate_matched_prototype(**overrides)
 
     # -- serialization ----------------------------------------------------
     def to_dict(self) -> dict:
@@ -168,6 +182,8 @@ class RunConfig:
     @classmethod
     def from_dict(cls, d: dict) -> "RunConfig":
         d = dict(d)
+        if d.get("classifier_mode") in LEGACY_CLASSIFIER_MODE_ALIASES:
+            d["classifier_mode"] = LEGACY_CLASSIFIER_MODE_ALIASES[d["classifier_mode"]]
         d["jurisdictions"] = tuple(d.get("jurisdictions", ("US",)))
         d["red_team"] = tuple(d.get("red_team", ()))
         for key in ("category_base_rates", "classifier_targets"):
@@ -184,7 +200,7 @@ class RunConfig:
     def config_hash(self) -> str:
         behavioral = self.to_dict()
         behavioral.pop("out_dir", None)
-        if behavioral.get("classifier_mode") == "trained":
+        if behavioral.get("classifier_mode") == SYNTHETIC_TEMPLATE_CLASSIFIER:
             behavioral.pop("classifier_targets", None)
         canon = json.dumps(behavioral, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(canon.encode()).hexdigest()

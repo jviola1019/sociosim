@@ -131,6 +131,10 @@ class AdSystem:
                             content_id=None, data={
                                 "campaign_id": c.id,
                                 "holdout": holdout,
+                                "eligibility_tick": tick,
+                                "randomized_assignment_tick": tick,
+                                "observation_start_tick": tick,
+                                "observation_end_tick": self.cfg.n_ticks - 1,
                             })
             if holdout:
                 continue

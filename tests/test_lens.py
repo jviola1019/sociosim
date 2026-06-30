@@ -54,7 +54,7 @@ def test_lens_flags_preview_and_non_significant_marketing_runs():
     lens = run_lens(a.result.config.to_dict(), a.summary)
     readiness = " ".join(lens["decision_readiness"])
     assert "preview/directional only" in readiness
-    assert "no campaign has BH-FDR significant" in readiness
+    assert "no campaign is decision-facing" in readiness
 
 
 def test_every_setting_tagged_to_a_known_lens():

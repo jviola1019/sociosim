@@ -36,9 +36,9 @@ def test_calibration_implausibility_is_finite_with_observed():
 def test_validation_report_renders_sections():
     study = run_validation_study(profile="test", n_samples=8, seed=3)
     md = render_validation_report(study)
-    assert "Validation Report" in md
-    assert "Sensitivity" in md and "Calibration" in md
-    assert "synthetic exploratory" in md.lower()
+    assert "Validation-Ladder Diagnostics" in md
+    assert "Sensitivity" in md and "Aggregate-fit diagnostics" in md
+    assert "synthetic mechanism and aggregate-fit diagnostics" in md.lower()
     assert "Implausibility" in md
 
 

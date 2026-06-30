@@ -1,7 +1,7 @@
-"""Markdown report rendering (Spec 3.8).
+"""Markdown report rendering.
 
-Headline rates carry uncertainty intervals; descriptive diagnostics are labelled
-as point/count summaries. Human-facing reports never render raw NaN/Infinity.
+Decision-facing text is evidence-first. Synthetic values are labelled as
+scenario outputs, and within-run resampling is not called a confidence interval.
 """
 
 from __future__ import annotations
@@ -24,9 +24,9 @@ def _num(value, digits: int = 3) -> str:
 
 def _ci(pair) -> str:
     if not pair or len(pair) != 2 or not all(_finite(x) for x in pair):
-        return "n/a (95%)"
+        return "n/a"
     lo, hi = pair
-    return f"[{lo:.4f}, {hi:.4f}] (95%)"
+    return f"[{lo:.4f}, {hi:.4f}]"
 
 
 def render(summary: dict, manifest: Manifest, mc: dict | None = None) -> str:
@@ -49,12 +49,11 @@ def render(summary: dict, manifest: Manifest, mc: dict | None = None) -> str:
         "",
         *render_lens_md(manifest.config, summary),
         "## Uncertainty provenance",
-        "- Intervals below are **single-run**: within-run bootstrap (harmful "
-        "exposure, welfare), analytic Wilson score (moderation precision/recall, "
-        "appeal-grant rate), and Beta-Binomial credible (ad CTR/CVR). They "
-        "quantify within-run sampling noise, **not** Monte Carlo variation "
-        "across replicates. Run the research (multi-replicate) mode for "
-        "mc-replicated intervals.",
+        "- Synthetic scenario output - not an estimate of real-world performance.",
+        "- Harmful-exposure and welfare intervals are descriptive resampling "
+        "intervals under an agent-independence approximation.",
+        "- Analytic moderation/ad intervals are diagnostics for the synthetic run, "
+        "not empirical confidence claims about a real platform.",
         "",
     ]
     if mc:
@@ -67,7 +66,20 @@ def render(summary: dict, manifest: Manifest, mc: dict | None = None) -> str:
             lo, hi = d["ci"]
             lines.append(
                 f"- {name.replace('_', ' ')}: median {_num(d['median'], 4)}, "
-                f"95% [{_num(lo, 4)}, {_num(hi, 4)}]")
+            f"replicate percentile interval [{_num(lo, 4)}, {_num(hi, 4)}]")
+        lines.append("")
+    provenance = summary.get("metric_provenance") or {}
+    if provenance:
+        lines.extend([
+            "## Metric Provenance",
+            "| metric | evidence kind | verification | invalid uses |",
+            "|---|---|---|---|",
+        ])
+        for name, ev in sorted(provenance.items()):
+            lines.append(
+                f"| {name} | {ev.get('evidence_kind')} | "
+                f"{ev.get('verification_status')} | "
+                f"{'; '.join(ev.get('invalid_uses', []))} |")
         lines.append("")
     lines.extend([
         "## Volume",
@@ -76,11 +88,12 @@ def render(summary: dict, manifest: Manifest, mc: dict | None = None) -> str:
         "",
         "## Harmful-content exposure",
         f"- Rate: {_num(summary['harmful_exposure']['rate'], 4)} per impression, "
-        f"per-agent CI {_ci(summary['harmful_exposure']['ci'])}",
+        f"descriptive resampling interval {_ci(summary['harmful_exposure']['ci'])}",
         "",
         "## Moderation quality",
-        f"- Precision {_num(mod['precision'])} CI {_ci(mod['precision_ci'])} | "
-        f"Recall {_num(mod['recall'])} CI {_ci(mod['recall_ci'])}",
+        f"- Precision {_num(mod['precision'])} diagnostic interval "
+        f"{_ci(mod['precision_ci'])} | Recall {_num(mod['recall'])} "
+        f"diagnostic interval {_ci(mod['recall_ci'])}",
         f"- FPR {_num(mod['fpr'], 4)} | FNR {_num(mod['fnr'])} "
         f"(TP {mod['tp']}, FP {mod['fp']}, FN {mod['fn']}, TN {mod['tn']})",
         f"- Sample sufficiency: harmful n={mod.get('n_harmful', 0)}, "
@@ -90,7 +103,8 @@ def render(summary: dict, manifest: Manifest, mc: dict | None = None) -> str:
         "",
         "## Appeals & process",
         f"- Filed {app['filed']} | resolved {app['resolved']} | "
-        f"granted rate {_num(app['granted_rate'])} CI {_ci(app['granted_rate_ci'])} | "
+        f"granted rate {_num(app['granted_rate'])} diagnostic interval "
+        f"{_ci(app['granted_rate_ci'])} | "
         f"mean resolution {_num(app['mean_resolution_ticks'], 1)} ticks",
         f"- Human reviews {app['human_reviews']} | "
         f"deadline-miss rate {_num(app['deadline_miss_rate'])}",
@@ -102,7 +116,8 @@ def render(summary: dict, manifest: Manifest, mc: dict | None = None) -> str:
         f"{_num(summary['cascades']['mean'], 2)} | max {summary['cascades']['max']}",
         "",
         "## Welfare proxy",
-        f"- Mean {_num(summary['welfare']['mean'], 4)}, CI {_ci(summary['welfare']['ci'])}",
+        f"- Mean {_num(summary['welfare']['mean'], 4)}, descriptive resampling "
+        f"interval {_ci(summary['welfare']['ci'])}",
         "",
         "## Fairness diagnostics (moderation FPR/FNR by author group)",
     ])
@@ -130,21 +145,23 @@ def render(summary: dict, manifest: Manifest, mc: dict | None = None) -> str:
     lines.append("")
     lines.append("## Ad campaigns")
     for cid, metrics in summary["ads"].items():
-        sig = "significant" if metrics.get("lift_significant_bh_fdr") else "n.s."
+        diagnostic = "screen-positive" if metrics.get(
+            "lift_screen_positive_bh_fdr") else "not screen-positive"
         lines.append(
             f"- **{cid}**: {metrics['impressions']} impr | "
-            f"CTR {_num(metrics['ctr'], 4)} CI {_ci(metrics['ctr_ci'])} | "
+            f"CTR {_num(metrics['ctr'], 4)} diagnostic interval {_ci(metrics['ctr_ci'])} | "
             f"CVR {_num(metrics['cvr'], 4)} | CPM {_num(metrics['cpm'], 2)} | "
             f"spend {_num(metrics['spend'], 2)} of budget "
             f"{_num(metrics.get('budget_configured'), 2)} | "
-            f"lift {_num(metrics['lift'], 4)} raw CI {_ci(metrics['lift_ci'])} "
+            f"lift {_num(metrics['lift'], 4)} raw diagnostic interval {_ci(metrics['lift_ci'])} "
             f"({metrics.get('lift_ci_method', 'uncorrected_newcombe_95')}; "
             f"exposed {metrics['n_exposed']}, holdout {metrics['n_holdout']})")
         lines.append(
             f"  - incrementality: {metrics.get('estimand', 'eligible-opportunity ITT')} | "
-            f"CUPED-lift {_num(metrics['lift_cuped'], 4)} | "
+            f"oracle covariate-adjusted simulation diagnostic "
+            f"{_num(metrics.get('oracle_covariate_adjusted_simulation_diagnostic'), 4)} | "
             f"p(raw)={_num(metrics.get('lift_pvalue_raw', metrics.get('lift_pvalue')), 3)} | "
-            f"q(BH)={_num(metrics.get('lift_qvalue_bh'), 3)} ({sig}, BH-FDR) | "
+            f"q(BH)={_num(metrics.get('lift_qvalue_bh'), 3)} ({diagnostic}, BH-FDR screen) | "
             f"MDE {_num(metrics['mde'], 4)}")
         lines.append(
             f"  - scenario economics ({metrics.get('economics_provenance', 'scenario_assumption')}): "

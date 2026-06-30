@@ -1,63 +1,55 @@
-# Data Manifest & Governance
+# Data Manifest And Governance
 
-Every dataset SocioSim ships or calibrates against is recorded here with its
-source, license/provenance, a **no-individual-level-data assertion**, and
-redistribution basis. This is the gate for moving up the validation ladder
-(`docs/usage.md`): any new dataset MUST be added here, satisfy the governance
-rules below, and be license-clean and free of personal data before use.
+Every shipped dataset or generated asset must have source, license/provenance,
+PII status, source hash where applicable, and valid-use limits recorded before it
+can support a claim.
 
-## Governance rules (non-negotiable)
-1. **Aggregate / public only.** No individual-level records, no PII, no content
-   that could re-identify a person. Published aggregate statistics, synthetic
-   data, or de-identified research datasets with explicit redistribution rights.
-2. **No scraping.** Use sanctioned exports, official APIs, transparency-report
-   downloads, or research datasets — never scraping (ToS / CFAA-adjacent risk).
-3. **License recorded.** Each entry states its license and redistribution basis.
-4. **Real platform microdata** (if ever needed) requires **DSA Art. 40 vetted-
-   researcher** access or a formal data-use agreement — a governed, documented
-   act, not an ad-hoc fetch. Such data is NOT bundled in this repo.
-5. **Provenance flows through.** Outputs computed from a dataset carry a
-   provenance label no stronger than the dataset warrants (see ladder below).
+## Governance Rules
 
-## Bundled datasets
+1. No individual-level platform data is bundled.
+2. No scraping is used for bundled data.
+3. Licenses and redistribution basis must be recorded.
+4. Real platform microdata would require a formal data-use agreement or vetted
+   researcher access and must not be added ad hoc.
+5. Outputs may not claim more than the dataset or asset evidence metadata allows.
 
-| Dataset | Path | Content | Source / basis | PII? | License |
-|---|---|---|---|---|---|
-| Default benchmark targets | `socio_sim/data/benchmarks/default_targets.json` | ~7 aggregate target metrics (degree-tail, clustering, diurnal, posts/agent, ad CTR, appeal-grant) | Compiled from published aggregates (Barabási–Albert; Watts–Strogatz; circadian/transparency literature) — see `docs/RESEARCH_EVIDENCE.md` | **None** (aggregate point values + tolerances) | Project's own compilation of public figures (citations included) |
-| Twitter-like targets | `socio_sim/data/benchmarks/twitter_like.json` | microblog aggregate targets | Kwak et al. 2010; Myers et al. 2014 (cited in file) | **None** | as above |
-| Facebook-like targets | `socio_sim/data/benchmarks/facebook_like.json` | social-network aggregate targets | Ugander et al. 2011 (cited; degree-tail omitted — not power-law) | **None** | as above |
+## Bundled Aggregate Targets
 
-The benchmark *target* files above are **aggregate point targets with tolerances**
-— zero record-level rows. Verified by `tests/test_validation.py` and packaged.
+| Dataset | Path | Status | Valid Use |
+|---|---|---|---|
+| Default targets | `socio_sim/data/benchmarks/default_targets.json` | legacy aggregate target manifest with incomplete evidence metadata | `aggregate_fit_check` only |
+| Twitter-like targets | `socio_sim/data/benchmarks/twitter_like.json` | legacy aggregate target manifest with incomplete evidence metadata | `aggregate_fit_check` only |
+| Facebook-like targets | `socio_sim/data/benchmarks/facebook_like.json` | legacy aggregate target manifest with incomplete evidence metadata | `aggregate_fit_check` only |
 
-### Measured-classifier benchmarks (Rung 4 — real labeled text)
-These power `run.py --measure-classifier` (real precision/recall/F1/ROC-AUC; see
-`BENCHMARK_REPORT.md`). Both licenses permit redistribution + business/government
-use. Text was **PII-scrubbed** (emails/URLs/phones/@handles redacted) on top of
-each source's own de-identification, truncated to 400 chars, and a balanced
-sample bundled (1,500 positive / 1,500 negative). Fetched once via the
-HuggingFace Dataset Viewer API (official API, not scraping); provenance script:
-`scripts/fetch_moderation_benchmarks.py`.
+Invalid uses for these target files: empirical validation, calibration seals,
+backtest seals, operational decisions, or real-platform prediction.
 
-| Dataset | Path | Task | Source | License | PII? |
-|---|---|---|---|---|---|
-| Civil Comments | `socio_sim/data/benchmarks/moderation/civil_comments.jsonl.gz` | toxicity | Google/Jigsaw "Civil Comments" (`google/civil_comments`) | **CC0-1.0** (public domain) | De-identified comments; scrubbed; **no PII** |
-| Spam detection | `socio_sim/data/benchmarks/moderation/spam_detection.jsonl.gz` | spam | `Deysi/spam-detection-dataset` | **Apache-2.0** | Short messages; scrubbed; **no PII** |
+## Bundled Classifier Benchmark Samples
 
-Licenses verified via the HF dataset API on insertion (`cardData.license` =
-`cc0-1.0` / `apache-2.0`). SMS-Spam (UCI) was rejected during selection because
-its HF license is `unknown` — it is **not** bundled.
+| Dataset | Path | Status | Valid Use |
+|---|---|---|---|
+| Civil Comments subset | `socio_sim/data/benchmarks/moderation/civil_comments.jsonl.gz` | bundled licensed benchmark sample with PII-like text scrubbed | `component_benchmark` diagnostics |
+| Spam detection subset | `socio_sim/data/benchmarks/moderation/spam_detection.jsonl.gz` | bundled licensed benchmark sample with PII-like text scrubbed | `component_benchmark` diagnostics |
 
-## Candidate future datasets (NOT yet bundled — listed for governed addition)
-| Dataset | Why | Governance to satisfy first |
-|---|---|---|
-| SNAP public network graphs (e.g. ego-Facebook, ego-Twitter) | Rung-3 structural backtest of degree/clustering distributions | de-identified + redistribution terms; add aggregate distributions only |
-| EU DSA Transparency Database (aggregate CSV exports) | Rung-3 backtest of moderation/appeal time series | official export, aggregate; record license |
-| A CC-licensed, de-identified toxic-comment benchmark | Rung-4 *measured* classifier F1/AUC on real text | re-identification review; redistribution rights; explicit user decision (currently declined — synthetic only) |
+These samples diagnose benchmark algorithms and protocols. They do not make any
+runtime classifier mode real-deployable and do not validate SocioSim outputs.
 
-## Validation-ladder provenance labels
-`synthetic-exploratory` < `uncalibrated` < `calibration-consistent` (I<3 vs
-aggregates) < **`stylized-fact-validated`** (reproduces documented regularities)
-< **`held-out-aggregate`** (held-out aggregates within tolerance) <
-`measured-on-benchmark` (component measured on a real public dataset — gated by
-the row above). No claim may exceed its label.
+## Bundled V4 Assets
+
+| Asset Set | Path | Status | Valid Use |
+|---|---|---|---|
+| v4 feed/ad/editorial PNGs | `socio_sim/web/static/assets/v4/` | deterministic project-owned synthetic decorative assets with registry hashes and QA status | UI decoration only |
+
+v4 assets do not depict real people, brands, or KPIs and are not evidence.
+
+## Active Validation-Ladder Labels
+
+- `synthetic_mechanism_check`
+- `aggregate_fit_check`
+- `external_temporal_holdout`
+- `external_platform_holdout`
+- `component_benchmark`
+- `operational_validation`
+
+Current bundled artifacts support only `synthetic_mechanism_check`,
+`aggregate_fit_check`, and `component_benchmark` in the limited senses above.

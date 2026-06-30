@@ -101,6 +101,25 @@ _LLM_HOST = "127.0.0.1:11434"
 _STORE = RunStore()  # persistent run history (out/sociosim.db)
 
 
+def _asset_registry() -> dict:
+    p = STATIC_DIR / "assets" / "v4" / "registry.json"
+    if not p.is_file():
+        return {"feed_covers": [], "ad_creatives": [], "editorial": []}
+    data = json.loads(p.read_text(encoding="utf-8"))
+    rows = data.get("assets", [])
+
+    def web_path(rec):
+        return "/" + rec["file_path"].split("socio_sim/web/", 1)[1].replace("\\", "/")
+
+    return {
+        "feed_covers": [web_path(r) for r in rows if r.get("role") == "feed_cover"],
+        "ad_creatives": [web_path(r) for r in rows if r.get("role") == "ad_creative"],
+        "editorial": [web_path(r) for r in rows if r.get("role") == "editorial_system"],
+        "human_review": data.get("human_review", {}),
+        "evidence_id": "ev.synthetic_engineering.assets_v4",
+    }
+
+
 def _jsonable(obj):
     if isinstance(obj, dict):
         return {str(k): _jsonable(v) for k, v in obj.items()}
@@ -117,7 +136,7 @@ def _jsonable(obj):
 
 
 _MISSING = object()
-_PROFILES = {"quick", "test", "standard", "calibrated"}
+_PROFILES = {"quick", "test", "standard", "aggregate_matched_prototype", "calibrated"}
 _GRAPH_KINDS = {"ba", "plc", "ws", "sbm"}
 _AGE_SEGMENTS = {"13-17", "18-24", "25-34", "35-49", "50-64", "65+"}
 
@@ -180,6 +199,7 @@ def _build_config(body: dict) -> RunConfig:
     profile = _choice(body, "profile", "quick", _PROFILES)
     factory = {"quick": RunConfig.quick, "test": RunConfig.test,
                "standard": RunConfig.standard,
+               "aggregate_matched_prototype": RunConfig.aggregate_matched_prototype,
                "calibrated": RunConfig.calibrated}[profile]
 
     jurisdictions = _choice_list(body, "jurisdictions", ["EU"], {"US", "EU", "CN"})
@@ -188,12 +208,14 @@ def _build_config(body: dict) -> RunConfig:
         if raw_red_team else ()
 
     # classifier: global precision/recall applied to every category
-    classifier_mode = _choice(body, "classifier_mode", "noise", {"noise", "trained"})
+    classifier_mode = _choice(
+        body, "classifier_mode", "synthetic_noise_classifier",
+        {"synthetic_noise_classifier", "synthetic_template_classifier"})
     prec = _f(body, "classifier_precision", 0.90)
     rec = _f(body, "classifier_recall", 0.85)
     classifier_targets = {c: {"precision": prec, "recall": rec}
                           for c in CATEGORIES}
-    if classifier_mode == "trained":
+    if classifier_mode == "synthetic_template_classifier":
         classifier_targets = RunConfig().classifier_targets
 
     # content prevalence: per-harmful-category base rates (others keep defaults)
@@ -202,14 +224,14 @@ def _build_config(body: dict) -> RunConfig:
         if f"rate_{cat}" in body:
             base_rates[cat] = _f(body, f"rate_{cat}", base_rates.get(cat, 0.0))
 
-    graph_default = "plc" if profile == "calibrated" else "ba"
+    graph_default = "plc" if profile in {"calibrated", "aggregate_matched_prototype"} else "ba"
     graph_kind = _choice(body, "graph_kind", graph_default, _GRAPH_KINDS)
     # SBM blocks must sum to the agent count (else the graph has a different node
     # count than n_agents -> engine indexing error). Derive from the effective n.
     _prof_n = {"quick": 1000, "test": 200, "standard": 10000,
-               "calibrated": 1000}.get(profile, 1000)
+               "calibrated": 1000, "aggregate_matched_prototype": 1000}.get(profile, 1000)
     _prof_ticks = {"quick": 168, "test": 48, "standard": 672,
-                   "calibrated": 168}.get(profile, 168)
+                   "calibrated": 168, "aggregate_matched_prototype": 168}.get(profile, 168)
     _n = _f(body, "n_agents", _prof_n)
     _half = _n // 2
     if graph_kind == "ba":
@@ -539,8 +561,8 @@ def _run_job(job_id: str, body: dict):
         # reopened, compared, or exported later.
         try:
             _STORE.save(job_id, job["result"], label=body.get("label", ""))
-        except Exception:
-            pass  # history is best-effort; never fail a run over it
+        except Exception as exc:
+            job["history_warning"] = f"{type(exc).__name__}: {exc}"
         job["status"] = "done"
         job["progress"] = 1.0
     except Exception as exc:
@@ -662,6 +684,7 @@ class Handler(BaseHTTPRequestHandler):
                 "harmful_categories": list(HARMFUL_CATS),
                 "defaults": RunConfig().category_base_rates,
                 "presets": PRESETS,
+                "assets": _asset_registry(),
                 "llm_available": server_up(_LLM_HOST, timeout=0.4),
                 "profiles": {"quick": {"n_agents": 1000, "n_ticks": 168},
                              "test": {"n_agents": 200, "n_ticks": 48},
@@ -698,28 +721,20 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404, "not found")
 
     def _send_creative(self):
-        """Serve a REAL, deterministic PNG ad creative (media.synth_image),
-        seeded by the ?key= string so it varies by campaign/segment/market.
-        Bounded dimensions (DoS guard)."""
+        """Serve a deterministic registered v4 ad creative.
+
+        The dashboard uses direct static v4 assets; this endpoint remains for
+        export/backward compatibility and never generates production imagery.
+        """
         import zlib
-        from socio_sim.content.media import synth_image
         q = parse_qs(urlparse(self.path).query)
         key = (q.get("key", ["ad"])[0] or "ad")[:200]
-        try:
-            w = min(max(int(q.get("w", ["320"])[0]), 16), 1024)
-            h = min(max(int(q.get("h", ["200"])[0]), 16), 1024)
-        except ValueError:
-            self.send_error(400, "bad dimensions")
+        assets = sorted((STATIC_DIR / "assets" / "v4").glob("ad-creative-v4-*.png"))
+        if not assets:
+            self.send_error(404, "no registered creative assets")
             return
-        # The dashboard requests 2:1 cards; serve realistic curated v3 assets
-        # selected by the campaign key. Other dimensions keep the procedural
-        # deterministic path used by CLI smoke/media tests.
-        assets = sorted((STATIC_DIR / "assets").glob("ad-creative-v3-*.png"))
-        if assets and w == 1024 and h == 512:
-            idx = zlib.crc32(key.encode("utf-8")) % len(assets)
-            data = assets[idx].read_bytes()
-        else:
-            data = synth_image(zlib.crc32(key.encode("utf-8")), w, h)
+        idx = zlib.crc32(key.encode("utf-8")) % len(assets)
+        data = assets[idx].read_bytes()
         self.send_response(200)
         self.send_header("Content-Type", "image/png")
         self.send_header("Content-Length", str(len(data)))

@@ -1,0 +1,187 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "id": "ev.scenario_assumption.default_parameters",
+      "kind": "scenario_assumption",
+      "source_title": "SocioSim built-in scenario parameter manifest",
+      "source_url": "repo:socio_sim/data/scenario_assumptions.json",
+      "source_version_or_revision": "59632c4d5336bfc2920214d84df83b328c529478 plus remediation registry",
+      "retrieved_at": "2026-06-30",
+      "license": "MIT project-owned",
+      "data_scope": "Synthetic defaults used to construct demonstration scenarios",
+      "units": "mixed, specified per assumption entry",
+      "population": "synthetic agents only",
+      "time_window": "not empirical",
+      "known_limitations": [
+        "Values are not estimates of real-world platforms, people, markets, or policy outcomes.",
+        "Scenario defaults are convenience inputs for synthetic runs."
+      ],
+      "valid_uses": [
+        "Synthetic scenario construction",
+        "Deterministic replay and software testing"
+      ],
+      "invalid_uses": [
+        "Real-world prediction",
+        "Decision recommendations",
+        "Claims of empirical calibration or validation"
+      ],
+      "verification_status": "registry_validated"
+    },
+    {
+      "id": "ev.synthetic_engineering.replay",
+      "kind": "synthetic_engineering",
+      "source_title": "SocioSim deterministic replay hash",
+      "source_url": "repo:socio_sim/logs/replay.py",
+      "source_version_or_revision": "current repository implementation",
+      "retrieved_at": "2026-06-30",
+      "license": "MIT project-owned",
+      "data_scope": "Event-stream reproducibility check",
+      "units": "hash comparison",
+      "population": "synthetic run events",
+      "time_window": "single run",
+      "known_limitations": [
+        "Replay equality proves reproducibility only.",
+        "It is not evidence of empirical validity."
+      ],
+      "valid_uses": [
+        "Detecting non-deterministic software behavior"
+      ],
+      "invalid_uses": [
+        "Validation seal",
+        "Evidence that outputs match real systems"
+      ],
+      "verification_status": "code_checked"
+    },
+    {
+      "id": "ev.synthetic_engineering.classifier_noise",
+      "kind": "synthetic_engineering",
+      "source_title": "Synthetic noisy classifier operating-point model",
+      "source_url": "repo:socio_sim/content/classify.py",
+      "source_version_or_revision": "current repository implementation",
+      "retrieved_at": "2026-06-30",
+      "license": "MIT project-owned",
+      "data_scope": "Synthetic classifier scores derived from configured precision/recall assumptions",
+      "units": "probability score",
+      "population": "synthetic content only",
+      "time_window": "single synthetic run",
+      "known_limitations": [
+        "Operating points are scenario inputs, not measured classifier performance.",
+        "Scores are generated from known synthetic categories."
+      ],
+      "valid_uses": [
+        "Synthetic moderation mechanics",
+        "Software tests of policy workflows"
+      ],
+      "invalid_uses": [
+        "Classifier benchmark claims",
+        "Operational content moderation"
+      ],
+      "verification_status": "code_checked"
+    },
+    {
+      "id": "ev.synthetic_engineering.classifier_template",
+      "kind": "synthetic_engineering",
+      "source_title": "Synthetic template classifier dynamics mode",
+      "source_url": "repo:socio_sim/content/ml_classifier.py",
+      "source_version_or_revision": "current repository implementation",
+      "retrieved_at": "2026-06-30",
+      "license": "MIT project-owned",
+      "data_scope": "Classifier trained on synthetic category-token template text during a run",
+      "units": "probability score",
+      "population": "synthetic template text only",
+      "time_window": "runtime synthetic training set",
+      "known_limitations": [
+        "The fitted runtime artifact is not the external benchmark artifact.",
+        "LLM-generated text is distribution shift relative to the template training text."
+      ],
+      "valid_uses": [
+        "Synthetic classifier dynamics experiments",
+        "Leakage and determinism tests"
+      ],
+      "invalid_uses": [
+        "Real deployable classifier claims",
+        "External validity claims"
+      ],
+      "verification_status": "code_checked"
+    },
+    {
+      "id": "ev.component_benchmark.bundled_classifier",
+      "kind": "measured",
+      "source_title": "Bundled moderation component benchmark samples",
+      "source_url": "repo:socio_sim/data/benchmarks/moderation",
+      "source_version_or_revision": "bundled gzipped JSONL files, hashed at evaluation time",
+      "retrieved_at": "2026-06-30",
+      "license": "CC0-1.0 and Apache-2.0 as recorded per dataset",
+      "data_scope": "Small de-identified text benchmark samples for component tests",
+      "units": "binary labels",
+      "population": "public benchmark text samples, not SocioSim users",
+      "time_window": "source dataset snapshots used to create bundled samples",
+      "known_limitations": [
+        "Applies only to the benchmark evaluation artifact.",
+        "Does not validate SocioSim run outputs or runtime template classifier behavior."
+      ],
+      "valid_uses": [
+        "Component benchmark evaluation with source hashes and leakage checks"
+      ],
+      "invalid_uses": [
+        "Operational moderation claims",
+        "Synthetic platform validation"
+      ],
+      "verification_status": "verified"
+    },
+    {
+      "id": "ev.unsupported.aggregate_targets_legacy",
+      "kind": "unsupported",
+      "source_title": "Legacy aggregate target summaries",
+      "source_url": "repo:socio_sim/data/benchmarks/*.json",
+      "source_version_or_revision": "legacy summary files without complete source metadata",
+      "retrieved_at": "2026-06-30",
+      "license": "Project compilation",
+      "data_scope": "Coarse aggregate target values and tolerances",
+      "units": "mixed",
+      "population": "generic literature summaries",
+      "time_window": "incomplete",
+      "known_limitations": [
+        "Missing source version, source hash, date range, population, and tolerance rationale for some targets.",
+        "Cannot support validation, calibration, or backtest seals."
+      ],
+      "valid_uses": [
+        "Synthetic aggregate-fit diagnostic when explicitly labeled unsupported"
+      ],
+      "invalid_uses": [
+        "External validation",
+        "Calibration seal",
+        "Backtest pass claim"
+      ],
+      "verification_status": "metadata_incomplete"
+    },
+    {
+      "id": "ev.synthetic_engineering.assets_v4",
+      "kind": "synthetic_engineering",
+      "source_title": "SocioSim v4 direct-use synthetic decorative assets",
+      "source_url": "repo:socio_sim/web/static/assets/v4/registry.json",
+      "source_version_or_revision": "generated by scripts/generate_v4_assets.py",
+      "retrieved_at": "2026-06-30",
+      "license": "MIT project-owned synthetic decorative artwork",
+      "data_scope": "Non-documentary decorative dashboard imagery",
+      "units": "PNG files",
+      "population": "no people; no brands; no platform screenshots",
+      "time_window": "not empirical",
+      "known_limitations": [
+        "Images are decorative synthetic assets and are not visual evidence.",
+        "Human review must be recorded separately before claiming visual review."
+      ],
+      "valid_uses": [
+        "Dashboard decoration",
+        "Offline deterministic UI tests"
+      ],
+      "invalid_uses": [
+        "Evidence of real-world events",
+        "Performance claims",
+        "Testimonials or platform screenshots"
+      ],
+      "verification_status": "qa_required"
+    }
+  ]
+}

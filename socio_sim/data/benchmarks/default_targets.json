@@ -1,5 +1,5 @@
 {
-  "description": "Built-in calibration targets: aggregate published statistics only (no individual-level data). Each target carries a tolerance used by history matching (implausibility I = |obs - value| / tolerance).",
+  "description": "Built-in legacy aggregate targets: aggregate published statistics only (no individual-level data). Each target carries a tolerance used by aggregate-fit diagnostics (implausibility I = |obs - value| / tolerance).",
   "targets": {
     "degree_tail_exponent": {
       "value": 2.5,

@@ -1,4 +1,4 @@
-"""Network statistics used as calibration targets (Spec §3.2, §3.9)."""
+"""Network statistics used by legacy aggregate-fit diagnostics."""
 
 from __future__ import annotations
 

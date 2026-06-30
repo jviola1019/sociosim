@@ -12,6 +12,14 @@ let currentRedTeam = [];
 /* ---------- seeded generative imagery (deterministic, offline) ---------- */
 function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function seedFrom(str) { let h = 2166136261; for (let i = 0; i < String(str).length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function pickAsset(pool, key, used) {
+  if (!pool || !pool.length) return "";
+  const exhausted = used && used.size >= pool.length;
+  const available = exhausted ? pool : pool.filter(p => !used.has(p));
+  const chosen = available[seedFrom(key) % available.length];
+  if (used) used.add(chosen);
+  return chosen;
+}
 const PALETTE = [210, 250, 284, 330, 168, 22, 196];
 function avatarSVG(seed) {
   const r = mulberry32(seedFrom("av" + seed));
@@ -214,7 +222,7 @@ const FIELD_DEFAULTS = {
   exploration_epsilon: 0.10, human_review_accuracy: 0.92,
   human_review_delay_ticks: 6, appeal_grant_fp_rate: 0.70, ftc_compliance: true,
   ads_enabled: true, holdout_fraction: 0.10, ad_frequency_cap_per_day: 4,
-  ad_slot_interval: 5, classifier_mode: "noise", content_mode: "template",
+  ad_slot_interval: 5, classifier_mode: "synthetic_noise_classifier", content_mode: "template",
   llm_model: "qwen2.5:0.5b", llm_base_url: "", benchmark: "default",
   classifier_precision: 0.90, classifier_recall: 0.85,
   homophily_rewire_fraction: 0.15, follow_rate: 0, unfollow_rate: 0,
@@ -278,24 +286,23 @@ function updateAriaValueText(el) {
   el.setAttribute("aria-valuetext", `${label}: ${Number(el.value).toFixed(2)}`);
 }
 function syncClassifierMode() {
-  const trained = $("#classifier_mode")?.value === "trained";
+  const trained = $("#classifier_mode")?.value === "synthetic_template_classifier";
   ["classifier_precision", "classifier_recall"].forEach(id => {
     const el = $("#" + id); if (!el) return;
     el.disabled = trained;
     el.closest("label")?.classList.toggle("muted", trained);
     el.setAttribute("aria-disabled", String(trained));
     el.title = trained
-      ? "Precision/recall targets apply to the calibrated noise model; trained mode uses the measured classifier benchmark."
+      ? "Precision/recall targets apply to the synthetic noise classifier; template mode fits synthetic category-signal text."
       : "";
   });
 }
 $("#content_mode").addEventListener("change", e => $$("[data-llm]").forEach(el => el.hidden = e.target.value === "template"));
 $("#graph_kind").addEventListener("change", e => $$("[data-graph]").forEach(el => el.hidden = el.dataset.graph !== e.target.value));
 $("#classifier_mode").addEventListener("change", syncClassifierMode);
-// Selecting the Calibrated profile configures the graph to its history-matched
-// values (Holme–Kim plc, p=0.7) so the form matches RunConfig.calibrated().
+// Selecting the aggregate-matched prototype configures the graph preset.
 $$("input[name=profile]").forEach(r => r.addEventListener("change", e => {
-  if (e.target.value === "calibrated" && e.target.checked) {
+  if (e.target.value === "aggregate_matched_prototype" && e.target.checked) {
     setVal("graph_kind", "plc"); setVal("graph_plc_p", 0.7);
     $("#graph_kind").dispatchEvent(new Event("change"));
   }
@@ -509,7 +516,7 @@ function renderCompare(r) {
   $("#confusion").innerHTML = msg;
   $("#fairness").innerHTML = msg;
   $("#ads").innerHTML = msg;
-  $("#implaus").textContent = "Compare mode does not produce a single-run calibration score.";
+  $("#implaus").textContent = "Compare mode does not produce a single-run aggregate-fit score.";
   $("#calib").innerHTML = msg;
   $("#audit").innerHTML = msg;
   $("#rawReport").textContent = "COMPARE RUN\n" + JSON.stringify(r.compare || {}, null, 2);
@@ -519,7 +526,7 @@ function renderCompare(r) {
     const lo = m.delta_ci[0], hi = m.delta_ci[1], excludesZero = (lo > 0 || hi < 0);
     return `<tr><td>${esc(k.replace(/_/g, " "))}</td><td class="num">${fmt(m.baseline_median, 4)}</td><td class="num">${fmt(m.intervention_median, 4)}</td><td class="num">${fmt(m.delta_median, 4)}</td><td class="num">[${fmt(lo, 4)}, ${fmt(hi, 4)}]</td><td>${excludesZero ? '<b style="color:var(--blue)">CI excludes 0</b>' : '<span class="dim">includes 0</span>'}</td></tr>`;
   }).join("");
-  $("#compare").innerHTML = `<table class="read"><thead><tr><th>metric</th><th>baseline</th><th>intervention</th><th>Δ</th><th>Δ 95% CI</th><th>single-metric screen</th></tr></thead><tbody>${rows}</tbody></table><p class="hint">Δ = intervention − baseline (common random numbers; mc-replicated). "CI excludes 0" is a per-metric interval screen, not a multiple-comparison-adjusted discovery claim.</p>`;
+  $("#compare").innerHTML = `<table class="read"><thead><tr><th>metric</th><th>baseline</th><th>intervention</th><th>delta</th><th>replicate interval</th><th>single-metric screen</th></tr></thead><tbody>${rows}</tbody></table><p class="hint">Delta = intervention minus baseline (common random numbers; mc-replicated). Interval excluding 0 is a per-metric diagnostic, not a decision claim.</p>`;
   activateTab("#outTabs", "otab", "compare");
 }
 $("#cfgForm").addEventListener("submit", async e => {
@@ -701,7 +708,7 @@ function render(r) {
   $("#footHash").textContent = "stream " + m.stream_hash.slice(0, 16);
   const seal = $("#seal"); seal.className = "seal";
   if (!r.replay.checked) $("#sealTxt").textContent = "replay skipped";
-  else if (r.replay.ok) { seal.classList.add("ok"); $("#sealTxt").textContent = "replay verified"; }
+  else if (r.replay.ok) { seal.classList.add("ok"); $("#sealTxt").textContent = "deterministic replay verified - reproducibility only"; }
   else { seal.classList.add("bad"); $("#sealTxt").textContent = "replay mismatch"; }
   if (currentRunId) {
     $("#expReport").hidden = false; $("#expJson").hidden = false; $("#expTransparency").hidden = false;
@@ -714,11 +721,11 @@ function render(r) {
   const heB = ibar(he.ci[0], he.ci[1], he.rate, 0, Math.max(he.ci[1] * 1.3, .05));
   const wB = ibar(w.ci[0], w.ci[1], w.mean, Math.min(w.ci[0], -.1), Math.max(w.ci[1], .1), "teal");
   $("#cards").innerHTML = [
-    metric("Harmful Exposure", he.rate * 100, { dec: 2, suf: "%", ci: `<div class="ci">95% within-run ${pct(he.ci[0])}–${pct(he.ci[1])}</div>${heB}` }),
+    metric("Harmful Exposure", he.rate * 100, { dec: 2, suf: "%", ci: `<div class="ci">descriptive resampling ${pct(he.ci[0])}-${pct(he.ci[1])}</div>${heB}` }),
     metric("Mod Precision", mod.precision, { dec: 3 }), metric("Mod Recall", mod.recall, { dec: 3 }),
     metric("Notices Sent", s.notices.notices_sent, { ci: `<div class="ci">coverage ${pct(s.notices.removal_notice_coverage)}</div>` }),
     metric("Appeals Filed", ap.filed, { ci: `<div class="ci">granted ${pct(ap.granted_rate)}</div>` }),
-    metric("Welfare Proxy", w.mean, { dec: 3, ci: `<div class="ci">95% within-run ${fmt(w.ci[0], 2)}–${fmt(w.ci[1], 2)}</div>${wB}` }),
+    metric("Welfare Proxy", w.mean, { dec: 3, ci: `<div class="ci">descriptive resampling ${fmt(w.ci[0], 2)}-${fmt(w.ci[1], 2)}</div>${wB}` }),
     metric("Posts", s.n_posts, { ci: `<div class="ci">${s.n_impressions} impressions</div>` }),
     metric("Max Cascade", s.cascades.max, { ci: `<div class="ci">${s.cascades.n} trees</div>` }),
   ].join("");
@@ -747,7 +754,7 @@ function render(r) {
   if (r.mc) {
     prefix += `MONTE CARLO (provenance: mc-replicated, ${r.n_replicates} replicates)\n`;
     for (const [k, d] of Object.entries(r.mc))
-      prefix += `  ${k}: median ${(+d.median).toFixed(4)}  95% [${(+d.ci[0]).toFixed(4)}, ${(+d.ci[1]).toFixed(4)}]\n`;
+      prefix += `  ${k}: median ${(+d.median).toFixed(4)}  replicate interval [${(+d.ci[0]).toFixed(4)}, ${(+d.ci[1]).toFixed(4)}]\n`;
     prefix += "\n";
   }
   if (r.transparency) {
@@ -775,30 +782,30 @@ function renderAudit(events, kinds) {
 
 function renderFeed(feed) {
   if (!feed.length) { $("#feedWrap").innerHTML = `<p class="dim small">No content sampled.</p>`; return; }
+  const usedAssets = new Set();
   $("#feedWrap").innerHTML = feed.map((f, i) => {
     const harm = f.categories.filter(c => c !== "political" && c !== "ai_generated");
     const badge = f.action !== "none" ? `<span class="badge">${esc(f.action.replace(/_/g, " "))}</span>` : (f.ai_generated ? `<span class="badge">AI-generated</span>` : "");
     const tags = [...harm.map(c => `<span class="tag harm">${esc(c.replace(/_/g, " "))}</span>`), f.ai_generated ? `<span class="tag ai">ai-generated</span>` : "", f.categories.includes("political") ? `<span class="tag">political</span>` : "", f.media_type ? `<span class="tag media">${esc(f.media_type)}</span>` : "", f.action !== "none" ? `<span class="tag act">${esc(f.action.replace(/_/g, " "))}</span>` : ""].join("");
-    const tile = seedFrom(`${f.id}|${f.topic}|${f.media_type}|${f.author}`) % 12;
-    const img = `/static/assets/feed-cover-v3-${String(tile).padStart(2, "0")}.png`;
-    return `<article class="post" style="animation-delay:${i * 50}ms"><div class="cover"><img class="feed-img" src="${img}" alt="Representative feed image for ${esc(f.topic)} post by Agent ${f.author}">${badge}</div><div class="body"><div class="who"><span class="av">${avatarSVG(f.author)}</span><span class="meta"><b>Agent ${f.author}</b><span>${esc(f.age)} · ${esc(f.ideology)} · ${esc(f.topic)}</span></span></div><p class="txt">${esc(f.text)}</p><div class="tags">${tags}</div></div></article>`;
+    const img = pickAsset(META?.assets?.feed_covers || [], `${f.id}|${f.topic}|${f.media_type}|${f.author}`, usedAssets);
+    return `<article class="post" style="animation-delay:${i * 50}ms"><div class="cover"><img class="feed-img" src="${img}" alt="Synthetic decorative artwork for ${esc(f.topic)} post; not evidence">${badge}</div><div class="body"><div class="who"><span class="av">${avatarSVG(f.author)}</span><span class="meta"><b>Agent ${f.author}</b><span>${esc(f.age)} · ${esc(f.ideology)} · ${esc(f.topic)}</span></span></div><p class="txt">${esc(f.text)}</p><div class="tags">${tags}</div></div></article>`;
   }).join("");
 }
 
 function renderAds(ads) {
   if (!ads.length) { $("#ads").innerHTML = `<p class="dim small">Advertising disabled or no impressions recorded.</p>`; return; }
   const remoteProtected = META && META.token_required && !META.token;
+  const usedAssets = new Set();
   const grid = ads.map((a, i) => {
     const key = encodeURIComponent(a.creative_key || a.campaign_id || "ad");
     const disc = a.disclosure_present ? `<span class="disc">#ad</span>` : `<span class="disc warn">undisclosed</span>`;
     const targeting = a.targeting && Object.keys(a.targeting).length ? esc(JSON.stringify(a.targeting)) : "untargeted";
     const name = esc(a.advertiser || a.campaign_id);
-    const img = `/api/creative?key=${key}&w=1024&h=512`;
+    const img = pickAsset(META?.assets?.ad_creatives || [], key, usedAssets) || `/api/creative?key=${key}`;
     const src = remoteProtected ? "" : ` src="${img}"`;
-    return `<div class="adcard" style="animation-delay:${i * 50}ms"><div class="creative"><img class="creative-img protected-creative"${src} data-src="${img}" alt="Generated ad creative for ${name} targeting ${targeting}">${disc}<button type="button" class="dl-creative" data-download="${img}" data-filename="creative-${key}.png" title="Download deterministic creative">download</button></div><div class="ad-body"><div class="adname">${name}</div><div class="adtarget">${targeting}</div><div class="adstat"><span>CTR <b>${fmt(a.ctr, 4)}</b></span><span>lift <b>${fmt(a.lift, 4)}</b></span><span>iROAS <b>${fmt(a.iroas, 2)}</b></span></div></div></div>`;
+    return `<div class="adcard" style="animation-delay:${i * 50}ms"><div class="creative"><img class="creative-img protected-creative"${src} data-src="${img}" alt="Synthetic decorative ad artwork for ${name}; not evidence">${disc}<button type="button" class="dl-creative" data-download="${img}" data-filename="creative-${key}.png" title="Download deterministic creative">download</button></div><div class="ad-body"><div class="adname">${name}</div><div class="adtarget">${targeting}</div><div class="adstat"><span>CTR <b>${fmt(a.ctr, 4)}</b></span><span>lift <b>${fmt(a.lift, 4)}</b></span><span>iROAS <b>${fmt(a.iroas, 2)}</b></span></div></div></div>`;
   }).join("");
-  const table = `<div class="table-wrap"><table class="read"><thead><tr><th>campaign</th><th>impr</th><th>eligible</th><th>CTR</th><th>CVR</th><th>lift 95% CI</th><th>CUPED lift</th><th>p</th><th>MDE</th><th>ROAS</th><th>iROAS</th><th>CAC</th><th>LTV</th><th>holdout</th><th>attr W</th></tr></thead><tbody>${ads.map(a => `<tr><td>${esc(a.campaign_id)}</td><td class="num">${a.impressions}</td><td class="num">${a.eligible_opportunities ?? "—"}</td><td class="num">${fmt(a.ctr, 4)}</td><td class="num">${fmt(a.cvr, 4)}</td><td class="num">${fmt(a.lift_ci[0], 4)}–${fmt(a.lift_ci[1], 4)}</td><td class="num">${fmt(a.lift_cuped, 4)}</td><td class="num">${fmt(a.lift_pvalue, 3)}</td><td class="num">${fmt(a.mde, 4)}</td><td class="num">${fmt(a.roas, 2)}</td><td class="num">${fmt(a.iroas, 2)}</td><td class="num">${fmt(a.cac, 2)}</td><td class="num">${fmt(a.ltv, 2)}</td><td class="num">${a.n_holdout}</td><td class="num">${a.attribution_window_ticks}</td></tr>`).join("")}</tbody></table></div>`;
-  const tableV2 = `<div class="table-wrap"><table class="read"><thead><tr><th>campaign</th><th>impr</th><th>eligible</th><th>budget</th><th>CTR</th><th>CVR</th><th>lift raw CI</th><th>CUPED lift</th><th>p(raw)</th><th>q(BH)</th><th>MDE</th><th>ROAS*</th><th>iROAS*</th><th>CAC*</th><th>LTV*</th><th>holdout</th><th>attr W</th></tr></thead><tbody>${ads.map(a => `<tr><td>${esc(a.campaign_id)}</td><td class="num">${a.impressions}</td><td class="num">${a.eligible_opportunities ?? "—"}</td><td class="num">${fmt(a.spend, 2)} / ${fmt(a.budget_configured, 2)}</td><td class="num">${fmt(a.ctr, 4)}</td><td class="num">${fmt(a.cvr, 4)}</td><td class="num">${a.lift_ci ? `${fmt(a.lift_ci[0], 4)}-${fmt(a.lift_ci[1], 4)}` : "—"}</td><td class="num">${fmt(a.lift_cuped, 4)}</td><td class="num">${fmt(a.lift_pvalue_raw ?? a.lift_pvalue, 3)}</td><td class="num">${fmt(a.lift_qvalue_bh, 3)}</td><td class="num">${fmt(a.mde, 4)}</td><td class="num">${fmt(a.roas, 2)}</td><td class="num">${fmt(a.iroas, 2)}</td><td class="num">${fmt(a.cac, 2)}</td><td class="num">${fmt(a.ltv, 2)}</td><td class="num">${a.n_holdout}</td><td class="num">${a.attribution_window_ticks}</td></tr>`).join("")}</tbody></table><p class="hint">* Scenario economics are assumption-derived from conversion value, LTV multiplier, and attribution window inputs.</p></div>`;
+  const tableV2 = `<div class="table-wrap"><table class="read"><thead><tr><th>campaign</th><th>impr</th><th>eligible</th><th>budget</th><th>CTR</th><th>CVR</th><th>lift diagnostic interval</th><th>oracle diagnostic</th><th>p(raw)</th><th>q(BH)</th><th>MDE</th><th>ROAS*</th><th>iROAS*</th><th>CAC*</th><th>LTV*</th><th>holdout</th><th>attr W</th></tr></thead><tbody>${ads.map(a => `<tr><td>${esc(a.campaign_id)}</td><td class="num">${a.impressions}</td><td class="num">${a.eligible_opportunities ?? "—"}</td><td class="num">${fmt(a.spend, 2)} / ${fmt(a.budget_configured, 2)}</td><td class="num">${fmt(a.ctr, 4)}</td><td class="num">${fmt(a.cvr, 4)}</td><td class="num">${a.lift_ci ? `${fmt(a.lift_ci[0], 4)}-${fmt(a.lift_ci[1], 4)}` : "—"}</td><td class="num">${fmt(a.oracle_covariate_adjusted_simulation_diagnostic, 4)}</td><td class="num">${fmt(a.lift_pvalue_raw ?? a.lift_pvalue, 3)}</td><td class="num">${fmt(a.lift_qvalue_bh, 3)}</td><td class="num">${fmt(a.mde, 4)}</td><td class="num">${fmt(a.roas, 2)}</td><td class="num">${fmt(a.iroas, 2)}</td><td class="num">${fmt(a.cac, 2)}</td><td class="num">${fmt(a.ltv, 2)}</td><td class="num">${a.n_holdout}</td><td class="num">${a.attribution_window_ticks}</td></tr>`).join("")}</tbody></table><p class="hint">Synthetic scenario output - not an estimate of real-world performance. * Scenario economics are assumption-derived from conversion value, LTV multiplier, and attribution window inputs.</p></div>`;
   // Campaign screen — each campaign is measured against its own holdout. This is
   // not a direct creative-vs-creative randomized contrast.
   let ab = "";
@@ -807,10 +814,10 @@ function renderAds(ads) {
     if (ranked.length >= 2) {
       const top = ranked[0], second = ranked[1];
       const sep = top.lift_ci && second.lift_ci && top.lift_ci[0] > second.lift_ci[1];
-      const win = top.lift_significant_bh_fdr && sep;
-      ab = `<div class="ab-verdict ${win ? "ok" : "warn"}"><b>Campaign lift screen:</b> ${win
-        ? `<b>${esc(top.campaign_id)}</b> clears its holdout screen — incremental lift ${fmt(top.lift, 4)} [${fmt(top.lift_ci[0], 4)}, ${fmt(top.lift_ci[1], 4)}], p(raw)=${fmt(top.lift_pvalue_raw ?? top.lift_pvalue, 3)}, q(BH)=${fmt(top.lift_qvalue_bh, 3)}. Treat this as campaign-vs-holdout evidence, not a direct creative-vs-creative winner.`
-        : `no decision-grade campaign winner yet — best lift ${fmt(top.lift, 4)} but confidence intervals overlap or sit below the minimum detectable effect (MDE ${fmt(top.mde, 4)}). Increase audience, holdout, or run more replicates.`}</div>`;
+      const screen = top.lift_screen_positive_bh_fdr && sep;
+      ab = `<div class="ab-verdict ${screen ? "ok" : "warn"}"><b>Campaign lift diagnostic:</b> ${screen
+        ? `<b>${esc(top.campaign_id)}</b> is screen-positive in this synthetic campaign-vs-holdout diagnostic - lift ${fmt(top.lift, 4)} [${fmt(top.lift_ci[0], 4)}, ${fmt(top.lift_ci[1], 4)}], p(raw)=${fmt(top.lift_pvalue_raw ?? top.lift_pvalue, 3)}, q(BH)=${fmt(top.lift_qvalue_bh, 3)}. This is not a budget recommendation.`
+        : `no campaign is decision-facing; largest synthetic lift ${fmt(top.lift, 4)} has overlapping diagnostic intervals or sits below the minimum detectable effect (MDE ${fmt(top.mde, 4)}).`}</div>`;
     }
   }
   $("#ads").innerHTML = `${ab}<div class="ads-grid">${grid}</div>${tableV2}`;

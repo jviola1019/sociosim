@@ -20,7 +20,7 @@ from socio_sim.ads.auction import AdSystem
 from socio_sim.ads.campaigns import Campaign, campaign_to_spec
 from socio_sim.agents.personas import Personas
 from socio_sim.agents.state import AgentState
-from socio_sim.config import RunConfig
+from socio_sim.config import RunConfig, SYNTHETIC_TEMPLATE_CLASSIFIER
 from socio_sim.content.claude_adapter import ClaudeAdapter
 from socio_sim.content.classify import NoisyClassifier
 from socio_sim.content.generate import TemplateGenerator
@@ -122,8 +122,9 @@ class Simulation:
         #   claude            -> Anthropic API (needs ANTHROPIC_API_KEY)
         #   ollama            -> free local Ollama server (no key)
         #   openai_compatible -> free local OpenAI-compatible server (no key)
-        base_gen = TemplateGenerator(cfg, self.rngs["content"],
-                                     inject_signal=(cfg.classifier_mode == "trained"))
+        base_gen = TemplateGenerator(
+            cfg, self.rngs["content"],
+            inject_signal=(cfg.classifier_mode == SYNTHETIC_TEMPLATE_CLASSIFIER))
         # The implicit LLM cache affects generated text, so keep it tied to the
         # behavioral config identity rather than output storage (`out_dir`).
         cache = cfg.llm_cache_path or str(
@@ -143,9 +144,9 @@ class Simulation:
             self.generator = base_gen
         self._current_tick = 0
 
-        if cfg.classifier_mode == "trained":
-            # Train a REAL classifier on category-signal content (measured P/R,
-            # not assumed). Deterministic: seeded training generator + numpy LR.
+        if cfg.classifier_mode == SYNTHETIC_TEMPLATE_CLASSIFIER:
+            # Train a synthetic classifier on category-signal template content.
+            # This is a dynamics mode, not an externally validated runtime model.
             from socio_sim.config import CATEGORIES
             from socio_sim.content.ml_classifier import (TrainableClassifier,
                                                          build_training_data)
@@ -153,6 +154,15 @@ class Simulation:
                                           inject_signal=True)
             texts, labels = build_training_data(train_gen, self.personas, n=1500)
             self.classifier = TrainableClassifier(CATEGORIES).fit(texts, labels)
+            if cfg.content_mode in LLM_CONTENT_MODES:
+                self.log.append(tick=0, kind="distribution_shift_warning",
+                                actor_id=-1, content_id=None, data={
+                                    "reason": (
+                                        "synthetic_template_classifier was fitted "
+                                        "on template text and is evaluating "
+                                        "LLM-generated text"),
+                                    "evidence_id": "ev.synthetic_engineering.classifier_template",
+                                })
         else:
             self.classifier = NoisyClassifier(cfg.classifier_targets,
                                               cfg.category_base_rates,
@@ -200,9 +210,8 @@ class Simulation:
         self._rt_rng = rt_rng
 
     def _classify(self, item) -> dict:
-        """Platform belief about an item's categories: a real trained classifier
-        on the item text (trained mode) or the calibrated noise model (default)."""
-        if self.cfg.classifier_mode == "trained":
+        """Platform belief about item categories under synthetic classifier mechanics."""
+        if self.cfg.classifier_mode == SYNTHETIC_TEMPLATE_CLASSIFIER:
             return self.classifier.predict_scores(item.text)
         return self.classifier.classify_one(item.true_categories)
 

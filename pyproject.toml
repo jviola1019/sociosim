@@ -17,10 +17,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "ruff>=0.6", "pytest-cov>=5.0", "hypothesis>=6.0"]
+dev = ["pytest>=8.0", "ruff>=0.6", "pytest-cov>=5.0", "hypothesis>=6.0", "build>=1.2"]
 e2e = ["pytest-playwright>=0.5"]
 viz = ["matplotlib>=3.8"]
 llm = ["anthropic>=0.40"]
+security = ["bandit>=1.7", "pip-audit>=2.7"]
+asset = ["pillow>=12.2.0"]
 
 [tool.ruff]
 line-length = 100
@@ -35,12 +37,22 @@ include = ["socio_sim*"]
 
 [tool.setuptools.package-data]
 "socio_sim.policy" = ["packs/*.yaml"]
-"socio_sim" = ["data/benchmarks/*.json", "data/benchmarks/moderation/*.jsonl.gz"]
-"socio_sim.web" = ["static/*.html", "static/*.css", "static/*.js", "static/assets/*.png"]
+"socio_sim" = [
+    "data/*.json",
+    "data/benchmarks/*.json",
+    "data/benchmarks/moderation/*.jsonl.gz",
+]
+"socio_sim.web" = [
+    "static/*.html",
+    "static/*.css",
+    "static/*.js",
+    "static/assets/v4/*.png",
+    "static/assets/v4/*.json",
+]
 
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
 markers = [
-    "slow: statistical/calibration tests that take longer",
+    "slow: statistical validation-diagnostic tests that take longer",
 ]

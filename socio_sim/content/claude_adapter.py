@@ -17,6 +17,7 @@ from typing import Callable
 
 from socio_sim.content.generate import TOPICS, TemplateGenerator
 from socio_sim.content.items import ContentItem
+from socio_sim.content.semantic_guard import check_generated_text, semantic_hash
 
 MODEL = "claude-haiku-4-5-20251001"  # cheapest adequate model for persona posts
 
@@ -73,7 +74,9 @@ class ClaudeAdapter:
         item = self.base.generate(author_id, personas, tick)
         key = self.prompt_key(author_id, personas, tick, item.topic, item.stance)
         if key in self._cache:
-            item.text = (_CN_LABEL_PREFIX if item.explicit_label else "") + self._cache[key]
+            cached = self._cache[key]
+            text = cached.get("text") if isinstance(cached, dict) else cached
+            item.text = (_CN_LABEL_PREFIX if item.explicit_label else "") + text
             return item
         if self._client is None:
             self.on_degradation("no API key or anthropic package; template text used")
@@ -85,7 +88,26 @@ class ClaudeAdapter:
                 messages=[{"role": "user", "content": prompt}],
             )
             text = resp.content[0].text.strip()
-            self._cache[key] = text
+            reasons = check_generated_text(text, item)
+            if reasons:
+                self._cache[key] = {
+                    "text": text,
+                    "semantic_hash": semantic_hash(text),
+                    "status": "blocked",
+                    "reason_codes": reasons,
+                }
+                self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+                self.cache_path.write_text(
+                    json.dumps(self._cache, sort_keys=True), encoding="utf-8")
+                self.on_degradation(
+                    f"semantic_mismatch:{','.join(reasons)}; template text used")
+                return item
+            self._cache[key] = {
+                "text": text,
+                "semantic_hash": semantic_hash(text),
+                "status": "accepted",
+                "reason_codes": [],
+            }
             self.cache_path.parent.mkdir(parents=True, exist_ok=True)
             self.cache_path.write_text(
                 json.dumps(self._cache, sort_keys=True), encoding="utf-8")

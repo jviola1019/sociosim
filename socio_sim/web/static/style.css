@@ -382,7 +382,6 @@ table.read tbody tr { transition: background .14s; } table.read tbody tr:hover t
 .adcard { border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: var(--surface); box-shadow: var(--sh-1); transition: border-color .2s var(--ease); animation: cardin .5s var(--ease) backwards; }
 .adcard:hover { border-color: var(--line-2); }
 .adcard .creative { aspect-ratio: 2 / 1; height: auto; position: relative; background: var(--surface-2); }
-.adcard .creative.ad-atlas { background-image: url("/static/assets/ad-atlas-v3.png"); background-size: 400% 300%; background-repeat: no-repeat; }
 .field.calc-field { border-left: 3px solid var(--line); padding-left: 9px; }
 .field.calc-field .lbl::after { content: " planning"; color: var(--ink-3); font-weight: 600; margin-left: 4px; }
 .adcard .creative-img { width: 100%; height: 100%; object-fit: contain; object-position: center; border-radius: 0; }

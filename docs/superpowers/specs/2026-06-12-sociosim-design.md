@@ -14,7 +14,7 @@ Requirements source: "SocioSim: A Rigorous Social-Interaction Simulator" specifi
 | Scale & horizon | Standard profile: **10,000 agents × hourly ticks × 28 simulated days × 100 Monte Carlo replicates.** Quick profile: 1,000 agents × 7 days (dev/CI). With the live LLM adapter enabled, ≤1,000 agents recommended. All knobs configurable. |
 | Persona diversity | Age group (minors flagged — drives DSA ad ban), 2-axis ideology, trust propensity, activity level (heavy-tailed), ad responsiveness, moderation attitude, influencer flag. Vulnerable-group flags supported for fairness diagnostics. |
 | Experiment design | Baseline-vs-intervention scenario pairs sharing seed trees (common random numbers); randomised holdout groups for ad measurement. |
-| Output metrics | Harmful-content exposure, moderation FP/FN rates, appeal volumes/outcomes, DSA-notice compliance, ad CTR/CVR/CPM/CPC/ROI, cascade sizes, welfare proxies (defined as: mean session satisfaction = engagement-weighted content affinity minus harmful-exposure penalty and fatigue), fairness disparities — all with 95% CIs. |
+| Output metrics | Harmful-content exposure, moderation FP/FN rates, appeal volumes/outcomes, DSA-notice compliance, ad CTR/CVR/CPM/CPC/ROI, cascade sizes, welfare proxies, fairness disparities, all with evidence-labelled uncertainty diagnostics. |
 | Resources | Single laptop-class machine; speed achieved by vectorisation, not distribution. Python 3.11+. |
 
 ### Evidence base for scale defaults
@@ -22,7 +22,7 @@ Requirements source: "SocioSim: A Rigorous Social-Interaction Simulator" specifi
 - Group-level emergent phenomena require thousands of agents, and 100k-agent live-LLM runs took five A100 GPUs ~2 days in OASIS (arXiv:2411.11581) — so live-LLM generation cannot be the default engine; offline deterministic generation at 10k agents is the tractable sweet spot. S³ (arXiv:2307.14984) used reconstructed real networks of thousands of users.
 - Canonical opinion-dynamics ABMs use N≈5,000 scale-free networks with hub cutoff k_max=√N; N=10⁴ yields hubs of degree ~100 (influencer dynamics representable).
 - Circadian literature: posting peaks ~16–18h, troughs ~04–06h; hourly is the coarsest resolution capturing the cycle, and DSA 24-hour deadlines need sub-day ticks.
-- Ad experimentation practice: ≥2 weeks, ≤~4 weeks, ≥1 full week for day-of-week effects; 80% power / 95% confidence standard → 28-day horizon, ≥100 replicates.
+- Ad experimentation practice: multi-week horizons are represented as scenario assumptions, not empirical power claims.
 
 ### Evidence base for architecture
 
@@ -108,21 +108,23 @@ docs/              # Usage, limitations, ethics, legal-compliance notes, NIST AI
 - Unit tests per module (graph statistics, persona sampling distributions, rule-pack semantics per jurisdiction, auction correctness incl. second-price property, disclosure insertion, classifier noise rates, CI coverage of analytics).
 - Integration: 200 agents × 48 ticks end-to-end smoke producing a valid manifest, logs, and report.
 - Determinism: same seed → identical event-stream hash; different seed → different.
-- Statistical (marked `slow`): generated graphs within KS tolerance of targets; diurnal activity matches curve; calibration loop reduces implausibility.
+- Statistical (marked `slow`): generated graphs within diagnostic tolerance bands; diurnal activity matches the synthetic curve; aggregate-fit diagnostics reduce implausibility.
 
 ## 6. Out of scope for v1 (explicit) — NOW DELIVERED in sprint 3 (see below)
 - ~~Real image/video synthesis~~ → DELIVERED: deterministic procedural raster
-  (`content/media.py`, real PNG bytes, offline, `run.py --media N`); video as
+  (`content/media.py`, deterministic synthetic PNG bytes, offline, `run.py --media N`); video as
   frame sequences (`synth_frames`), container-encoding optional; diffusion backend pluggable.
 - ~~Distributed/GPU execution~~ → DELIVERED (distributed): pluggable executor on
   `run_replicates` (ProcessPool / Dask / Ray). GPU honestly opt-in/env-gated
   (numpy kernels; CuPy drop-in possible, unverified without a GPU).
 - ~~Bundled empirical datasets~~ → DELIVERED: published-aggregate sets
   (`default`, `twitter_like`, `facebook_like`) with citations; `RunConfig.benchmark`.
-- ~~Real moderation-model training~~ → DELIVERED: real numpy logistic-regression
-  classifier on category-signal text with MEASURED P/R (`classifier_mode="trained"`).
+- ~~Real moderation-model training~~ -> CLAIM DOWNGRADED: numpy logistic-regression
+  classifier on category-signal text with component diagnostics
+  (`classifier_mode="synthetic_template_classifier"`).
   Caveat: trained on synthetic templated content, so it learns the simulator's
-  signal — a real, measured model, not a claim about real-world moderation accuracy.
+  signal. This is not a real-deployable model and does not support real-world
+  moderation accuracy claims.
 
 ### Addendum (post-v1, delivered)
 - **Web console** (`socio_sim/web/`, `python run.py --web`): a localhost

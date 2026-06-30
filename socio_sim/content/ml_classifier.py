@@ -1,11 +1,9 @@
-"""A REAL, trainable moderation classifier (Spec §3.4 "interface for plugging
-real models in") — replaces the noise model in `classifier_mode="trained"`.
+"""Synthetic template classifier dynamics mode.
 
-Pure-numpy one-vs-rest logistic regression over a stable hashing vectoriser (no
-new dependency, no GPU). Fully deterministic (zero init, fixed data order, fixed
-epochs, blake2s feature hashing — not Python's salted hash), so trained runs
-replay bit-identically. Performance is MEASURED (held-out precision/recall),
-never assumed.
+Pure-numpy one-vs-rest logistic regression over a stable hashing vectoriser.
+Runtime training data is generated from SocioSim templates with category signal
+tokens, so this module must not be described as a real deployable or externally
+validated classifier artifact.
 """
 
 from __future__ import annotations
@@ -40,13 +38,11 @@ class TrainableClassifier:
         self.lr = lr
         self.epochs = epochs
         self.l2 = l2
-        self._xp = xp           # array module override (numpy / cupy); None=auto
+        self._xp = xp
         self.W = np.zeros((dim, len(self.categories)))
         self.b = np.zeros(len(self.categories))
 
     def fit(self, texts, labels) -> "TrainableClassifier":
-        # Training matmuls run on GPU (CuPy) when available, else NumPy; weights
-        # are brought back to host numpy so inference stays dependency-free.
         from socio_sim import accel
         xp = self._xp if self._xp is not None else accel.array_module()
         Xn = np.array([vectorize(t, self.dim) for t in texts])
@@ -70,8 +66,7 @@ class TrainableClassifier:
 
 
 def build_training_data(generator, personas, n: int):
-    """Generate n labelled items (text, true_categories) from the content
-    generator (which must have inject_signal=True) for training/evaluation."""
+    """Generate labelled synthetic template items for runtime fitting."""
     texts, labels = [], []
     for i in range(n):
         item = generator.generate(i % personas.n, personas, tick=i % 24)
@@ -81,7 +76,7 @@ def build_training_data(generator, personas, n: int):
 
 
 def evaluate(clf: TrainableClassifier, texts, labels, threshold: float = 0.5) -> dict:
-    """Per-category precision/recall on held-out data (measured, not assumed)."""
+    """Per-category precision/recall on held-out synthetic template data."""
     out = {}
     for c in clf.categories:
         tp = fp = fn = 0

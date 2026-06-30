@@ -13,19 +13,30 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install (with dev extras)
-        run: pip install -e .[dev]
+      - name: Install (with dev, e2e, security, asset extras)
+        run: pip install -e .[dev,e2e,security,asset]
       - name: Lint (ruff)
         run: ruff check socio_sim tests run.py
+      - name: Evidence and claim gates
+        run: |
+          python scripts/evidence_gate.py
+          python scripts/claim_scan.py
+          python scripts/secret_scan.py
       - name: Tests (pytest + coverage gate)
         run: pytest -q --cov=socio_sim --cov-report=term-missing --cov-fail-under=85
       - name: E2E browser smoke (Playwright)
         run: |
-          pip install -e .[e2e]
           python -m playwright install --with-deps chromium
           pytest -q tests/test_e2e_playwright.py
+      - name: Asset QA
+        run: python scripts/asset_qa.py
+      - name: Security scans
+        run: |
+          bandit -q -r socio_sim -ll
+          pip-audit --skip-editable
+      - name: License inventory
+        run: python scripts/license_inventory.py
       - name: Build wheel + verify packaged data
         run: |
-          pip install build
           python -m build --wheel
-          python -c "import zipfile,glob; n=zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist(); assert any(x.endswith('default_targets.json') for x in n), 'targets data missing from wheel'; assert sum(x.endswith('.yaml') for x in n)==4, 'policy packs missing from wheel'; assert any(x.endswith('feed-atlas-v3.png') for x in n) and any(x.endswith('ad-atlas-v3.png') for x in n), 'v3 web image atlases missing from wheel'; assert sum(x.endswith('.png') and 'feed-cover-v3-' in x for x in n) == 12, 'feed cover v3 assets missing from wheel'; assert sum(x.endswith('.png') and 'ad-creative-v3-' in x for x in n) == 12, 'ad creative v3 assets missing from wheel'; print('wheel data OK')"
+          python -c "import zipfile,glob; n=zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist(); assert any(x.endswith('evidence_registry.json') for x in n), 'evidence registry missing'; assert any(x.endswith('scenario_assumptions.json') for x in n), 'assumption manifest missing'; assert any(x.endswith('default_targets.json') for x in n), 'targets data missing'; assert sum(x.endswith('.yaml') for x in n)==4, 'policy packs missing'; assert sum(x.endswith('.png') and '/assets/v4/feed-cover-v4-' in x for x in n) == 48, 'feed v4 assets missing'; assert sum(x.endswith('.png') and '/assets/v4/ad-creative-v4-' in x for x in n) == 32, 'ad v4 assets missing'; assert not any('v3' in x for x in n), 'legacy v3 asset packaged'; print('wheel data OK')"

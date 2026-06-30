@@ -57,7 +57,7 @@
           <label><input type="radio" name="profile" value="test"><b>Test</b><i>200 · 48h</i></label>
           <label><input type="radio" name="profile" value="quick" checked><b>Quick</b><i>1K · 7d</i></label>
           <label><input type="radio" name="profile" value="standard"><b>Standard</b><i>10K · 28d</i></label>
-          <label><input type="radio" name="profile" value="calibrated"><b>Calibrated</b><i>I=1.25 / I&lt;3</i></label>
+          <label><input type="radio" name="profile" value="aggregate_matched_prototype"><b>Aggregate matched</b><i>prototype</i></label>
         </div>
         <div class="duo">
           <label class="field"><span class="lbl">Random Seed</span><input type="number" id="root_seed" value="42"></label>
@@ -66,7 +66,7 @@
         <label class="switch"><input type="checkbox" id="verify_replay" checked><span class="track"></span><span class="switch-txt">Verify Deterministic Replay</span></label>
         <p class="hint">Re-runs from the manifest and confirms an identical event-stream hash. Auto-skipped above 2,000 agents.</p>
         <label class="field"><span class="lbl">Monte Carlo Replicates <i>1 = preview · &gt;1 = research</i></span><input type="number" id="n_replicates" value="1" min="1" max="200"></label>
-        <p class="hint">Research mode runs N seeded replicates and reports <b>mc-replicated</b> 95% intervals (Log tab); Preview (1) reports within-run intervals only.</p>
+        <p class="hint">Research mode runs N seeded replicates and reports replicate percentile intervals. Preview uses descriptive within-run diagnostics only.</p>
         <hr>
         <span class="lbl">A/B Compare <i>baseline = current config</i></span>
         <label class="field"><span class="lbl">Intervention</span>
@@ -82,7 +82,7 @@
           <label class="field"><span class="lbl">Replicates</span><input type="number" id="cmpReplicates" value="5" min="2" max="50"></label>
           <button type="button" id="cmpBtn" class="pill" style="align-self:end">Run A/B Compare</button>
         </div>
-        <p class="hint">Baseline vs intervention with common random numbers; per-metric deltas with 95% intervals (Compare tab).</p>
+        <p class="hint">Baseline vs intervention with common random numbers; per-metric deltas with replicate percentile intervals (Compare tab).</p>
       </section>
 
       <!-- NETWORK -->
@@ -97,7 +97,7 @@
         <label class="field"><span class="lbl">Network Model</span>
           <select id="graph_kind">
             <option value="ba" selected>Barabási–Albert · scale-free hubs</option>
-            <option value="plc">Holme–Kim · scale-free + clustering (calibrated)</option>
+            <option value="plc">Holme-Kim · scale-free + clustering prototype</option>
             <option value="ws">Watts–Strogatz · small-world</option>
             <option value="sbm">Stochastic block · communities</option>
           </select></label>
@@ -139,11 +139,11 @@
           </select></label>
         <label class="field llm" data-llm hidden><span class="lbl">Model</span><input type="text" id="llm_model" value="qwen2.5:0.5b" spellcheck="false"></label>
         <label class="field llm" data-llm hidden><span class="lbl">Server URL <i>blank = default</i></span><input type="text" id="llm_base_url" placeholder="http://localhost:11434" spellcheck="false"></label>
-        <label class="field" title="Noise = calibrated noise model (fast, set the operating point in Moderation). Trained = a real numpy classifier trained on category-signal text, with measured precision/recall.">
+        <label class="field" title="Both modes are synthetic mechanics. Noise uses configured scenario operating points; template classifier fits synthetic category-signal text at runtime.">
           <span class="lbl">Moderation Classifier</span>
           <select id="classifier_mode">
-            <option value="noise" selected>Noise model · calibrated, instant</option>
-            <option value="trained">Trained · real numpy classifier (measured P/R)</option>
+            <option value="synthetic_noise_classifier" selected>Synthetic noise classifier</option>
+            <option value="synthetic_template_classifier">Synthetic template classifier</option>
           </select></label>
         <hr>
         <span class="lbl">Content Prevalence <i>share of all content</i></span>

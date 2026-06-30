@@ -68,7 +68,7 @@ def run_lens(config: dict, summary: dict) -> dict:
     ads_sum = summary.get("ads") or {}
     mkt_rows = [m for m in ads_sum.values() if isinstance(m, dict)]
     mkt_out = ""
-    any_sig = any(bool(m.get("lift_significant_bh_fdr")) for m in mkt_rows)
+    any_screen = any(bool(m.get("lift_screen_positive_bh_fdr")) for m in mkt_rows)
     if ads and mkt_rows:
         best = max(ads_sum.items(),
                    key=lambda kv: (kv[1].get("lift", 0.0) if isinstance(kv[1], dict) else 0.0))
@@ -97,16 +97,14 @@ def run_lens(config: dict, summary: dict) -> dict:
         readiness.append(
             "Government readiness: moderation/fairness denominators are sparse; "
             "rates are screening signals, not clean compliance estimates.")
-    if ads and mkt_rows and not any_sig:
+    if ads and mkt_rows and not any_screen:
         readiness.append(
-            "Marketing readiness: no campaign has BH-FDR significant incremental "
-            "lift in the current run; increase audience, holdout, or replicates "
-            "before choosing a winner.")
-    elif ads and any_sig:
+            "Marketing readiness: no campaign is decision-facing. Treat ad "
+            "outputs as synthetic diagnostics and assumption-ledger rows.")
+    elif ads and any_screen:
         readiness.append(
-            "Marketing readiness: at least one campaign clears BH-FDR in this "
-            "campaign-vs-holdout screen; use a direct pairwise experiment before "
-            "declaring a creative winner.")
+            "Marketing readiness: at least one campaign is screen-positive in "
+            "the synthetic holdout diagnostic; this is not a budget recommendation.")
 
     lines = [
         f"**Government / Regulatory lens — ACTIVE** ({', '.join(packs) or 'none'}). "
