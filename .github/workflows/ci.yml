@@ -35,3 +35,12 @@ jobs:
         run: bandit -r socio_sim/ -ll -q
       - name: Security — pip-audit production deps (blocks CI on a known CVE)
         run: python scripts/audit_deps.py
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build hardened image (exercises the Dockerfile + .dockerignore)
+        run: docker build -t sociosim:ci .
+      - name: Smoke-run the deterministic CLI inside the image
+        run: docker run --rm sociosim:ci python run.py --profile test

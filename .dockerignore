@@ -1,0 +1,35 @@
+# Keep the Docker build context minimal and prevent local artifacts (git
+# history, run outputs, the SQLite DB, coverage, virtualenvs, logs, scratch
+# .bat/.log files) from being sent to the daemon or baked into the image.
+.git
+.github
+.gitignore
+.venv
+venv
+env
+**/__pycache__
+**/*.pyc
+**/*.pyo
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+out
+dist
+build
+*.egg-info
+.claude
+.idea
+.vscode
+# Not needed at runtime (the image only COPYs pyproject.toml, README.md,
+# socio_sim/ and run.py):
+tests
+docs
+examples
+# Local dev/tunnel scratch files (also gitignored):
+*.log
+*.bat
+open_site.html
+public_ip.txt
+Dockerfile
+.dockerignore

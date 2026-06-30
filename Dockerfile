@@ -28,5 +28,11 @@ RUN adduser --disabled-password --gecos "" appuser \
     && chown -R appuser:appuser /app
 USER appuser
 
+# Liveness probe for WEB mode (python run.py --web --bind 0.0.0.0): succeeds
+# while the console port is accepting connections. The default one-shot CLI run
+# exits before the probe is ever evaluated, so this is a no-op for CLI use.
+HEALTHCHECK --interval=30s --timeout=4s --start-period=10s --retries=3 \
+  CMD ["python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8765), 3).close()"]
+
 # Deterministic, network-free default run (template content mode).
 CMD ["python", "run.py", "--profile", "quick"]
