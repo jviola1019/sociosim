@@ -77,13 +77,6 @@ def claim_language_check() -> Check:
                  time.perf_counter() - started, "internal claim-language scan", detail)
 
 
-def optional_tool_check(name: str, tool: str, args: list[str]) -> Check:
-    if shutil.which(tool) is None:
-        return Check(name, "skipped", 0.0, f"{tool} {' '.join(args)}",
-                     f"{tool!r} is not installed in this environment")
-    return run_cmd(name, [tool, *args])
-
-
 def optional_python_module_check(name: str, module: str, args: list[str]) -> Check:
     probe = subprocess.run(
         [sys.executable, "-c", f"import {module.replace('-', '_')}"],
@@ -111,6 +104,34 @@ def optional_python_script_check(name: str, guard_module: str, script: str) -> C
         return Check(name, "skipped", 0.0, f"python {script}",
                      f"Python module {guard_module!r} is not installed in this environment")
     return run_cmd(name, [sys.executable, script])
+
+
+def docker_build_or_validate() -> Check:
+    """Build the image if Docker is installed; otherwise statically validate the
+    hardened Dockerfile (the full build + smoke-run runs in the CI 'docker' job).
+
+    The static path is a real check — it asserts the hardening invariants — so a
+    Docker-less environment is `passed`/`failed`, never a silent skip.
+    """
+    if shutil.which("docker") is not None:
+        return run_cmd("Docker build", ["docker", "build", "-t", "sociosim", "."])
+    started = time.perf_counter()
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    checks = {
+        "digest-pinned base image": "FROM python:3.11-slim@sha256:" in dockerfile,
+        "non-root USER": "\nUSER " in dockerfile,
+        "HEALTHCHECK present": "HEALTHCHECK" in dockerfile,
+        ".dockerignore present": (ROOT / ".dockerignore").exists(),
+    }
+    problems = [name for name, ok in checks.items() if not ok]
+    status = "passed" if not problems else "failed"
+    detail = (
+        "docker not installed; Dockerfile static validation passed "
+        "(" + ", ".join(checks) + "); full build + smoke-run runs in CI"
+        if not problems else "Dockerfile hardening missing: " + "; ".join(problems))
+    return Check("Docker image (build in CI; static Dockerfile validation here)",
+                 status, time.perf_counter() - started,
+                 "Dockerfile hardening static validation", detail)
 
 
 def write_report(checks: list[Check]):
@@ -218,7 +239,7 @@ def main(argv: list[str] | None = None) -> int:
     checks.append(run_cmd("UI/browser tests",
                           [sys.executable, "-m", "pytest", "-q",
                            "tests/test_e2e_playwright.py"], timeout=180))
-    checks.append(optional_tool_check("Docker build", "docker", ["build", "-t", "sociosim", "."]))
+    checks.append(docker_build_or_validate())
     checks.append(optional_python_module_check(
         "Bandit static security scan (medium/high)",
         "bandit", ["-r", "socio_sim/", "-ll", "-q"]))
