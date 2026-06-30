@@ -123,6 +123,187 @@ def test_semantic_guard_flags_category_topic_and_harmful_contradictions():
         "stock earnings crypto rally", item)
 
 
+def test_blocked_result_not_served_from_cache_same_adapter(tmp_path):
+    """Regression for the P0 cache-bypass bug: a cached status=='blocked'
+    entry must not leak the blocked LLM text on a later identical request
+    from the same adapter, and must not trigger a second remote call."""
+    gen, personas = setup()
+    degradations = []
+    calls = []
+
+    def emailer(prompt):
+        calls.append(prompt)
+        return "local news email me at a@b.com"
+
+    adapter = LLMAdapter(
+        base=gen, cache_path=tmp_path / "cache.json", backend="ollama",
+        transport=emailer, on_degradation=degradations.append)
+
+    first = adapter.generate(1, personas, tick=3)
+    assert "email me" not in first.text
+    assert len(calls) == 1
+
+    second = adapter.generate(1, personas, tick=3)
+    assert "email me" not in second.text
+    # NOTE: text content itself need not be byte-identical across calls --
+    # self.base.generate() draws fresh template/slant randomness on every
+    # invocation regardless of cache hit. What matters for this regression
+    # is that the blocked LLM text never leaks and no second remote call
+    # is made for the same cache key.
+    assert len(calls) == 1, "must not re-contact the LLM for a cached blocked prompt"
+    assert len(degradations) == 2
+    assert all("semantic_mismatch" in d and "pii_like_output" in d
+               for d in degradations)
+
+
+def test_blocked_result_not_served_from_cache_new_adapter_instance(tmp_path):
+    """Same regression as above, but the cache is reloaded from disk by a
+    fresh adapter instance -- the actual reported scenario: a new run
+    loading a persisted cache file must not serve a previously blocked
+    response as if it were accepted."""
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+
+    adapter1 = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                          transport=lambda p: "local news email me at a@b.com")
+    first = adapter1.generate(1, personas, tick=3)
+    assert "email me" not in first.text
+
+    def exploding(prompt):
+        raise AssertionError("must not contact the LLM for a cached blocked prompt")
+
+    degradations2 = []
+    adapter2 = LLMAdapter(base=setup()[0], cache_path=cache_path, backend="ollama",
+                          transport=exploding, on_degradation=degradations2.append)
+    second = adapter2.generate(1, personas, tick=3)
+    assert "email me" not in second.text
+    assert second.text == first.text
+    assert degradations2 and "semantic_mismatch" in degradations2[0]
+    assert "pii_like_output" in degradations2[0]
+
+
+def test_blocked_cache_replay_is_deterministic(tmp_path):
+    """Two independent adapter instances loading the same persisted
+    blocked-cache entry must produce bit-identical output and must not
+    rewrite the cache file (cache_hash stays stable)."""
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "email me at a@b.com")
+    adapter.generate(1, personas, tick=3)
+    h1 = adapter.cache_hash()
+
+    def exploding(prompt):
+        raise AssertionError("must not contact the LLM for a cached blocked prompt")
+
+    results = []
+    for _ in range(2):
+        fresh_adapter = LLMAdapter(base=setup()[0], cache_path=cache_path,
+                                   backend="ollama", transport=exploding)
+        item = fresh_adapter.generate(1, personas, tick=3)
+        results.append(item.text)
+        assert fresh_adapter.cache_hash() == h1
+    assert results[0] == results[1]
+
+
+def test_accepted_cache_entries_still_function(tmp_path):
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "totally fine accepted text")
+    item1 = adapter.generate(1, personas, tick=3)
+    assert item1.text == "totally fine accepted text"
+    cache = json.loads(cache_path.read_text())
+    assert list(cache.values())[0]["status"] == "accepted"
+
+    def exploding(prompt):
+        raise AssertionError("must not call transport on an accepted cache hit")
+
+    adapter2 = LLMAdapter(base=setup()[0], cache_path=cache_path, backend="ollama",
+                          transport=exploding)
+    item2 = adapter2.generate(1, personas, tick=3)
+    assert item2.text == "totally fine accepted text"
+
+
+def test_cn_explicit_label_preserved_for_blocked_output(tmp_path):
+    gen, personas = setup(cn=True)
+    adapter = LLMAdapter(base=gen, cache_path=tmp_path / "c.json", backend="ollama",
+                         transport=lambda p: "email me at a@b.com")
+    labelled_blocked = None
+    for i in range(600):
+        item = adapter.generate(i % personas.n, personas, tick=0)
+        if item.explicit_label:
+            labelled_blocked = item
+            break
+    assert labelled_blocked is not None
+    assert labelled_blocked.text.startswith("[AI-generated content] ")
+    assert "email me" not in labelled_blocked.text
+
+
+def test_legacy_cache_entry_without_status_field_treated_as_accepted(tmp_path):
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "legacy accepted text")
+    adapter.generate(1, personas, tick=3)
+    cache = json.loads(cache_path.read_text())
+    key = next(iter(cache))
+    del cache[key]["status"]  # simulate a pre-status-field cache record
+    cache_path.write_text(json.dumps(cache))
+
+    def exploding(prompt):
+        raise AssertionError("must not call transport on a legacy cache hit")
+
+    adapter2 = LLMAdapter(base=setup()[0], cache_path=cache_path, backend="ollama",
+                          transport=exploding)
+    item = adapter2.generate(1, personas, tick=3)
+    assert item.text == "legacy accepted text"
+
+
+def test_legacy_bare_string_cache_entry_treated_as_accepted(tmp_path):
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "ancient bare-string cached text")
+    adapter.generate(1, personas, tick=3)
+    cache = json.loads(cache_path.read_text())
+    key = next(iter(cache))
+    cache_path.write_text(json.dumps({key: "ancient bare-string cached text"}))
+
+    def exploding(prompt):
+        raise AssertionError("must not call transport on a legacy cache hit")
+
+    adapter2 = LLMAdapter(base=setup()[0], cache_path=cache_path, backend="ollama",
+                          transport=exploding)
+    item = adapter2.generate(1, personas, tick=3)
+    assert item.text == "ancient bare-string cached text"
+
+
+def test_blocked_cache_invalidated_by_deliberate_guard_version_bump(tmp_path, monkeypatch):
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "email me at a@b.com")
+    adapter.generate(1, personas, tick=3)
+    cache = json.loads(cache_path.read_text())
+    assert list(cache.values())[0]["status"] == "blocked"
+
+    import socio_sim.content.llm_adapter as llm_adapter_module
+    monkeypatch.setattr(llm_adapter_module, "_BLOCKED_GUARD_VERSION", 2)
+
+    calls = []
+
+    def safe_text(prompt):
+        calls.append(prompt)
+        return "totally fine local news text"
+
+    adapter2 = LLMAdapter(base=setup()[0], cache_path=cache_path, backend="ollama",
+                          transport=safe_text)
+    item = adapter2.generate(1, personas, tick=3)
+    assert len(calls) == 1, "a guard-version bump must force re-evaluation"
+    assert item.text == "totally fine local news text"
+
+
 def test_cache_hash_stable_and_changes(tmp_path):
     gen, personas = setup()
     cache = tmp_path / "cache.json"

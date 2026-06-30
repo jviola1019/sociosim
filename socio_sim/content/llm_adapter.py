@@ -43,6 +43,14 @@ _PROMPT_TEMPLATE = (
 #: CN explicit-label prefix that must survive text replacement.
 _CN_LABEL_PREFIX = "[AI-generated content] "
 
+#: Bump to deliberately force re-evaluation of previously blocked prompts
+#: (e.g. after a semantic-guard rule change). Cached entries with
+#: status == "blocked" are only served (without a new remote call) when
+#: their stored guard_version matches this constant; a mismatch is treated
+#: as a cache miss and the prompt is re-sent. Accepted cache entries are
+#: never gated by this version.
+_BLOCKED_GUARD_VERSION = 1
+
 
 class LLMAdapter:
     def __init__(self, base: TemplateGenerator, cache_path: str | Path,
@@ -100,6 +108,18 @@ class LLMAdapter:
         prompt = self._prompt(author_id, personas, item.topic, tick)
         key = self.prompt_key(prompt)
         cached = self._cache.get(key)
+
+        if isinstance(cached, dict) and cached.get("status") == "blocked":
+            if cached.get("guard_version") == _BLOCKED_GUARD_VERSION:
+                reasons = cached.get("reason_codes", [])
+                self.on_degradation(
+                    f"semantic_mismatch:{','.join(reasons)}; "
+                    "cached blocked result; template text used")
+                return item
+            # guard_version mismatch: deliberate cache invalidation, treat
+            # as a miss so the prompt is re-sent and re-screened.
+            cached = None
+
         text = cached.get("text") if isinstance(cached, dict) else cached
         if text is None:
             if self._disabled:
@@ -116,6 +136,7 @@ class LLMAdapter:
                         "semantic_hash": semantic_hash(text),
                         "status": "blocked",
                         "reason_codes": reasons,
+                        "guard_version": _BLOCKED_GUARD_VERSION,
                     }
                     self._save_cache()
                     self.on_degradation(
