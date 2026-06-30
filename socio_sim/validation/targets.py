@@ -42,7 +42,12 @@ def hill_exponent(sample: np.ndarray, tail_fraction: float = 0.1) -> float:
     k = max(int(len(x) * tail_fraction), 10)
     tail = x[-k:]
     xmin = tail[0]
-    return 1.0 + k / float(np.sum(np.log(tail / xmin)))
+    # A degenerate tail (xmin <= 0, or every tail value equal) makes the Hill
+    # sum zero and the exponent undefined; return inf rather than dividing by 0.
+    denom = float(np.sum(np.log(tail / xmin))) if xmin > 0 else 0.0
+    if denom <= 0.0:
+        return float("inf")
+    return 1.0 + k / denom
 
 
 def ks_distance(sample_a: np.ndarray, sample_b: np.ndarray) -> float:

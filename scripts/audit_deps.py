@@ -6,6 +6,7 @@ which carry unrelated CVEs that socio_sim itself does not depend on or ship).
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
@@ -30,11 +31,17 @@ def main() -> int:
         print(f"  {d}")
     print()
 
-    result = subprocess.run(
-        [sys.executable, "-m", "pip_audit", "-r", req_path],
-        cwd=ROOT,
-    )
-    return result.returncode
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip_audit", "-r", req_path],
+            cwd=ROOT,
+        )
+        return result.returncode
+    finally:
+        try:
+            os.unlink(req_path)
+        except OSError:
+            pass
 
 
 if __name__ == "__main__":

@@ -221,7 +221,7 @@ Infrastructure flags: `--web` (browser console), `--port N` / `--bind HOST`
   (web export `?fmt=transparency`); policy packs carry statute citations and
   `legal_uncertainty` notes.
 - **Tests/CI:** `python -m pytest` (including property-based tests) + `ruff`,
-  92.43% coverage in the latest release-gate run (296 tests); GitHub Actions
+  92.78% coverage in the latest release-gate run (301 tests); GitHub Actions
   enforces both with an 85% coverage gate and scenario linting. See
   `AUDIT_LOG.md`, `KNOWN_LIMITATIONS.md`, `SOURCE_LEDGER.md`, `CHANGELOG.md`.
 - **Docker:** `docker build -t sociosim . && docker run --rm sociosim`
