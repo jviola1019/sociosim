@@ -136,7 +136,10 @@ def _jsonable(obj):
 
 
 _MISSING = object()
-_PROFILES = {"quick", "test", "standard", "aggregate_matched_prototype", "calibrated"}
+#: Publicly selectable profiles. "calibrated" is intentionally absent: it is
+#: not advertised or accepted as a fresh choice, only migrated (see
+#: _migrate_legacy_profile) when an old saved request/script still sends it.
+_PROFILES = {"quick", "test", "standard", "aggregate_matched_prototype"}
 _GRAPH_KINDS = {"ba", "plc", "ws", "sbm"}
 _AGE_SEGMENTS = {"13-17", "18-24", "25-34", "35-49", "50-64", "65+"}
 
@@ -189,6 +192,14 @@ def _choice_list(body, key, default, allowed: set) -> tuple:
     return tuple(vals)
 
 
+def _migrate_legacy_profile(raw: str) -> str:
+    """Explicit migration path for old saved requests/scripts that still send
+    profile=='calibrated'. Not advertised in _PROFILES or the UI; exists only
+    so a stale client doesn't hard-fail. Maps to the current, honestly-named
+    equivalent (RunConfig.aggregate_matched_prototype)."""
+    return "aggregate_matched_prototype" if raw == "calibrated" else raw
+
+
 def _build_config(body: dict) -> RunConfig:
     """Map the granular web form into a validated RunConfig.
 
@@ -196,11 +207,12 @@ def _build_config(body: dict) -> RunConfig:
     moderation / feed / ads). A profile sets the scale baseline; explicit
     agents/ticks override it.
     """
+    body = dict(body)
+    body["profile"] = _migrate_legacy_profile(body.get("profile", "quick"))
     profile = _choice(body, "profile", "quick", _PROFILES)
     factory = {"quick": RunConfig.quick, "test": RunConfig.test,
                "standard": RunConfig.standard,
-               "aggregate_matched_prototype": RunConfig.aggregate_matched_prototype,
-               "calibrated": RunConfig.calibrated}[profile]
+               "aggregate_matched_prototype": RunConfig.aggregate_matched_prototype}[profile]
 
     jurisdictions = _choice_list(body, "jurisdictions", ["EU"], {"US", "EU", "CN"})
     raw_red_team = body.get("red_team", [])
@@ -224,14 +236,14 @@ def _build_config(body: dict) -> RunConfig:
         if f"rate_{cat}" in body:
             base_rates[cat] = _f(body, f"rate_{cat}", base_rates.get(cat, 0.0))
 
-    graph_default = "plc" if profile in {"calibrated", "aggregate_matched_prototype"} else "ba"
+    graph_default = "plc" if profile == "aggregate_matched_prototype" else "ba"
     graph_kind = _choice(body, "graph_kind", graph_default, _GRAPH_KINDS)
     # SBM blocks must sum to the agent count (else the graph has a different node
     # count than n_agents -> engine indexing error). Derive from the effective n.
     _prof_n = {"quick": 1000, "test": 200, "standard": 10000,
-               "calibrated": 1000, "aggregate_matched_prototype": 1000}.get(profile, 1000)
+               "aggregate_matched_prototype": 1000}.get(profile, 1000)
     _prof_ticks = {"quick": 168, "test": 48, "standard": 672,
-                   "calibrated": 168, "aggregate_matched_prototype": 168}.get(profile, 168)
+                   "aggregate_matched_prototype": 168}.get(profile, 168)
     _n = _f(body, "n_agents", _prof_n)
     _half = _n // 2
     if graph_kind == "ba":

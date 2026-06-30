@@ -70,6 +70,27 @@ def test_build_config_parses_boolean_strings_and_preserves_aggregate_profile():
     assert cfg.ftc_enabled is False and cfg.ads_enabled is True
 
 
+def test_calibrated_profile_not_publicly_advertised():
+    assert "calibrated" not in app._PROFILES
+
+
+def test_legacy_calibrated_profile_migrates_to_aggregate_matched_prototype():
+    """Old saved requests/scripts may still send profile=='calibrated'; it
+    must be silently migrated to the current name rather than exposed as a
+    normal choice or rejected outright."""
+    cfg = app._build_config({"profile": "calibrated"})
+    cfg2 = app._build_config({"profile": "aggregate_matched_prototype"})
+    assert cfg.graph_kind == cfg2.graph_kind == "plc"
+    assert cfg.graph_params == cfg2.graph_params == {"m": 5, "p": 0.7}
+    assert cfg.n_agents == cfg2.n_agents
+    assert cfg.n_ticks == cfg2.n_ticks
+
+
+def test_unknown_profile_still_rejected():
+    with pytest.raises(ValueError, match="profile"):
+        app._build_config({"profile": "made_up_profile"})
+
+
 def test_template_classifier_ignores_precision_targets_for_identity():
     a = app._build_config({"classifier_mode": "synthetic_template_classifier",
                            "classifier_precision": 0.5, "classifier_recall": 0.5})
