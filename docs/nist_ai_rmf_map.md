@@ -22,8 +22,12 @@ adoption; trustworthiness across design, development, deployment).
 
 - Uncertainty quantification mandatory: bootstrap CIs, Beta-Binomial
   posteriors, Monte Carlo percentile intervals on all reported metrics.
-- Calibration measured against named benchmark targets (implausibility scores,
-  KS distances); history matching + ABC give parameter credible intervals.
+- Synthetic target-distance diagnostic computed against named legacy
+  benchmark targets (target-distance scores, KS distances); these targets are
+  evidence-kind `unsupported` (incomplete source metadata — see
+  `SOURCE_LEDGER.md`) and the diagnostic is a mechanism check, not an
+  empirical calibration claim. History matching + ABC give parameter credible
+  intervals under the same synthetic-scenario caveat.
 - Global sensitivity analysis identifies variance-driving parameters.
 - Moderation quality measured as precision/recall/FPR/FNR with per-group
   disparity reporting.
@@ -36,5 +40,5 @@ adoption; trustworthiness across design, development, deployment).
   never silent.
 - Full reproducibility: append-only logs + manifests + bit-identical replay
   verification support audit and incident review.
-- Red-team scenario suite shipped and run as part of validation
+- Red-team scenario suite shipped and run as part of the automated test suite
   (`experiments.scenarios.red_team_suite`).
