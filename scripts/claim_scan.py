@@ -62,6 +62,7 @@ STALE_PHRASES = [
 ALLOW = (
     "scripts/claim_scan.py",
     "scripts/asset_qa.py",
+    "tests/test_claim_scan.py",
     "AUDIT_REMEDIATION_REPORT.md",
     "BASELINE_AUDIT_SNAPSHOT.md",
     "AUDIT_LOG.md",
