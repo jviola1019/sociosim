@@ -2,8 +2,8 @@
 
 This is an evidence-first remediation program, on branch
 `fix/p0-llm-cache-and-audit-hardening` (PR #5, open against `main`, CI green
-through the R6+R9 commit `6318a2e`; the R8 commit below is pending push+CI
-verification as this note is written). Current boundaries:
+at `fc625fc` — confirmed via `gh run watch` on both the push and
+pull_request runs, not just locally). Current boundaries:
 
 - Runtime classifier modes are synthetic mechanics modes.
 - Built-in defaults are scenario assumptions unless a user supplies evidence,
@@ -25,13 +25,55 @@ verification as this note is written). Current boundaries:
 - "calibrated" is not a publicly selectable profile; it migrates to
   `aggregate_matched_prototype` only through `_migrate_legacy_profile`.
 - A cached LLM response with `status: "blocked"` is never served as content
-  and never triggers a new remote call (see `llm_adapter.py::generate`).
+  and never triggers a new remote call, **for both `LLMAdapter` and
+  `ClaudeAdapter`** — this was only true for `LLMAdapter` until session
+  2026-07-02 found `ClaudeAdapter` still had the identical bug (see
+  `AUDIT_LOG.md` "R2-LLMCACHE was incomplete"). Both now share one trust
+  decision via `socio_sim/content/llm_cache.py::resolve()`.
+- Cache entries are tamper-evident: a `record_hash` binds `(text, status,
+  reason_codes)` together; a mismatch or an unrecognized `status` value is
+  discarded as untrustworthy rather than served (see `AUDIT_LOG.md`
+  R12-CACHETAMPER). This is a plain integrity check, not a defense against
+  an adversary who can also recompute the hash — see `llm_cache.py`'s
+  docstring for the explicit scope boundary.
 - (as of R8) `scripts/claim_scan.py` is a real context-aware scanner, not a
-  10-phrase blacklist — see below and `AUDIT_LOG.md` R8-CLAIMSCAN.
+  10-phrase blacklist — see below and `AUDIT_LOG.md` R8-CLAIMSCAN. **R8 was
+  originally pushed with CI red** (its own test fixture tripped its own
+  scanner — see `AUDIT_LOG.md` R11-CISELFFLAG); fixed and CI-reverified
+  2026-07-02.
 
 **Read `AUDIT_REMEDIATION_REPORT.md`'s addendum first**, then `AUDIT_LOG.md`'s
 dated session sections in order. Do not assume anything in this repo is done
-because a prior report says so — re-run the check.
+because a prior report says so — re-run the check. This is not hypothetical:
+R8 was pushed with CI genuinely red, and R2-LLMCACHE's "DONE" status was true
+for one of two adapters implementing the same logic and false for the other,
+both caught only by re-running gates from a clean checkout rather than
+trusting the written record (see [[sociosim-audit-reports-overclaim-reverify]]).
+
+## Session 2026-07-02: fixed CI red (R11) + a real second instance of the P0 (R2/R12)
+
+Before continuing to R7-ASSETART (the item flagged below as the next planned
+segment), re-verified this branch's own CI status per project policy and
+found the last two pushes both `failure`. Root-caused and fixed (R11), then
+while independently re-verifying the R2-LLMCACHE "DONE" claim against the
+user's original 8-scenario regression-test requirement, found `ClaudeAdapter`
+— a separate, live, tested content mode — still had the exact same
+blocked-cache-bypass bug, plus a genuine gap in both adapters for the
+"tampered cache data" scenario. Fixed both (R2-completion + R12), extracting
+shared trust logic into `llm_cache.py` so the two adapters can't diverge on
+this again. 24 new tests; full suite 324 passed, 0 failed; ruff/evidence_gate/
+claim_scan/secret_scan/asset_qa/bandit/pip-audit/wheel-build all clean;
+CI-verified green on both the push and pull_request runs via `gh run watch`
+(not just `gh run list`, which showed a misleadingly stale duration for
+several minutes on a run that was in fact progressing normally — cross-check
+step timestamps via the GitHub API if `gh run list`'s duration column looks
+stuck). See `AUDIT_LOG.md` for full detail.
+
+**R7-ASSETART remains the one large item from the original brief's "confirmed
+still incomplete" list; it was not started this session** (this session's
+scope was entirely the CI-red fix and the newly-discovered duplicate P0,
+which took priority as live, verified defects over the already-sized,
+already-planned asset-generation work).
 
 ## Session 2026-06-30 (part 2): R6, R9, R8 done. R7 is the one big remaining item.
 
