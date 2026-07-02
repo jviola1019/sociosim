@@ -125,12 +125,19 @@ def load(path: Path, on_error=None) -> dict:
     if not path.exists():
         return {}
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         if on_error is not None:
             on_error(f"cache file is corrupt ({exc!r}); starting with an "
                       "empty cache")
         return {}
+    if not isinstance(data, dict):
+        if on_error is not None:
+            on_error(f"cache file is not a JSON object "
+                     f"(got {type(data).__name__}); starting with an "
+                     "empty cache")
+        return {}
+    return data
 
 
 def save(path: Path, cache: dict) -> None:
