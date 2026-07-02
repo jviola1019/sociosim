@@ -10,14 +10,14 @@ without network access. Any failure degrades to template text and reports it
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 from pathlib import Path
 from typing import Callable
 
+from socio_sim.content import llm_cache
 from socio_sim.content.generate import TOPICS, TemplateGenerator
 from socio_sim.content.items import ContentItem
-from socio_sim.content.semantic_guard import check_generated_text, semantic_hash
+from socio_sim.content.semantic_guard import check_generated_text
 
 MODEL = "claude-haiku-4-5-20251001"  # cheapest adequate model for persona posts
 
@@ -38,9 +38,7 @@ class ClaudeAdapter:
         self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         self.MODEL = model or MODEL
         self.on_degradation = on_degradation
-        self._cache: dict = {}
-        if self.cache_path.exists():
-            self._cache = json.loads(self.cache_path.read_text(encoding="utf-8"))
+        self._cache: dict = llm_cache.load(self.cache_path, on_error=self.on_degradation)
         self._client = None
         if self.api_key:
             try:
@@ -66,18 +64,23 @@ class ClaudeAdapter:
         )
 
     def cache_hash(self) -> str | None:
-        if not self.cache_path.exists():
-            return None
-        return hashlib.sha256(self.cache_path.read_bytes()).hexdigest()
+        return llm_cache.file_hash(self.cache_path)
+
+    def _apply_text(self, item: ContentItem, text: str) -> None:
+        item.text = (_CN_LABEL_PREFIX + text) if item.explicit_label else text
 
     def generate(self, author_id: int, personas, tick: int) -> ContentItem:
         item = self.base.generate(author_id, personas, tick)
         key = self.prompt_key(author_id, personas, tick, item.topic, item.stance)
-        if key in self._cache:
-            cached = self._cache[key]
-            text = cached.get("text") if isinstance(cached, dict) else cached
-            item.text = (_CN_LABEL_PREFIX if item.explicit_label else "") + text
-            return item
+        lookup = llm_cache.resolve(self._cache.get(key))
+
+        if lookup.degradation:
+            self.on_degradation(lookup.degradation)
+        if lookup.hit:
+            if lookup.text is not None:
+                self._apply_text(item, lookup.text)
+            return item  # blocked or tamper-free accepted hit; never re-call
+
         if self._client is None:
             self.on_degradation("no API key or anthropic package; template text used")
             return item
@@ -90,28 +93,16 @@ class ClaudeAdapter:
             text = resp.content[0].text.strip()
             reasons = check_generated_text(text, item)
             if reasons:
-                self._cache[key] = {
-                    "text": text,
-                    "semantic_hash": semantic_hash(text),
-                    "status": "blocked",
-                    "reason_codes": reasons,
-                }
-                self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-                self.cache_path.write_text(
-                    json.dumps(self._cache, sort_keys=True), encoding="utf-8")
+                self._cache[key] = llm_cache.make_entry(
+                    text, "blocked", reasons,
+                    guard_version=llm_cache.BLOCKED_GUARD_VERSION)
+                llm_cache.save(self.cache_path, self._cache)
                 self.on_degradation(
                     f"semantic_mismatch:{','.join(reasons)}; template text used")
                 return item
-            self._cache[key] = {
-                "text": text,
-                "semantic_hash": semantic_hash(text),
-                "status": "accepted",
-                "reason_codes": [],
-            }
-            self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-            self.cache_path.write_text(
-                json.dumps(self._cache, sort_keys=True), encoding="utf-8")
-            item.text = (_CN_LABEL_PREFIX if item.explicit_label else "") + text
+            self._cache[key] = llm_cache.make_entry(text, "accepted", [])
+            llm_cache.save(self.cache_path, self._cache)
+            self._apply_text(item, text)
             return item
         except Exception as exc:  # degrade loudly, keep the run going
             self.on_degradation(f"LLM call failed: {exc!r}; template text used")

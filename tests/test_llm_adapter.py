@@ -248,7 +248,10 @@ def test_legacy_cache_entry_without_status_field_treated_as_accepted(tmp_path):
     adapter.generate(1, personas, tick=3)
     cache = json.loads(cache_path.read_text())
     key = next(iter(cache))
-    del cache[key]["status"]  # simulate a pre-status-field cache record
+    # Simulate a genuine pre-schema cache record: status and record_hash
+    # didn't exist yet, so a real legacy record has neither field.
+    del cache[key]["status"]
+    del cache[key]["record_hash"]
     cache_path.write_text(json.dumps(cache))
 
     def exploding(prompt):
@@ -288,8 +291,8 @@ def test_blocked_cache_invalidated_by_deliberate_guard_version_bump(tmp_path, mo
     cache = json.loads(cache_path.read_text())
     assert list(cache.values())[0]["status"] == "blocked"
 
-    import socio_sim.content.llm_adapter as llm_adapter_module
-    monkeypatch.setattr(llm_adapter_module, "_BLOCKED_GUARD_VERSION", 2)
+    from socio_sim.content import llm_cache
+    monkeypatch.setattr(llm_cache, "BLOCKED_GUARD_VERSION", 2)
 
     calls = []
 
@@ -302,6 +305,78 @@ def test_blocked_cache_invalidated_by_deliberate_guard_version_bump(tmp_path, mo
     item = adapter2.generate(1, personas, tick=3)
     assert len(calls) == 1, "a guard-version bump must force re-evaluation"
     assert item.text == "totally fine local news text"
+
+
+def test_tampered_cache_entry_is_discarded_and_not_served(tmp_path):
+    """Regression for cache poisoning: an entry that was blocked, then had
+    its status hand-edited to 'accepted' without recomputing record_hash,
+    must never be served -- the tamper must be detected and the prompt
+    regenerated from a fresh, re-screened call rather than trusted."""
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "email me at a@b.com")
+    adapter.generate(1, personas, tick=3)
+    cache = json.loads(cache_path.read_text())
+    key = next(iter(cache))
+    assert cache[key]["status"] == "blocked"
+    cache[key]["status"] = "accepted"  # forged after the fact, hash untouched
+    cache_path.write_text(json.dumps(cache))
+
+    calls = []
+    degradations = []
+
+    def safe_text(prompt):
+        calls.append(prompt)
+        return "totally fine local news text"
+
+    adapter2 = LLMAdapter(base=setup()[0], cache_path=cache_path, backend="ollama",
+                          transport=safe_text, on_degradation=degradations.append)
+    item = adapter2.generate(1, personas, tick=3)
+    assert len(calls) == 1, "a tampered entry must not be trusted -- must re-fetch"
+    assert item.text == "totally fine local news text"
+    assert "email me" not in item.text
+    assert any("cache_tampered" in d for d in degradations)
+
+
+def test_tampered_cache_text_swap_is_discarded_and_not_served(tmp_path):
+    """A different tamper shape: text swapped on an accepted entry without
+    recomputing record_hash. Must not be served verbatim."""
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "totally fine accepted text")
+    adapter.generate(1, personas, tick=3)
+    cache = json.loads(cache_path.read_text())
+    key = next(iter(cache))
+    cache[key]["text"] = "swapped-in text the guard never screened"
+    cache_path.write_text(json.dumps(cache))
+
+    calls = []
+
+    def safe_text(prompt):
+        calls.append(prompt)
+        return "regenerated safe text"
+
+    adapter2 = LLMAdapter(base=setup()[0], cache_path=cache_path, backend="ollama",
+                          transport=safe_text)
+    item = adapter2.generate(1, personas, tick=3)
+    assert len(calls) == 1
+    assert item.text == "regenerated safe text"
+    assert "swapped-in" not in item.text
+
+
+def test_corrupt_cache_file_is_treated_as_empty_not_a_crash(tmp_path):
+    cache_path = tmp_path / "cache.json"
+    cache_path.write_text("{not valid json at all", encoding="utf-8")
+    gen, personas = setup()
+    degradations = []
+    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "fresh safe text",
+                         on_degradation=degradations.append)
+    item = adapter.generate(1, personas, tick=0)
+    assert item.text == "fresh safe text"
+    assert any("corrupt" in d for d in degradations)
 
 
 def test_cache_hash_stable_and_changes(tmp_path):

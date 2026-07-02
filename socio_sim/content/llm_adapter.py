@@ -20,9 +20,10 @@ import urllib.request
 from pathlib import Path
 from typing import Callable
 
+from socio_sim.content import llm_cache
 from socio_sim.content.generate import TOPICS, TemplateGenerator
 from socio_sim.content.items import ContentItem
-from socio_sim.content.semantic_guard import check_generated_text, semantic_hash
+from socio_sim.content.semantic_guard import check_generated_text
 
 DEFAULT_MODELS = {
     "ollama": "qwen2.5:0.5b",          # ~400MB pull; adequate for short posts
@@ -43,14 +44,6 @@ _PROMPT_TEMPLATE = (
 #: CN explicit-label prefix that must survive text replacement.
 _CN_LABEL_PREFIX = "[AI-generated content] "
 
-#: Bump to deliberately force re-evaluation of previously blocked prompts
-#: (e.g. after a semantic-guard rule change). Cached entries with
-#: status == "blocked" are only served (without a new remote call) when
-#: their stored guard_version matches this constant; a mismatch is treated
-#: as a cache miss and the prompt is re-sent. Accepted cache entries are
-#: never gated by this version.
-_BLOCKED_GUARD_VERSION = 1
-
 
 class LLMAdapter:
     def __init__(self, base: TemplateGenerator, cache_path: str | Path,
@@ -70,9 +63,7 @@ class LLMAdapter:
         self.timeout = timeout
         self.transport = transport or self._http_transport
         self.cache_path = Path(cache_path)
-        self._cache: dict = {}
-        if self.cache_path.exists():
-            self._cache = json.loads(self.cache_path.read_text(encoding="utf-8"))
+        self._cache: dict = llm_cache.load(self.cache_path, on_error=self.on_degradation)
         # After this many consecutive transport failures we stop calling out and
         # degrade instantly — avoids minutes of per-call connect timeouts when a
         # local server is down. Reset on any success.
@@ -93,78 +84,59 @@ class LLMAdapter:
         return hashlib.sha256(f"{self.model}|{prompt}".encode()).hexdigest()
 
     def cache_hash(self) -> str | None:
-        if not self.cache_path.exists():
-            return None
-        return hashlib.sha256(self.cache_path.read_bytes()).hexdigest()
+        return llm_cache.file_hash(self.cache_path)
 
     def _save_cache(self):
-        self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-        self.cache_path.write_text(json.dumps(self._cache, sort_keys=True),
-                                   encoding="utf-8")
+        llm_cache.save(self.cache_path, self._cache)
+
+    def _apply_text(self, item: ContentItem, text: str) -> None:
+        # Preserve the CN explicit label when replacing surface text.
+        item.text = (_CN_LABEL_PREFIX + text) if item.explicit_label else text
 
     # -- generation ----------------------------------------------------------
     def generate(self, author_id: int, personas, tick: int) -> ContentItem:
         item = self.base.generate(author_id, personas, tick)
         prompt = self._prompt(author_id, personas, item.topic, tick)
         key = self.prompt_key(prompt)
-        cached = self._cache.get(key)
+        lookup = llm_cache.resolve(self._cache.get(key))
 
-        if isinstance(cached, dict) and cached.get("status") == "blocked":
-            if cached.get("guard_version") == _BLOCKED_GUARD_VERSION:
-                reasons = cached.get("reason_codes", [])
-                self.on_degradation(
-                    f"semantic_mismatch:{','.join(reasons)}; "
-                    "cached blocked result; template text used")
-                return item
-            # guard_version mismatch: deliberate cache invalidation, treat
-            # as a miss so the prompt is re-sent and re-screened.
-            cached = None
+        if lookup.degradation:
+            self.on_degradation(lookup.degradation)
+        if lookup.hit:
+            if lookup.text is not None:
+                self._apply_text(item, lookup.text)
+            return item  # blocked or tamper-free accepted hit; never re-call
 
-        text = cached.get("text") if isinstance(cached, dict) else cached
-        if text is None:
-            if self._disabled:
-                return item  # already gave up; serve template silently
-            try:
-                text = (self.transport(prompt) or "").strip()
-                if not text:
-                    raise ValueError("empty LLM response")
-                text = " ".join(text.split())[:280]
-                reasons = check_generated_text(text, item)
-                if reasons:
-                    self._cache[key] = {
-                        "text": text,
-                        "semantic_hash": semantic_hash(text),
-                        "status": "blocked",
-                        "reason_codes": reasons,
-                        "guard_version": _BLOCKED_GUARD_VERSION,
-                    }
-                    self._save_cache()
-                    self.on_degradation(
-                        f"semantic_mismatch:{','.join(reasons)}; template text used")
-                    return item
-                self._cache[key] = {
-                    "text": text,
-                    "semantic_hash": semantic_hash(text),
-                    "status": "accepted",
-                    "reason_codes": [],
-                }
+        if self._disabled:
+            return item  # already gave up; serve template silently
+        try:
+            text = (self.transport(prompt) or "").strip()
+            if not text:
+                raise ValueError("empty LLM response")
+            text = " ".join(text.split())[:280]
+            reasons = check_generated_text(text, item)
+            if reasons:
+                self._cache[key] = llm_cache.make_entry(
+                    text, "blocked", reasons,
+                    guard_version=llm_cache.BLOCKED_GUARD_VERSION)
                 self._save_cache()
-                self._fail_streak = 0
-            except Exception as exc:
-                self._fail_streak += 1
                 self.on_degradation(
-                    f"{self.backend} call failed: {exc!r}; template text used")
-                if self._fail_streak >= self._give_up_after:
-                    self._disabled = True
-                    self.on_degradation(
-                        f"{self.backend} unreachable after {self._fail_streak} "
-                        f"attempts; using template text for the rest of this run")
+                    f"semantic_mismatch:{','.join(reasons)}; template text used")
                 return item
-        # Preserve the CN explicit label when replacing surface text.
-        if item.explicit_label:
-            item.text = _CN_LABEL_PREFIX + text
-        else:
-            item.text = text
+            self._cache[key] = llm_cache.make_entry(text, "accepted", [])
+            self._save_cache()
+            self._fail_streak = 0
+        except Exception as exc:
+            self._fail_streak += 1
+            self.on_degradation(
+                f"{self.backend} call failed: {exc!r}; template text used")
+            if self._fail_streak >= self._give_up_after:
+                self._disabled = True
+                self.on_degradation(
+                    f"{self.backend} unreachable after {self._fail_streak} "
+                    f"attempts; using template text for the rest of this run")
+            return item
+        self._apply_text(item, text)
         return item
 
     # -- transports ----------------------------------------------------------
