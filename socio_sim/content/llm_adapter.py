@@ -108,7 +108,10 @@ class LLMAdapter:
             return item  # blocked or tamper-free accepted hit; never re-call
 
         if self._disabled:
-            return item  # already gave up; serve template silently
+            self.on_degradation(
+                f"{self.backend} disabled after repeated failures; "
+                f"template text used")
+            return item
         try:
             text = (self.transport(prompt) or "").strip()
             if not text:
