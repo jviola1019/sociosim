@@ -86,8 +86,10 @@ def resolve(cached: object) -> CacheLookup:
         return CacheLookup(hit=False, text=None, degradation=None)
 
     if not isinstance(cached, dict):
-        # Legacy bare-string entry: predates status/tampering fields.
-        return CacheLookup(hit=True, text=str(cached), degradation=None)
+        # Legacy bare-string entry: predates status/tampering fields, so it
+        # was never screened under the current guard — treat as a miss so
+        # the text is regenerated and freshly re-screened.
+        return CacheLookup(hit=False, text=None, degradation=None)
 
     text = cached.get("text")
     status = cached.get("status")
@@ -116,7 +118,12 @@ def resolve(cached: object) -> CacheLookup:
         # guard_version mismatch: deliberate invalidation, re-screen.
         return CacheLookup(hit=False, text=None, degradation=None)
 
-    # status == "accepted", or a legacy dict without a status field.
+    if status is None:
+        # Legacy dict without a status field: never screened under the
+        # current guard — treat as a miss and re-screen.
+        return CacheLookup(hit=False, text=None, degradation=None)
+
+    # status == "accepted".
     return CacheLookup(hit=True, text=text, degradation=None)
 
 

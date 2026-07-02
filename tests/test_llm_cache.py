@@ -15,18 +15,22 @@ def test_missing_entry_is_a_plain_miss():
     assert lookup.degradation is None
 
 
-def test_legacy_bare_string_entry_is_trusted_accepted_hit():
+def test_legacy_bare_string_entry_triggers_rescreen():
+    # E1 fix: legacy bare-string entries predate the guard schema and must
+    # be re-screened, not served as unconditional accepted hits.
     lookup = llm_cache.resolve("ancient cached text")
-    assert lookup.hit is True
-    assert lookup.text == "ancient cached text"
+    assert lookup.hit is False
+    assert lookup.text is None
     assert lookup.degradation is None
 
 
-def test_legacy_dict_without_status_is_trusted_accepted_hit():
+def test_legacy_dict_without_status_triggers_rescreen():
+    # E1 fix: status-less dict entries predate the guard schema and must
+    # be re-screened, not served as unconditional accepted hits.
     entry = {"text": "pre-status cached text"}
     lookup = llm_cache.resolve(entry)
-    assert lookup.hit is True
-    assert lookup.text == "pre-status cached text"
+    assert lookup.hit is False
+    assert lookup.text is None
     assert lookup.degradation is None
 
 

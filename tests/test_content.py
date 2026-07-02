@@ -260,7 +260,9 @@ def test_claude_cn_explicit_label_preserved_for_blocked_output(tmp_path):
     assert "email me" not in labelled_blocked.text
 
 
-def test_claude_legacy_cache_entry_without_status_field_treated_as_accepted(tmp_path):
+def test_claude_legacy_cache_entry_without_status_field_triggers_rescreen(tmp_path):
+    # E1 fix: status-less dict entries (pre-schema) must be re-screened via
+    # the LLM, not served as accepted hits. The LLM IS called for re-generation.
     gen, cfg = make_gen()
     p = personas()
     cache_path = tmp_path / "cache.json"
@@ -274,12 +276,16 @@ def test_claude_legacy_cache_entry_without_status_field_treated_as_accepted(tmp_
     del cache[key]["record_hash"]
     cache_path.write_text(json.dumps(cache))
 
-    def exploding(prompt):
-        raise AssertionError("must not call the LLM on a legacy cache hit")
+    rescreened_calls = []
 
-    adapter2 = _claude_adapter_with_client(make_gen()[0], cache_path, exploding)
+    def rescreening_llm(prompt):
+        rescreened_calls.append(prompt)
+        return "freshly screened replacement"
+
+    adapter2 = _claude_adapter_with_client(make_gen()[0], cache_path, rescreening_llm)
     item = adapter2.generate(1, p, tick=3)
-    assert item.text == "legacy accepted text"
+    assert len(rescreened_calls) == 1, "legacy entry must trigger re-screen LLM call"
+    assert item.text == "freshly screened replacement"
 
 
 def test_claude_blocked_cache_replay_is_deterministic(tmp_path):

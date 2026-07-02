@@ -240,7 +240,9 @@ def test_cn_explicit_label_preserved_for_blocked_output(tmp_path):
     assert "email me" not in labelled_blocked.text
 
 
-def test_legacy_cache_entry_without_status_field_treated_as_accepted(tmp_path):
+def test_legacy_cache_entry_without_status_field_triggers_rescreen(tmp_path):
+    # E1 fix: status-less dict entries (pre-schema) must be re-screened,
+    # not served as accepted hits. The transport IS called for re-generation.
     gen, personas = setup()
     cache_path = tmp_path / "cache.json"
     adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
@@ -254,16 +256,22 @@ def test_legacy_cache_entry_without_status_field_treated_as_accepted(tmp_path):
     del cache[key]["record_hash"]
     cache_path.write_text(json.dumps(cache))
 
-    def exploding(prompt):
-        raise AssertionError("must not call transport on a legacy cache hit")
+    rescreened_calls = []
+
+    def rescreening_transport(prompt):
+        rescreened_calls.append(prompt)
+        return "freshly screened text"
 
     adapter2 = LLMAdapter(base=setup()[0], cache_path=cache_path, backend="ollama",
-                          transport=exploding)
+                          transport=rescreening_transport)
     item = adapter2.generate(1, personas, tick=3)
-    assert item.text == "legacy accepted text"
+    assert len(rescreened_calls) == 1, "legacy entry must trigger re-screen transport call"
+    assert item.text == "freshly screened text"
 
 
-def test_legacy_bare_string_cache_entry_treated_as_accepted(tmp_path):
+def test_legacy_bare_string_cache_entry_triggers_rescreen(tmp_path):
+    # E1 fix: legacy bare-string entries must be re-screened, not served as
+    # accepted hits. The transport IS called for re-generation.
     gen, personas = setup()
     cache_path = tmp_path / "cache.json"
     adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
@@ -273,13 +281,17 @@ def test_legacy_bare_string_cache_entry_treated_as_accepted(tmp_path):
     key = next(iter(cache))
     cache_path.write_text(json.dumps({key: "ancient bare-string cached text"}))
 
-    def exploding(prompt):
-        raise AssertionError("must not call transport on a legacy cache hit")
+    rescreened_calls = []
+
+    def rescreening_transport(prompt):
+        rescreened_calls.append(prompt)
+        return "freshly screened replacement"
 
     adapter2 = LLMAdapter(base=setup()[0], cache_path=cache_path, backend="ollama",
-                          transport=exploding)
+                          transport=rescreening_transport)
     item = adapter2.generate(1, personas, tick=3)
-    assert item.text == "ancient bare-string cached text"
+    assert len(rescreened_calls) == 1, "legacy bare-string entry must trigger re-screen transport call"
+    assert item.text == "freshly screened replacement"
 
 
 def test_blocked_cache_invalidated_by_deliberate_guard_version_bump(tmp_path, monkeypatch):

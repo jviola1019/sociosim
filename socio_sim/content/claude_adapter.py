@@ -90,7 +90,10 @@ class ClaudeAdapter:
                 model=self.MODEL, max_tokens=80,
                 messages=[{"role": "user", "content": prompt}],
             )
-            text = resp.content[0].text.strip()
+            text = (resp.content[0].text or "").strip()
+            if not text:
+                raise ValueError("empty LLM response")
+            text = " ".join(text.split())[:280]
             reasons = check_generated_text(text, item)
             if reasons:
                 self._cache[key] = llm_cache.make_entry(
