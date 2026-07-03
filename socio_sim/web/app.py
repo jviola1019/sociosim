@@ -91,7 +91,10 @@ def _host_allowed(headers, server=None) -> bool:
     host = (headers.get("Host") or "").rsplit(":", 1)[0].strip("[]")
     allowed = set(_LOOPBACK_HOSTS)
     allowed.update(getattr(server, "allowed_hosts", set()) or set())
-    return not host or host in allowed
+    # F-02 fix: require a non-empty Host header. HTTP/1.1 mandates it and
+    # browsers always send it; allowing absent Host lets any HTTP/1.0-style
+    # client bypass the DNS-rebinding guard entirely.
+    return bool(host) and host in allowed
 
 HARMFUL_CATS = ("hate", "harassment", "fraud", "misinfo", "adult",
                 "illegal_goods", "self_harm")

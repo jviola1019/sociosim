@@ -95,6 +95,16 @@ def resolve(cached: object) -> CacheLookup:
     status = cached.get("status")
     reasons = cached.get("reason_codes") or []
 
+    if status is not None and "record_hash" not in cached:
+        # E-01 fix: any entry with a status field must have record_hash —
+        # make_entry() always writes both. An entry with status but no hash
+        # was hand-edited or field-deleted (naive tampering the module
+        # docstring explicitly claims to catch). Treat as tampered/miss.
+        return CacheLookup(
+            hit=False, text=None,
+            degradation="cache_tampered:status_without_record_hash; "
+                        "entry discarded and regenerated")
+
     if "record_hash" in cached:
         expected = record_hash(text or "", status or "", reasons)
         if cached["record_hash"] != expected:
@@ -132,27 +142,4 @@ def load(path: Path, on_error=None) -> dict:
     if not path.exists():
         return {}
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        if on_error is not None:
-            on_error(f"cache file is corrupt ({exc!r}); starting with an "
-                      "empty cache")
-        return {}
-    if not isinstance(data, dict):
-        if on_error is not None:
-            on_error(f"cache file is not a JSON object "
-                     f"(got {type(data).__name__}); starting with an "
-                     "empty cache")
-        return {}
-    return data
-
-
-def save(path: Path, cache: dict) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(cache, sort_keys=True), encoding="utf-8")
-
-
-def file_hash(path: Path) -> str | None:
-    if not path.exists():
-        return None
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+        dat
