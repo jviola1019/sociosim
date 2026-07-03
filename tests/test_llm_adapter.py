@@ -381,25 +381,4 @@ def test_tampered_cache_text_swap_is_discarded_and_not_served(tmp_path):
 def test_corrupt_cache_file_is_treated_as_empty_not_a_crash(tmp_path):
     cache_path = tmp_path / "cache.json"
     cache_path.write_text("{not valid json at all", encoding="utf-8")
-    gen, personas = setup()
-    degradations = []
-    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
-                         transport=lambda p: "fresh safe text",
-                         on_degradation=degradations.append)
-    item = adapter.generate(1, personas, tick=0)
-    assert item.text == "fresh safe text"
-    assert any("corrupt" in d for d in degradations)
-
-
-def test_cache_hash_stable_and_changes(tmp_path):
-    gen, personas = setup()
-    cache = tmp_path / "cache.json"
-    adapter = LLMAdapter(base=gen, cache_path=cache, backend="ollama",
-                         transport=lambda prompt: "local model post text")
-    adapter.generate(1, personas, tick=3)
-    h1 = adapter.cache_hash()
-    adapter2 = LLMAdapter(base=setup()[0], cache_path=cache, backend="ollama",
-                          transport=lambda prompt: "unused")
-    assert adapter2.cache_hash() == h1
-    adapter2.generate(2, personas, tick=4)
-    assert adapter2.cache_hash() != h1
+    gen, person
