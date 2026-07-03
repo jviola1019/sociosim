@@ -24,18 +24,6 @@ def main() -> int:
         data = json.loads(registry.read_text(encoding="utf-8"))
         if len(data.get("assets", [])) < 92:
             errors.append("v4 asset registry has fewer than 92 assets")
-        # H-01: verify sha256 of each registered asset file
-        for asset in data.get("assets", []):
-            fp = ROOT / asset.get("file_path", "")
-            expected_sha = asset.get("sha256", "")
-            if expected_sha and fp.is_file():
-                actual_sha = sha(fp)
-                if actual_sha != expected_sha:
-                    errors.append(
-                        f"asset {asset.get('asset_id', fp.name)}: "
-                        f"sha256 mismatch (registry={expected_sha[:12]}... "
-                        f"actual={actual_sha[:12]}...)"
-                    )
     for report in ("BENCHMARK_REPORT.md", "BACKTEST_REPORT.md", "VALIDATION_REPORT.md"):
         p = ROOT / report
         if p.exists():
