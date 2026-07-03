@@ -75,11 +75,7 @@ class RunStore:
             "n_events": result.get("n_events"),
             "elapsed_s": result.get("elapsed_s"),
             "implausibility": result.get("implausibility"),
-            # C-01: NULL=skipped, 0=checked+failed, 1=checked+ok
-            "replay_ok": (
-                None if not (result.get("replay") or {}).get("checked")
-                else int(bool((result.get("replay") or {}).get("ok")))
-            ),
+            "replay_ok": int(bool((result.get("replay") or {}).get("ok"))),
             "harmful_rate": he.get("rate"),
             "mod_precision": mod.get("precision"),
             "mod_recall": mod.get("recall"),
