@@ -108,6 +108,22 @@ def _host_allowed(headers, server=None) -> bool:
 HARMFUL_CATS = ("hate", "harassment", "fraud", "misinfo", "adult",
                 "illegal_goods", "self_harm")
 
+#: Scenario-assumption defaults (A-01/A-02/A-03): illustrative synthetic
+#: operating points, NOT measured classifier benchmarks, DSA/industry
+#: statistics, or advertising benchmarks -- they merely resemble such
+#: figures. Each has a per-default provenance entry in
+#: socio_sim/data/scenario_assumptions.json (see SOURCE_LEDGER.md).
+DEFAULT_CLASSIFIER_PRECISION = 0.90
+DEFAULT_CLASSIFIER_RECALL = 0.85
+DEFAULT_EU_OPTOUT_RATE = 0.20
+DEFAULT_HUMAN_REVIEW_ACCURACY = 0.92
+DEFAULT_APPEAL_GRANT_FP_RATE = 0.70
+CAMPAIGN_ECON_DEFAULTS = {
+    "bid": 2.0, "budget": 100.0, "base_ctr": 0.012, "base_cvr": 0.05,
+    "conversion_value": 1.0, "ltv_multiplier": 3.0,
+    "attribution_window_ticks": 168,
+}
+
 _JOBS: dict = {}
 _LOCK = threading.Lock()
 
@@ -263,8 +279,8 @@ def _build_config(body: dict) -> RunConfig:
     classifier_mode = _choice(
         body, "classifier_mode", "synthetic_noise_classifier",
         {"synthetic_noise_classifier", "synthetic_template_classifier"})
-    prec = _f(body, "classifier_precision", 0.90)
-    rec = _f(body, "classifier_recall", 0.85)
+    prec = _f(body, "classifier_precision", DEFAULT_CLASSIFIER_PRECISION)
+    rec = _f(body, "classifier_recall", DEFAULT_CLASSIFIER_RECALL)
     classifier_targets = {c: {"precision": prec, "recall": rec}
                           for c in CATEGORIES}
     if classifier_mode == "synthetic_template_classifier":
@@ -311,7 +327,7 @@ def _build_config(body: dict) -> RunConfig:
         jurisdictions=jurisdictions,
         ftc_enabled=_bool(body, "ftc_enabled", True),
         feed_strategy=body.get("feed_strategy", "personalized"),
-        eu_optout_rate=_f(body, "eu_optout_rate", 0.20),
+        eu_optout_rate=_f(body, "eu_optout_rate", DEFAULT_EU_OPTOUT_RATE),
         exploration_epsilon=_f(body, "exploration_epsilon", 0.10),
         feed_size=int(_f(body, "feed_size", 20)),
         ad_slot_interval=int(_f(body, "ad_slot_interval", 5)),
@@ -332,9 +348,11 @@ def _build_config(body: dict) -> RunConfig:
         graph_kind=graph_kind,
         graph_params=graph_params,
         homophily_rewire_fraction=_f(body, "homophily_rewire_fraction", 0.15),
-        human_review_accuracy=_f(body, "human_review_accuracy", 0.92),
+        human_review_accuracy=_f(body, "human_review_accuracy",
+                                 DEFAULT_HUMAN_REVIEW_ACCURACY),
         human_review_delay_ticks=int(_f(body, "human_review_delay_ticks", 6)),
-        appeal_grant_fp_rate=_f(body, "appeal_grant_fp_rate", 0.70),
+        appeal_grant_fp_rate=_f(body, "appeal_grant_fp_rate",
+                                DEFAULT_APPEAL_GRANT_FP_RATE),
         red_team=red_team,
         root_seed=int(_f(body, "root_seed", 42)),
         tick_hours=int(_f(body, "tick_hours", 1)),
@@ -398,13 +416,23 @@ def _normalize_campaign_specs(body: dict) -> list[dict]:
                 if topic < 0:
                     raise ValueError(f"campaigns[{idx}].market: expected non-negative topic")
                 targeting["topics"] = [topic]
-            bid = c_float("bid", 2.0)
-            budget = c_float("budget", 100.0)
-            base_ctr = c_float("base_ctr", 0.012)
-            base_cvr = c_float("base_cvr", 0.05)
-            conversion_value = c_float("conversion_value", 1.0)
-            ltv_multiplier = c_float("ltv_multiplier", 3.0)
-            attribution_window_ticks = c_int("attribution_window_ticks", 168)
+            d = CAMPAIGN_ECON_DEFAULTS
+            bid = c_float("bid", d["bid"])
+            budget = c_float("budget", d["budget"])
+            base_ctr = c_float("base_ctr", d["base_ctr"])
+            base_cvr = c_float("base_cvr", d["base_cvr"])
+            conversion_value = c_float("conversion_value", d["conversion_value"])
+            ltv_multiplier = c_float("ltv_multiplier", d["ltv_multiplier"])
+            attribution_window_ticks = c_int(
+                "attribution_window_ticks", d["attribution_window_ticks"])
+            # A-03: record, per economics field, whether the value came from
+            # the user or is a scenario-assumption default -- these numbers
+            # resemble industry benchmarks and must not masquerade as such.
+            provenance = {
+                f: ("user_supplied" if s.get(f) not in (None, "")
+                    else "scenario_assumption_default")
+                for f in CAMPAIGN_ECON_DEFAULTS
+            }
             if bid <= 0:
                 raise ValueError(f"campaigns[{idx}].bid: must be positive")
             if budget <= 0:
@@ -431,6 +459,7 @@ def _normalize_campaign_specs(body: dict) -> list[dict]:
                 ltv_multiplier=ltv_multiplier,
                 attribution_window_ticks=attribution_window_ticks,
                 targeting=targeting,
+                economics_provenance=provenance,
             ))
         except (TypeError, ValueError):
             raise
@@ -445,7 +474,10 @@ def _campaigns_fn(body: dict):
     if not clean:
         return None
     from socio_sim.ads.campaigns import Campaign
-    return lambda cfg: [Campaign(**c) for c in clean]
+    # economics_provenance is payload metadata (A-03), not a Campaign field.
+    return lambda cfg: [
+        Campaign(**{k: v for k, v in c.items() if k != "economics_provenance"})
+        for c in clean]
 
 
 def _chart_data(result, summary) -> dict:
@@ -744,6 +776,10 @@ class Handler(BaseHTTPRequestHandler):
                 "adversaries": list(ADVERSARIES),
                 "harmful_categories": list(HARMFUL_CATS),
                 "defaults": RunConfig().category_base_rates,
+                # A-01/A-02: these defaults are scenario assumptions, not
+                # measured statistics; per-default provenance entries live
+                # in socio_sim/data/scenario_assumptions.json.
+                "defaults_provenance": "scenario_assumption",
                 "presets": PRESETS,
                 "assets": _asset_registry(),
                 "llm_available": server_up(_LLM_HOST, timeout=0.4),

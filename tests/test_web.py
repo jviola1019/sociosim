@@ -289,6 +289,39 @@ def test_campaign_specs_are_normalized_for_persistence():
     assert clean[0]["conversion_value"] == 6.0
 
 
+def test_a03_campaign_spec_provenance_distinguishes_defaults_from_user_input():
+    """A-03: campaign economics inputs look like industry benchmarks; each
+    normalized spec must record, per field, whether the value was
+    user-supplied or a scenario-assumption default."""
+    clean = app._normalize_campaign_specs({"campaigns": [
+        {"bid": 1, "budget": 100, "base_cvr": "0.04"}]})
+    prov = clean[0]["economics_provenance"]
+    assert prov["bid"] == "user_supplied"
+    assert prov["base_cvr"] == "user_supplied"
+    assert prov["base_ctr"] == "scenario_assumption_default"
+    assert prov["ltv_multiplier"] == "scenario_assumption_default"
+    assert prov["attribution_window_ticks"] == "scenario_assumption_default"
+
+
+def test_a03_campaigns_fn_still_builds_campaign_objects():
+    # The provenance field must not leak into Campaign(**spec).
+    fn = app._campaigns_fn({"campaigns": [{"bid": 1, "budget": 100}]})
+    camps = fn(None)
+    assert camps and camps[0].bid == 1.0
+
+
+def test_a01_a02_scenario_defaults_are_named_labeled_constants():
+    """A-01/A-02: classifier operating point and DSA-lookalike defaults come
+    from named scenario-assumption constants, not bare inline literals that
+    read like measured benchmarks."""
+    cfg = app._build_config({"profile": "test", "jurisdictions": ["EU"]})
+    assert cfg.classifier_targets["hate"]["precision"] == app.DEFAULT_CLASSIFIER_PRECISION
+    assert cfg.classifier_targets["hate"]["recall"] == app.DEFAULT_CLASSIFIER_RECALL
+    assert cfg.eu_optout_rate == app.DEFAULT_EU_OPTOUT_RATE
+    assert cfg.human_review_accuracy == app.DEFAULT_HUMAN_REVIEW_ACCURACY
+    assert cfg.appeal_grant_fp_rate == app.DEFAULT_APPEAL_GRANT_FP_RATE
+
+
 def test_campaign_specs_reject_non_deliverable_or_malformed_rows():
     bad_specs = [
         {"bid": 0, "budget": 100},
