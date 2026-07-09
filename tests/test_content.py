@@ -133,6 +133,28 @@ def test_claude_adapter_cache_and_fallback(tmp_path):
     assert item3.text == "cached post text"
 
 
+def test_claude_accepted_cache_invalidated_by_guard_version_bump(tmp_path, monkeypatch):
+    """E-01, ClaudeAdapter side: an accepted entry written under guard v1
+    must NOT be served after BLOCKED_GUARD_VERSION is bumped -- the sibling
+    adapter previously missed exactly this class of shared-logic fix."""
+    from socio_sim.content import llm_cache
+    cache = tmp_path / "llm_cache.json"
+    p = personas()
+    adapter_key = ClaudeAdapter(base=FixedBase(), cache_path=cache, api_key=None,
+                                on_degradation=lambda r: None)
+    key = adapter_key.prompt_key(author_id=2, personas=p, tick=0, topic=2, stance=0.1)
+    cache.write_text(json.dumps(
+        {key: llm_cache.make_entry("stale accepted text", "accepted", [])}),
+        encoding="utf-8")
+    monkeypatch.setattr(llm_cache, "BLOCKED_GUARD_VERSION", 2)
+    adapter = ClaudeAdapter(base=FixedBase(), cache_path=cache, api_key=None,
+                            on_degradation=lambda r: None)
+    item = adapter.generate(author_id=2, personas=p, tick=0)
+    # Stale accepted text must not be served; with no API key the adapter
+    # degrades to template text instead of re-screening.
+    assert item.text == "template"
+
+
 def test_claude_cache_key_includes_model_topic_and_tick(tmp_path):
     gen, _ = make_gen()
     p = personas()

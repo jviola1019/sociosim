@@ -95,6 +95,65 @@ def test_unknown_status_value_is_discarded_as_a_miss():
     assert "cache_tampered" in lookup.degradation
 
 
+def test_e01_make_entry_stamps_guard_version_on_accepted():
+    # E-01: accepted entries must record which guard screened them, so a
+    # guard-version bump re-screens accepted text too, not just blocked.
+    entry = llm_cache.make_entry("safe text", "accepted", [])
+    assert entry["guard_version"] == llm_cache.BLOCKED_GUARD_VERSION
+
+
+def test_e01_accepted_entry_with_stale_guard_version_is_a_miss(monkeypatch):
+    entry = llm_cache.make_entry("safe text", "accepted", [])
+    monkeypatch.setattr(llm_cache, "BLOCKED_GUARD_VERSION", 2)
+    lookup = llm_cache.resolve(entry)
+    assert lookup.hit is False
+    assert lookup.text is None
+    assert lookup.degradation is None  # deliberate invalidation, not tampering
+
+
+def test_e01_accepted_entry_without_guard_version_is_a_clean_miss():
+    # An accepted entry written before guard_version stamping existed was
+    # screened under an unknown guard: re-screen it, but do NOT report it
+    # as tampered -- its record_hash (old formula, no guard_version) is valid.
+    entry = {"text": "old accepted text", "status": "accepted",
+             "reason_codes": [],
+             "record_hash": llm_cache.record_hash(
+                 "old accepted text", "accepted", [])}
+    lookup = llm_cache.resolve(entry)
+    assert lookup.hit is False
+    assert lookup.text is None
+    assert lookup.degradation is None
+
+
+def test_e03_guard_version_edit_is_detected_as_tampering():
+    # E-03: guard_version is inside the record_hash envelope -- silently
+    # editing it (to dodge a re-screen) must read as tampering.
+    entry = llm_cache.make_entry("safe text", "accepted", [])
+    tampered = dict(entry)
+    tampered["guard_version"] = 999
+    lookup = llm_cache.resolve(tampered)
+    assert lookup.hit is False
+    assert lookup.text is None
+    assert "cache_tampered" in lookup.degradation
+
+
+def test_e03_dead_semantic_hash_field_no_longer_written():
+    # E-03: semantic_hash was written but never verified anywhere -- a dead
+    # integrity field giving false assurance. record_hash already binds the
+    # text; the redundant field is gone.
+    entry = llm_cache.make_entry("t", "accepted", [])
+    assert "semantic_hash" not in entry
+
+
+def test_e02_docstring_matches_safe_legacy_behavior():
+    # E-02: the module docstring is the authoritative trust-model statement;
+    # it must not claim legacy entries are "trusted as accepted" when the
+    # code (correctly) re-screens them. A doc-faithful "fix" of resolve()
+    # would reintroduce the original P0 cache bypass.
+    assert "trusted as accepted" not in llm_cache.__doc__
+    assert "miss" in llm_cache.__doc__.lower()
+
+
 def test_record_hash_changes_with_any_field():
     a = llm_cache.record_hash("t", "accepted", [])
     assert a != llm_cache.record_hash("different", "accepted", [])

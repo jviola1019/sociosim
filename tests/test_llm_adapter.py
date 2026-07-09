@@ -319,6 +319,60 @@ def test_blocked_cache_invalidated_by_deliberate_guard_version_bump(tmp_path, mo
     assert item.text == "totally fine local news text"
 
 
+def test_e01_accepted_cache_invalidated_by_deliberate_guard_version_bump(
+        tmp_path, monkeypatch):
+    """E-01: bumping BLOCKED_GUARD_VERSION must re-screen previously
+    ACCEPTED text too, not only previously blocked prompts -- otherwise text
+    accepted under an older, weaker guard is served verbatim forever and the
+    safety-relevant direction of a guard tightening never takes effect."""
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "benign text under the old guard")
+    adapter.generate(1, personas, tick=3)
+    cache = json.loads(cache_path.read_text())
+    assert list(cache.values())[0]["status"] == "accepted"
+
+    from socio_sim.content import llm_cache
+    monkeypatch.setattr(llm_cache, "BLOCKED_GUARD_VERSION", 2)
+
+    calls = []
+
+    def rescreen(prompt):
+        calls.append(prompt)
+        return "fresh text screened under the new guard"
+
+    adapter2 = LLMAdapter(base=setup()[0], cache_path=cache_path, backend="ollama",
+                          transport=rescreen)
+    item = adapter2.generate(1, personas, tick=3)
+    assert len(calls) == 1, "a guard-version bump must re-screen accepted entries"
+    assert item.text == "fresh text screened under the new guard"
+
+
+def test_e04_guard_blocked_response_resets_fail_streak(tmp_path):
+    """E-04: a transport success whose content the guard blocks is still a
+    transport SUCCESS and must reset the consecutive-failure streak. The
+    sequence fail, fail, blocked-success, fail must NOT disable a live
+    backend (give_up_after is 3 consecutive failures)."""
+    gen, personas = setup()
+    responses = iter(["FAIL", "FAIL", "local news email me at a@b.com", "FAIL"])
+
+    def flaky(prompt):
+        r = next(responses)
+        if r == "FAIL":
+            raise ConnectionError("transient")
+        return r
+
+    adapter = LLMAdapter(base=gen, cache_path=tmp_path / "c.json",
+                         backend="ollama", transport=flaky)
+    # Distinct days -> distinct prompts -> no cache hits between calls.
+    for tick in (24, 48, 72, 96):
+        adapter.generate(1, personas, tick=tick)
+    assert adapter._disabled is False, (
+        "a blocked-but-successful transport call must reset the fail streak")
+    assert adapter._fail_streak == 1  # only the final failure counts
+
+
 def test_tampered_cache_entry_is_discarded_and_not_served(tmp_path):
     """Regression for cache poisoning: an entry that was blocked, then had
     its status hand-edited to 'accepted' without recomputing record_hash,

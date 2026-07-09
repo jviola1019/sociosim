@@ -141,6 +141,10 @@ class LLMAdapter:
                     text, "blocked", reasons,
                     guard_version=llm_cache.BLOCKED_GUARD_VERSION)
                 self._save_cache()
+                # E-04: the transport call SUCCEEDED (only the content was
+                # rejected) -- reset the consecutive-failure streak so a
+                # live backend isn't disabled by interleaved guard blocks.
+                self._fail_streak = 0
                 self.on_degradation(
                     f"semantic_mismatch:{','.join(reasons)}; template text used")
                 return item

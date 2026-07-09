@@ -12,11 +12,11 @@ hand-edits, and naive tampering, not a sophisticated attacker with write
 access who also updates the hash to match their forged content):
 
 - A cache entry written by this module is a dict with `text`,
-  `status` ("accepted" | "blocked"), `reason_codes`, and a `record_hash`
-  binding all three together. Any entry whose `record_hash` doesn't match
-  its own (text, status, reason_codes) has been altered since it was
-  written and is discarded -- treated exactly like a cache miss, so the
-  prompt is regenerated and freshly re-screened.
+  `status` ("accepted" | "blocked"), `reason_codes`, `guard_version`, and a
+  `record_hash` binding all four together. Any entry whose `record_hash`
+  doesn't match its own fields has been altered since it was written and is
+  discarded -- treated exactly like a cache miss, so the prompt is
+  regenerated and freshly re-screened.
 - A `status == "blocked"` entry is never served as content, regardless of
   its stored text: it means the LLM response failed the semantic guard and
   the adapter must fall back to template text. It is honoured (no remote
@@ -24,10 +24,14 @@ access who also updates the hash to match their forged content):
   current `BLOCKED_GUARD_VERSION`; a mismatch means the guard's rules
   changed since this prompt was screened, so it is treated as a miss and
   re-sent.
-- Legacy entries (bare strings, or dicts without a `status` field) predate
-  this schema and are trusted as accepted text -- they cannot describe a
-  blocked result because that status didn't exist yet when they were
-  written.
+- A `status == "accepted"` entry is likewise served only while its stored
+  `guard_version` matches `BLOCKED_GUARD_VERSION` (E-01): text accepted
+  under an older, weaker guard must be re-screened after a guard change,
+  not served forever. A missing/stale `guard_version` on an accepted entry
+  is a plain miss (deliberate invalidation), not tampering.
+- Legacy entries (bare strings, or dicts without a `status` field) were
+  never screened under the current guard and are treated as cache misses:
+  regenerated and freshly re-screened, never served as trusted text.
 - A `status` value outside {"accepted", "blocked"} cannot have been written
   by this module and is treated as tampered/corrupt, not as an unknown-but-
   valid state.
@@ -40,37 +44,45 @@ import json
 from pathlib import Path
 from typing import NamedTuple
 
-from socio_sim.content.semantic_guard import semantic_hash
-
-#: Bump to deliberately force re-evaluation of every previously blocked
-#: prompt (e.g. after a semantic-guard rule change). See module docstring.
+#: Bump to deliberately force re-evaluation of every previously screened
+#: prompt -- blocked AND accepted -- e.g. after a semantic-guard rule
+#: change. See module docstring.
 BLOCKED_GUARD_VERSION = 1
 
 _KNOWN_STATUSES = {"accepted", "blocked"}
 
 
-def record_hash(text: str, status: str, reason_codes: list[str]) -> str:
-    """Integrity hash binding text+status+reason_codes together so none of
-    the three can be altered independently without detection."""
-    payload = json.dumps(
-        {"text": text, "status": status, "reason_codes": sorted(reason_codes)},
-        sort_keys=True)
+def record_hash(text: str, status: str, reason_codes: list[str],
+                guard_version: int | None = None) -> str:
+    """Integrity hash binding text+status+reason_codes+guard_version so none
+    can be altered independently without detection. guard_version is omitted
+    from the payload when None so hashes of entries written before
+    guard-version stamping still verify (they then miss on the version
+    check, which is a clean re-screen, not a false tamper report)."""
+    fields: dict = {"text": text, "status": status,
+                    "reason_codes": sorted(reason_codes)}
+    if guard_version is not None:
+        fields["guard_version"] = guard_version
+    payload = json.dumps(fields, sort_keys=True)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def make_entry(text: str, status: str, reason_codes: list[str],
                guard_version: int | None = None) -> dict:
-    """Build a cache entry in the current schema, ready to store."""
+    """Build a cache entry in the current schema, ready to store.
+
+    Every entry records the guard version it was screened under (E-01);
+    callers that don't pass one get the current BLOCKED_GUARD_VERSION."""
+    if guard_version is None:
+        guard_version = BLOCKED_GUARD_VERSION
     reason_list = list(reason_codes)
     entry = {
         "text": text,
-        "semantic_hash": semantic_hash(text),
         "status": status,
         "reason_codes": reason_list,
+        "guard_version": guard_version,
     }
-    if guard_version is not None:
-        entry["guard_version"] = guard_version
-    entry["record_hash"] = record_hash(text, status, reason_list)
+    entry["record_hash"] = record_hash(text, status, reason_list, guard_version)
     return entry
 
 
@@ -106,7 +118,12 @@ def resolve(cached: object) -> CacheLookup:
                         "entry discarded and regenerated")
 
     if "record_hash" in cached:
-        expected = record_hash(text or "", status or "", reasons)
+        # Recompute with the entry's own stored guard_version: entries that
+        # predate guard-version stamping have no such field and verify under
+        # the old formula; deleting or editing the field on a new entry
+        # breaks the hash and reads as tampering (E-03).
+        expected = record_hash(text or "", status or "", reasons,
+                               cached.get("guard_version"))
         if cached["record_hash"] != expected:
             return CacheLookup(
                 hit=False, text=None,
@@ -134,6 +151,11 @@ def resolve(cached: object) -> CacheLookup:
         return CacheLookup(hit=False, text=None, degradation=None)
 
     # status == "accepted".
+    if cached.get("guard_version") != BLOCKED_GUARD_VERSION:
+        # E-01: accepted under a different (or unknown) guard version --
+        # deliberate invalidation, re-screen. Not tampering: the record
+        # hash already verified above.
+        return CacheLookup(hit=False, text=None, degradation=None)
     return CacheLookup(hit=True, text=text, degradation=None)
 
 
