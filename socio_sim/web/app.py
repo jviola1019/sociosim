@@ -139,6 +139,17 @@ _LLM_HOST = "127.0.0.1:11434"
 _STORE = RunStore()  # persistent run history (out/sociosim.db)
 
 
+def _asset_web_path(rec) -> str | None:
+    """Registry file_path -> web path. Normalizes separators BEFORE the
+    split (H-01): a registry.json regenerated with Windows backslash paths
+    previously raised IndexError here and 500'd /api/meta. A path without
+    the socio_sim/web/ marker is skipped (None), not a crash."""
+    p = str(rec.get("file_path", "")).replace("\\", "/")
+    if "socio_sim/web/" not in p:
+        return None
+    return "/" + p.split("socio_sim/web/", 1)[1]
+
+
 def _asset_registry() -> dict:
     p = STATIC_DIR / "assets" / "v4" / "registry.json"
     if not p.is_file():
@@ -146,13 +157,14 @@ def _asset_registry() -> dict:
     data = json.loads(p.read_text(encoding="utf-8"))
     rows = data.get("assets", [])
 
-    def web_path(rec):
-        return "/" + rec["file_path"].split("socio_sim/web/", 1)[1].replace("\\", "/")
+    def paths(role):
+        found = (_asset_web_path(r) for r in rows if r.get("role") == role)
+        return [x for x in found if x]
 
     return {
-        "feed_covers": [web_path(r) for r in rows if r.get("role") == "feed_cover"],
-        "ad_creatives": [web_path(r) for r in rows if r.get("role") == "ad_creative"],
-        "editorial": [web_path(r) for r in rows if r.get("role") == "editorial_system"],
+        "feed_covers": paths("feed_cover"),
+        "ad_creatives": paths("ad_creative"),
+        "editorial": paths("editorial_system"),
         "human_review": data.get("human_review", {}),
         "evidence_id": "ev.synthetic_engineering.assets_v4",
     }

@@ -488,6 +488,16 @@ def test_bad_job_id_404():
         server.shutdown()
 
 
+def test_h01_web_path_handles_windows_backslash_registry_paths():
+    """H-01 (0159): a registry.json regenerated on Windows may carry
+    backslash file_paths; web_path must normalize BEFORE splitting instead
+    of raising IndexError and 500ing /api/meta on dashboard bootstrap."""
+    rec = {"file_path": "socio_sim\\web\\static\\assets\\v4\\x.png"}
+    assert app._asset_web_path(rec) == "/static/assets/v4/x.png"
+    # A path without the marker is skipped (None), not a crash.
+    assert app._asset_web_path({"file_path": "elsewhere/y.png"}) is None
+
+
 def test_f02_ipv6_bracketed_host_allowed():
     """F-02: a bracketed IPv6 loopback Host header must parse correctly in
     BOTH forms -- default-port `[::1]` previously parsed to ':' and was
