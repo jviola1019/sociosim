@@ -58,6 +58,33 @@ def test_dict_subscript_identifier_not_flagged():
     assert errs == []
 
 
+def test_b02_unhedged_accuracy_claim_is_flagged():
+    # B-02: model-validity vocabulary the scanner previously ignored.
+    errs = claim_scan._context_aware_errors(
+        "x.md", "The classifier achieves 92% accuracy on real traffic.")
+    assert any("achieves" in e for e in errs)
+    assert any("accuracy" in e for e in errs)
+
+
+def test_b02_hedged_accuracy_language_is_not_flagged():
+    errs = claim_scan._context_aware_errors(
+        "x.md", "This report does not claim accuracy on any real platform.")
+    assert errs == []
+
+
+def test_b02_outperforms_is_flagged():
+    errs = claim_scan._context_aware_errors(
+        "x.md", "Our model outperforms the industry baseline.")
+    assert any("outperforms" in e for e in errs)
+
+
+def test_b02_reviewer_accuracy_setting_label_exempt():
+    # UI label for the human_review_accuracy INPUT knob, not a claim.
+    errs = claim_scan._context_aware_errors(
+        "index.html", '<span class="lbl">Reviewer Accuracy</span>')
+    assert errs == []
+
+
 def test_full_scan_of_repo_passes():
     """End-to-end: the actual repo, as committed, must currently pass clean."""
     assert claim_scan.main() == 0

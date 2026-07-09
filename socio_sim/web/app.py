@@ -42,7 +42,10 @@ _CONTENT_TYPES = {".html": "text/html; charset=utf-8",
                   ".css": "text/css; charset=utf-8",
                   ".js": "text/javascript; charset=utf-8",
                   ".svg": "image/svg+xml",
-                  ".png": "image/png"}
+                  ".png": "image/png",
+                  # H-03: registry.json et al. must not be octet-stream
+                  # under X-Content-Type-Options: nosniff.
+                  ".json": "application/json; charset=utf-8"}
 
 #: Max JSON body accepted on POST (DoS guard; ASVS V5). 2 MB is ample for configs.
 MAX_BODY_BYTES = 2 * 1024 * 1024
@@ -88,7 +91,13 @@ def _host_allowed(headers, server=None) -> bool:
     This closes the read side of DNS-rebinding: a browser can reach loopback, but
     a rebound page sends its attacker-controlled Host header.
     """
-    host = (headers.get("Host") or "").rsplit(":", 1)[0].strip("[]")
+    raw = (headers.get("Host") or "").strip()
+    if raw.startswith("["):
+        # F-02: bracketed IPv6 -- "[::1]" or "[::1]:8765". Splitting on the
+        # last ":" first mangles the default-port form to ":".
+        host = raw[1:raw.index("]")] if "]" in raw else ""
+    else:
+        host = raw.rsplit(":", 1)[0]
     allowed = set(_LOOPBACK_HOSTS)
     allowed.update(getattr(server, "allowed_hosts", set()) or set())
     # F-02 fix: require a non-empty Host header. HTTP/1.1 mandates it and
@@ -157,7 +166,22 @@ _MISSING = object()
 #: Publicly selectable profiles. "calibrated" is intentionally absent: it is
 #: not advertised or accepted as a fresh choice, only migrated (see
 #: _migrate_legacy_profile) when an old saved request/script still sends it.
-_PROFILES = {"quick", "test", "standard", "aggregate_matched_prototype"}
+_PROFILE_FACTORIES = {
+    "quick": RunConfig.quick,
+    "test": RunConfig.test,
+    "standard": RunConfig.standard,
+    "aggregate_matched_prototype": RunConfig.aggregate_matched_prototype,
+}
+_PROFILES = set(_PROFILE_FACTORIES)
+
+
+def _profile_scales() -> dict:
+    """Per-profile scale (n_agents/n_ticks) derived from the RunConfig
+    factories -- the single source of truth (A-05). Hand-copied scale dicts
+    here previously duplicated the factories and could silently drift,
+    mis-sizing SBM blocks and mislabeling the UI."""
+    return {name: {"n_agents": f().n_agents, "n_ticks": f().n_ticks}
+            for name, f in _PROFILE_FACTORIES.items()}
 _GRAPH_KINDS = {"ba", "plc", "ws", "sbm"}
 _AGE_SEGMENTS = {"13-17", "18-24", "25-34", "35-49", "50-64", "65+"}
 
@@ -228,9 +252,7 @@ def _build_config(body: dict) -> RunConfig:
     body = dict(body)
     body["profile"] = _migrate_legacy_profile(body.get("profile", "quick"))
     profile = _choice(body, "profile", "quick", _PROFILES)
-    factory = {"quick": RunConfig.quick, "test": RunConfig.test,
-               "standard": RunConfig.standard,
-               "aggregate_matched_prototype": RunConfig.aggregate_matched_prototype}[profile]
+    factory = _PROFILE_FACTORIES[profile]
 
     jurisdictions = _choice_list(body, "jurisdictions", ["EU"], {"US", "EU", "CN"})
     raw_red_team = body.get("red_team", [])
@@ -258,10 +280,9 @@ def _build_config(body: dict) -> RunConfig:
     graph_kind = _choice(body, "graph_kind", graph_default, _GRAPH_KINDS)
     # SBM blocks must sum to the agent count (else the graph has a different node
     # count than n_agents -> engine indexing error). Derive from the effective n.
-    _prof_n = {"quick": 1000, "test": 200, "standard": 10000,
-               "aggregate_matched_prototype": 1000}.get(profile, 1000)
-    _prof_ticks = {"quick": 168, "test": 48, "standard": 672,
-                   "aggregate_matched_prototype": 168}.get(profile, 168)
+    _scale = _profile_scales()[profile]           # A-05: factory-derived
+    _prof_n = _scale["n_agents"]
+    _prof_ticks = _scale["n_ticks"]
     _n = _f(body, "n_agents", _prof_n)
     _half = _n // 2
     if graph_kind == "ba":
@@ -275,6 +296,16 @@ def _build_config(body: dict) -> RunConfig:
     else:  # sbm
         graph_params = {"block_sizes": [_half, _n - _half],
                         "p_matrix": [[0.02, 0.002], [0.002, 0.02]]}
+
+    ads_enabled = _bool(body, "ads_enabled", True)
+    holdout_fraction = _f(body, "holdout_fraction", 0.10)
+    # D-01: lift/p-value/BH-FDR outputs are causal claims that need a control
+    # group. Reject a zero/negative holdout while ads are enabled instead of
+    # emitting significance language with no experimental design behind it.
+    if ads_enabled and holdout_fraction <= 0:
+        raise ValueError(
+            "holdout_fraction: ad lift/significance require a non-empty "
+            "holdout; set holdout_fraction > 0 or ads_enabled=false")
 
     overrides = dict(
         jurisdictions=jurisdictions,
@@ -294,8 +325,8 @@ def _build_config(body: dict) -> RunConfig:
         n_topics=int(_f(body, "n_topics", 8)),
         classifier_targets=classifier_targets,
         category_base_rates=base_rates,
-        ads_enabled=_bool(body, "ads_enabled", True),
-        holdout_fraction=_f(body, "holdout_fraction", 0.10),
+        ads_enabled=ads_enabled,
+        holdout_fraction=holdout_fraction,
         ad_frequency_cap_per_day=int(_f(body, "ad_frequency_cap_per_day", 4)),
         ftc_compliance=_bool(body, "ftc_compliance", True),
         graph_kind=graph_kind,
@@ -716,9 +747,7 @@ class Handler(BaseHTTPRequestHandler):
                 "presets": PRESETS,
                 "assets": _asset_registry(),
                 "llm_available": server_up(_LLM_HOST, timeout=0.4),
-                "profiles": {"quick": {"n_agents": 1000, "n_ticks": 168},
-                             "test": {"n_agents": 200, "n_ticks": 48},
-                             "standard": {"n_agents": 10000, "n_ticks": 672}},
+                "profiles": _profile_scales(),  # A-05: factory-derived
             })
         elif route.startswith("/api/job"):
             # F-03: snapshot under the lock -- worker threads insert keys via
@@ -876,7 +905,10 @@ def serve(host="127.0.0.1", port=8765, open_browser=True):
     if remote and not configured_token:
         raise RuntimeError(
             "Non-loopback bind requires SOCIOSIM_ACCESS_TOKEN. The built-in "
-            "token is a CSRF guard, not network authentication.")
+            "token is a CSRF guard, not network authentication. Note (F-04): "
+            "there is no TLS in this stack -- the token travels as a "
+            "cleartext HTTP header. Put a TLS-terminating reverse proxy in "
+            "front for any non-trusted network.")
     if remote and not extra_hosts:
         raise RuntimeError(
             "Non-loopback bind requires explicit SOCIOSIM_ALLOWED_HOSTS "
@@ -889,7 +921,9 @@ def serve(host="127.0.0.1", port=8765, open_browser=True):
     server.allowed_hosts = extra_hosts if remote else set()
     if host not in _LOOPBACK_HOSTS:
         print(f"WARNING: binding {host} exposes the console beyond loopback — "
-              "use only on a trusted host/network.")
+              "use only on a trusted host/network. All traffic (including "
+              "the access token) is cleartext HTTP; front with a "
+              "TLS-terminating reverse proxy on untrusted networks.")
     url = f"http://{host}:{port}"
     print(f"SocioSim web console running at {url}")
     print("Research use only. Press Ctrl+C to stop.")

@@ -320,6 +320,8 @@ def _build_fake_asset_tree(tmp_path):
             "asset_id": f"feed-cover-v4-{i:02d}",
             "file_path": f"socio_sim/web/static/assets/v4/{name}",
             "sha256": hashlib.sha256(content).hexdigest(),
+            "accessibility_alt_template":
+                "Synthetic decorative artwork for a SocioSim {role}; not evidence.",
         })
 
     def write_registry():
@@ -360,6 +362,50 @@ def test_h01_evidence_gate_sha_detects_tampered_asset(tmp_path):
     mod = _load_evidence_gate(tmp_path, "evidence_gate_h01")
     rc = mod.main()
     assert rc == 1, "evidence gate should fail when an asset is tampered"
+
+
+def test_g01_evidence_gate_flags_missing_alt_template(tmp_path, capsys):
+    """G-01: every registered asset must carry a non-empty
+    accessibility_alt_template (WCAG 2.2 SC 1.1.1 text alternative); a
+    registry entry without one must fail the gate."""
+    asset_dir, assets, write_registry = _build_fake_asset_tree(tmp_path)
+    assets[0]["accessibility_alt_template"] = "  "
+    del assets[1]["accessibility_alt_template"]
+    write_registry()
+
+    mod = _load_evidence_gate(tmp_path, "evidence_gate_g01")
+    rc = mod.main()
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "accessibility_alt_template" in out
+
+
+def test_c03_evidence_gate_scans_reports_with_full_claim_vocabulary(tmp_path, capsys):
+    """C-03: a regenerated report saying 'fully validated' must fail the
+    gate -- the stale-claim check now reuses the claim scanner's risky-term
+    vocabulary, not a private two-phrase list."""
+    _, _, write_registry = _build_fake_asset_tree(tmp_path)
+    write_registry()
+    (tmp_path / "BENCHMARK_REPORT.md").write_text(
+        "The classifier is fully validated against production data.",
+        encoding="utf-8")
+
+    mod = _load_evidence_gate(tmp_path, "evidence_gate_c03")
+    rc = mod.main()
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "validated" in out
+
+
+def test_f04_remote_bind_error_names_cleartext_token_risk(monkeypatch):
+    """F-04: the guidance for non-loopback binds must say the token travels
+    as cleartext HTTP and recommend a TLS-terminating proxy -- 'network
+    authentication' language without that is misleading."""
+    import socio_sim.web.app as _app
+    monkeypatch.delenv("SOCIOSIM_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("SOCIOSIM_ALLOWED_HOSTS", raising=False)
+    with pytest.raises(RuntimeError, match="cleartext"):
+        _app.serve(host="0.0.0.0", port=0, open_browser=False)
 
 
 def test_h02_evidence_gate_fails_closed_on_missing_sha_or_file(tmp_path, capsys):

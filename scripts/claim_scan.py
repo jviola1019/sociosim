@@ -103,6 +103,11 @@ RISKY_TERMS = [
     r"\bvisual(?:ly)? verif(?:y|ied|ication)\b",
     r"\bpredictive\b",
     r"\bverified\b",
+    # B-02: model-validity vocabulary -- an unhedged "achieves 92% accuracy"
+    # in docs/UI must not pass the scanner.
+    r"\bachiev(?:es|ed)\b",
+    r"\boutperform(?:s|ed)?\b",
+    r"\baccura(?:cy|te)\b",
 ]
 
 # Phrases naming this project's own honesty-grading vocabulary or describing
@@ -117,6 +122,10 @@ EXEMPT_PHRASES = (
     "deterministic replay verified",
     "replay-verified",
     "browser-verified",
+    # UI label for the human_review_accuracy scenario INPUT knob: it names
+    # what the slider sets (a user-supplied assumption), not a measured
+    # accuracy claim about any component.
+    "reviewer accuracy",
 )
 
 NEGATION_RE = re.compile(

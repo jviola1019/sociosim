@@ -218,8 +218,9 @@ def main():
                    help="held-out aggregate-fit diagnostics plus synthetic mechanism "
                         "checks, write BACKTEST_REPORT.md, and exit")
     p.add_argument("--measure-classifier", action="store_true",
-                   help="measure classifier algorithm components on bundled licensed "
-                        "benchmark samples (F1/ROC-AUC) -> BENCHMARK_REPORT.md, and exit")
+                   help="measure classifier algorithm components on bundled "
+                        "benchmark samples (license/source: docs/DATA_MANIFEST.md) "
+                        "(F1/ROC-AUC) -> BENCHMARK_REPORT.md, and exit")
     p.add_argument("--sens-samples", type=int, default=24,
                    help="LHS samples for --validate sensitivity (default 24)")
     p.add_argument("--media", type=int, default=0,
@@ -263,8 +264,10 @@ def main():
     if args.measure_classifier:
         from socio_sim.validation.benchmark_eval import (evaluate_all,
                                                          render_benchmark_report)
+        # B-01: don't assert "licensed" as bare CLI fact -- cite where the
+        # license/source evidence actually lives.
         print("Running classifier component benchmark diagnostics on bundled "
-              "licensed benchmark samples...")
+              "benchmark samples (license/source: docs/DATA_MANIFEST.md)...")
         res = evaluate_all(seed=args.seed)
         (ROOT / "BENCHMARK_REPORT.md").write_text(
             render_benchmark_report(res), encoding="utf-8")

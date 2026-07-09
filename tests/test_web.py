@@ -455,6 +455,64 @@ def test_bad_job_id_404():
         server.shutdown()
 
 
+def test_f02_ipv6_bracketed_host_allowed():
+    """F-02: a bracketed IPv6 loopback Host header must parse correctly in
+    BOTH forms -- default-port `[::1]` previously parsed to ':' and was
+    rejected, breaking the allow-list for legitimate IPv6 clients."""
+    assert app._host_allowed({"Host": "[::1]"}) is True
+    assert app._host_allowed({"Host": "[::1]:8765"}) is True
+    assert app._host_allowed({"Host": "[2001:db8::1]:8765"}) is False
+
+
+def test_h03_registry_json_served_with_json_content_type():
+    """H-03: /static/**/*.json must be application/json, not
+    application/octet-stream, under X-Content-Type-Options: nosniff."""
+    from http.server import ThreadingHTTPServer
+    import threading
+    port = _free_port()
+    server = ThreadingHTTPServer(("127.0.0.1", port), app.Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        resp = urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/static/assets/v4/registry.json")
+        assert resp.headers["Content-Type"] == "application/json; charset=utf-8"
+    finally:
+        server.shutdown()
+
+
+def test_d01_ads_with_zero_holdout_rejected():
+    """D-01: lift/significance fields are causal claims that need a control
+    group; a run with ads enabled and holdout_fraction<=0 must be rejected,
+    not silently emit lift_*/p-value output with no experimental design."""
+    with pytest.raises(ValueError, match="holdout"):
+        app._build_config({"profile": "test", "jurisdictions": ["EU"],
+                           "ads_enabled": True, "holdout_fraction": 0})
+    with pytest.raises(ValueError, match="holdout"):
+        app._build_config({"profile": "test", "jurisdictions": ["EU"],
+                           "ads_enabled": True, "holdout_fraction": -0.1})
+    # Disabling ads makes a zero holdout legitimate (nothing to measure).
+    cfg = app._build_config({"profile": "test", "jurisdictions": ["EU"],
+                             "ads_enabled": False, "holdout_fraction": 0})
+    assert cfg.ads_enabled is False
+
+
+def test_a05_profile_scales_derived_from_config_factories():
+    """A-05: profile scale numbers must come from the RunConfig factories,
+    not hand-copied dicts that can silently drift (mis-sizing SBM blocks
+    and mislabeling the UI)."""
+    from socio_sim.config import RunConfig
+    scales = app._profile_scales()
+    for name, factory in (("quick", RunConfig.quick), ("test", RunConfig.test),
+                          ("standard", RunConfig.standard),
+                          ("aggregate_matched_prototype",
+                           RunConfig.aggregate_matched_prototype)):
+        assert scales[name]["n_agents"] == factory().n_agents, name
+        assert scales[name]["n_ticks"] == factory().n_ticks, name
+    # And _build_config's profile default must match the factory too.
+    cfg = app._build_config({"profile": "quick", "jurisdictions": ["EU"]})
+    assert cfg.n_agents == RunConfig.quick().n_agents
+
+
 def test_f01_distinct_out_dirs_for_builds_in_the_same_second():
     """F-01: two jobs started within the same wall-clock second must not
     share an out_dir, or their events.jsonl / manifest.json audit records

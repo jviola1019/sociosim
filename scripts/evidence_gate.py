@@ -4,11 +4,18 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from pathlib import Path
 
 from socio_sim.evidence import validate_registry
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# C-03: generated reports are scanned with the SAME risky-term vocabulary +
+# hedge/negation logic as the repo-wide claim scanner, not a private
+# two-phrase list a regenerated report could trivially sidestep.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import claim_scan  # noqa: E402
 
 
 def sha(path: Path) -> str:
@@ -32,6 +39,12 @@ def main() -> int:
             asset_id = asset.get("asset_id", asset.get("file_path", "?"))
             fp = ROOT / asset.get("file_path", "")
             expected_sha = asset.get("sha256", "")
+            # G-01: every asset needs a text alternative (WCAG 2.2 SC 1.1.1)
+            # for the UI to render meaningful alt attributes.
+            if not str(asset.get("accessibility_alt_template", "")).strip():
+                errors.append(
+                    f"asset {asset_id}: missing accessibility_alt_template "
+                    "(WCAG 1.1.1 text alternative)")
             if not expected_sha:
                 errors.append(
                     f"asset {asset_id}: no sha256 in registry "
@@ -51,9 +64,12 @@ def main() -> int:
     for report in ("BENCHMARK_REPORT.md", "BACKTEST_REPORT.md", "VALIDATION_REPORT.md"):
         p = ROOT / report
         if p.exists():
-            text = p.read_text(encoding="utf-8", errors="replace").lower()
-            if "highest rung" in text or "validates aggregate" in text:
+            text = p.read_text(encoding="utf-8", errors="replace")
+            if ("highest rung" in text.lower()
+                    or "validates aggregate" in text.lower()):
                 errors.append(f"{report}: stale positive claim remains")
+            errors.extend(claim_scan._stale_phrase_errors(report, text))
+            errors.extend(claim_scan._context_aware_errors(report, text))
     if errors:
         print("\n".join(errors))
         return 1
