@@ -30,6 +30,7 @@ sys.path.insert(0, str(ROOT))
 try:
     from socio_sim import RESEARCH_USE_NOTICE  # noqa: E402
     from socio_sim.config import RunConfig  # noqa: E402
+    from socio_sim.evidence import targets_metadata_complete  # noqa: E402
     from socio_sim.llm_bootstrap import (DEFAULT_HOST, ensure_model,  # noqa: E402
                                          ensure_server, find_ollama, server_up)
     from socio_sim.pipeline import run_and_analyze  # noqa: E402
@@ -67,6 +68,43 @@ def bootstrap_ollama(model: str, host: str):
 # --------------------------------------------------------------------------
 # Simulation run
 # --------------------------------------------------------------------------
+def _print_diagnostics(a, n_replicates: int) -> None:
+    """Aggregate-fit + Monte Carlo diagnostics with the same honesty gates
+    the web layer applies (audit C-01/C-02/A-04): no observed-vs-target
+    distance table while target evidence is 'unsupported', no "95%" label
+    on a small-N percentile range, and the implausibility cutoff cites its
+    convention instead of reading as a project-measured bound."""
+    print(f"\nAggregate-fit diagnostics vs legacy benchmark targets "
+          f"(implausibility I={a.implausibility:.2f}, cutoff 3.0 "
+          f"[external_aggregate: 3-sigma history-matching convention]):")
+    if targets_metadata_complete(a.targets):
+        for name, value in a.observed.items():
+            spec = a.targets.get(name)
+            if spec and value == value:  # skip NaN
+                print(f"  {name:22s} observed {value:8.4f}  target "
+                      f"{spec['value']} +/- {spec['tolerance']}")
+    else:
+        print("  target comparison suppressed: bundled target evidence is "
+              "'unsupported' (same gate as the web UI); observed values only:")
+        for name, value in a.observed.items():
+            if value == value:  # skip NaN
+                print(f"  {name:22s} observed {value:8.4f}")
+
+    if a.mc:
+        print(f"\nMonte Carlo intervals (provenance: mc-replicated, "
+              f"{n_replicates} replicates):")
+        for name, d in a.mc.items():
+            lo, hi = d["ci"]
+            if n_replicates >= 20:
+                interval = f"95% [{lo:.4f}, {hi:.4f}]"
+            else:
+                # A 2-point percentile range is not a 95% interval; say
+                # what it actually is.
+                interval = (f"percentile range over N={n_replicates} "
+                            f"replicates [{lo:.4f}, {hi:.4f}]")
+            print(f"  {name:24s} median {d['median']:8.4f}  {interval}")
+
+
 def run_sim(cfg: RunConfig, n_replicates: int = 1, workers: int = 1, media: int = 0):
     cfg = replace(cfg, n_replicates=n_replicates)
     mode = "Research" if n_replicates > 1 else "Preview"
@@ -110,21 +148,7 @@ def run_sim(cfg: RunConfig, n_replicates: int = 1, workers: int = 1, media: int 
             (mdir / "sample_video.png").write_bytes(synth_video(vseed, 10, 192, 192))
         print(f"Synthesized {len(posts)} synthetic PNG images + 1 APNG video -> {mdir}")
 
-    print(f"\nAggregate-fit diagnostics vs legacy benchmark targets "
-          f"(implausibility I={a.implausibility:.2f}, cutoff 3.0):")
-    for name, value in a.observed.items():
-        spec = a.targets.get(name)
-        if spec and value == value:  # skip NaN
-            print(f"  {name:22s} observed {value:8.4f}  target "
-                  f"{spec['value']} +/- {spec['tolerance']}")
-
-    if a.mc:
-        print(f"\nMonte Carlo intervals (provenance: mc-replicated, "
-              f"{n_replicates} replicates):")
-        for name, d in a.mc.items():
-            lo, hi = d["ci"]
-            print(f"  {name:24s} median {d['median']:8.4f}  "
-                  f"95% [{lo:.4f}, {hi:.4f}]")
+    _print_diagnostics(a, n_replicates)
 
     if a.transparency:
         t = a.transparency

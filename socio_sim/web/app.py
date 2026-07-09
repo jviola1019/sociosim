@@ -30,7 +30,7 @@ from socio_sim import (NO_REAL_PERSON_DATA_NOTICE, NOT_LEGAL_ADVICE_NOTICE,
 from socio_sim.analytics.lens import run_lens
 from socio_sim.analytics.metrics import cascade_sizes, cascade_tree
 from socio_sim.config import ADVERSARIES, CATEGORIES, RunConfig
-from socio_sim.evidence import EvidenceKind, get_evidence
+from socio_sim.evidence import targets_metadata_complete
 from socio_sim.llm_bootstrap import ensure_model, ensure_server, server_up
 from socio_sim.pipeline import run_and_analyze
 from socio_sim.presets import PRESETS
@@ -101,6 +101,15 @@ HARMFUL_CATS = ("hate", "harassment", "fraud", "misinfo", "adult",
 
 _JOBS: dict = {}
 _LOCK = threading.Lock()
+
+
+def _job_set(job: dict, **fields) -> None:
+    """All worker-thread mutations of a job dict go through here, under
+    _LOCK, pairing with the locked snapshot in GET /api/job (F-03): a dict
+    insertion can resize the dict mid-iteration and intermittently 500 the
+    polling endpoint with 'dictionary changed size during iteration'."""
+    with _LOCK:
+        job.update(fields)
 _LLM_HOST = "127.0.0.1:11434"
 _STORE = RunStore()  # persistent run history (out/sociosim.db)
 
@@ -124,25 +133,9 @@ def _asset_registry() -> dict:
     }
 
 
-def _targets_metadata_complete(targets: dict) -> bool:
-    """True only if every target carries an evidence record whose kind is
-    not 'unsupported'. Drives whether the UI may show a target-distance
-    comparison at all -- the legacy bundled benchmark targets are all
-    'unsupported' (missing source version/date range/population/source
-    hash/tolerance rationale), so this is currently always False; it flips
-    automatically if a fully-sourced target set is ever added."""
-    if not targets:
-        return False
-    for t in targets.values():
-        evidence_id = t.get("evidence_id")
-        if not evidence_id:
-            return False
-        try:
-            if get_evidence(evidence_id).kind is EvidenceKind.UNSUPPORTED:
-                return False
-        except KeyError:
-            return False
-    return True
+# Shared with the CLI (audit C-02): one gate decides, for every surface,
+# whether observed-vs-target comparisons may be shown at all.
+_targets_metadata_complete = targets_metadata_complete
 
 
 def _jsonable(obj):
@@ -314,7 +307,10 @@ def _build_config(body: dict) -> RunConfig:
         red_team=red_team,
         root_seed=int(_f(body, "root_seed", 42)),
         tick_hours=int(_f(body, "tick_hours", 1)),
-        out_dir=f"out/web/{int(time.time())}",
+        # F-01: whole-second timestamps collide when two jobs start in the
+        # same second, interleaving their events.jsonl/manifest.json audit
+        # records -- suffix with a uuid so every job gets its own directory.
+        out_dir=f"out/web/{int(time.time())}-{uuid.uuid4().hex[:8]}",
     )
     if body.get("n_agents"):
         overrides["n_agents"] = _f(body, "n_agents", _prof_n)
@@ -521,30 +517,29 @@ def _run_job(job_id: str, body: dict):
     job = _JOBS[job_id]
     try:
         cfg = _build_config(body)
-        job["n_ticks"] = cfg.n_ticks
+        _job_set(job, n_ticks=cfg.n_ticks)
         # Preview (1) vs Research (N replicates -> Monte Carlo intervals).
         n_replicates = max(1, min(int(body.get("n_replicates", 1) or 1), 200))
 
         # On-demand local LLM bootstrap so the dashboard's ollama mode works
         # without separate setup (skip for user-supplied openai_compatible).
         if cfg.content_mode == "ollama" and not server_up(_LLM_HOST):
-            job["phase"] = "starting local LLM"
-            ensure_server(_LLM_HOST, log=lambda m: job.__setitem__("phase", m))
-            job["phase"] = "loading model"
+            _job_set(job, phase="starting local LLM")
+            ensure_server(_LLM_HOST, log=lambda m: _job_set(job, phase=m))
+            _job_set(job, phase="loading model")
             ensure_model(cfg.llm_model or "qwen2.5:0.5b", _LLM_HOST,
-                         log=lambda m: job.__setitem__("phase", m))
+                         log=lambda m: _job_set(job, phase=m))
         started = time.time()
 
         def on_progress(tick, total):
-            job["progress"] = tick / total
-            job["tick"] = tick
+            _job_set(job, progress=tick / total, tick=tick)
 
         # Same run → analyze → verify pipeline the CLI and examples use.
         verify_replay = bool(body.get("verify_replay", cfg.n_agents <= 2000))
         a = run_and_analyze(
             cfg, verify_replay=verify_replay, n_replicates=n_replicates,
             campaigns_fn=_campaigns_fn(body), progress_callback=on_progress,
-            on_phase=lambda p: job.__setitem__("phase", p))
+            on_phase=lambda p: _job_set(job, phase=p))
         result = a.result
         campaign_specs = _normalize_campaign_specs(body)
 
@@ -557,7 +552,7 @@ def _run_job(job_id: str, body: dict):
             if c < 60:
                 ev_sample.append(e)
                 _per_kind[e["kind"]] = c + 1
-        job["result"] = _jsonable({
+        result_payload = _jsonable({
             "summary": a.summary,
             "charts": _chart_data(result, a.summary),
             "feed": _sample_feed(result),
@@ -595,17 +590,16 @@ def _run_job(job_id: str, body: dict):
                             if llm_calls else None),
             "out_dir": cfg.out_dir,
         })
+        _job_set(job, result=result_payload)
         # Persist to the run database so it appears in History and can be
         # reopened, compared, or exported later.
         try:
-            _STORE.save(job_id, job["result"], label=body.get("label", ""))
+            _STORE.save(job_id, result_payload, label=body.get("label", ""))
         except Exception as exc:
-            job["history_warning"] = f"{type(exc).__name__}: {exc}"
-        job["status"] = "done"
-        job["progress"] = 1.0
+            _job_set(job, history_warning=f"{type(exc).__name__}: {exc}")
+        _job_set(job, status="done", progress=1.0)
     except Exception as exc:
-        job["status"] = "error"
-        job["error"] = f"{type(exc).__name__}: {exc}"
+        _job_set(job, status="error", error=f"{type(exc).__name__}: {exc}")
 
 
 def _run_compare(job_id: str, body: dict):
@@ -617,22 +611,20 @@ def _run_compare(job_id: str, body: dict):
         from socio_sim.experiments.compare import compare
         from socio_sim.pipeline import _headline_metrics
         n = max(2, min(int(body.get("compare_replicates", 10) or 10), 100))
-        job["phase"] = "comparing (baseline vs intervention)"
+        _job_set(job, phase="comparing (baseline vs intervention)")
         base = _build_config(body)
         interv = _build_config({**body, **(body.get("intervention") or {})})
         res = compare(base, interv, n, _headline_metrics,
                       campaigns_fn=_campaigns_fn(body))
-        job["result"] = _jsonable({
+        _job_set(job, result=_jsonable({
             "compare": res, "n_replicates": n,
             "baseline_jurisdictions": list(base.jurisdictions),
             "intervention_jurisdictions": list(interv.jurisdictions),
             "provenance": "crn-paired-monte-carlo",
-        })
-        job["status"] = "done"
-        job["progress"] = 1.0
+        }))
+        _job_set(job, status="done", progress=1.0)
     except Exception as exc:
-        job["status"] = "error"
-        job["error"] = f"{type(exc).__name__}: {exc}"
+        _job_set(job, status="error", error=f"{type(exc).__name__}: {exc}")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -729,11 +721,15 @@ class Handler(BaseHTTPRequestHandler):
                              "standard": {"n_agents": 10000, "n_ticks": 672}},
             })
         elif route.startswith("/api/job"):
-            job = _JOBS.get(route.rsplit("/", 1)[-1])
-            if not job:
+            # F-03: snapshot under the lock -- worker threads insert keys via
+            # _job_set and iterating the live dict can raise mid-resize.
+            with _LOCK:
+                job = _JOBS.get(route.rsplit("/", 1)[-1])
+                snapshot = dict(job) if job else None
+            if not snapshot:
                 self._send_json({"error": "unknown job"}, 404)
                 return
-            self._send_json({k: v for k, v in job.items() if k != "body"})
+            self._send_json({k: v for k, v in snapshot.items() if k != "body"})
         elif route == "/api/runs":
             self._send_json({"runs": _STORE.list(), "count": _STORE.count()})
         elif route.startswith("/api/runs/"):

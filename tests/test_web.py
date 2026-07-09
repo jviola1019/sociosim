@@ -455,6 +455,15 @@ def test_bad_job_id_404():
         server.shutdown()
 
 
+def test_f01_distinct_out_dirs_for_builds_in_the_same_second():
+    """F-01: two jobs started within the same wall-clock second must not
+    share an out_dir, or their events.jsonl / manifest.json audit records
+    clobber each other -- the exact artifacts replay evidence rests on."""
+    cfg1 = app._build_config({"profile": "test", "jurisdictions": ["EU"]})
+    cfg2 = app._build_config({"profile": "test", "jurisdictions": ["EU"]})
+    assert cfg1.out_dir != cfg2.out_dir
+
+
 def test_c01_store_distinguishes_replay_skipped_vs_failed(tmp_path):
     """C-01: replay_ok=NULL for skipped, 0 for failed, 1 for ok.
 

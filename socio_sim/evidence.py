@@ -143,6 +143,29 @@ def evidence_dict(evidence_id: str) -> dict[str, Any]:
     return get_evidence(evidence_id).to_dict()
 
 
+def targets_metadata_complete(targets: dict) -> bool:
+    """True only if every target carries an evidence record whose kind is
+    not 'unsupported'. Shared gate for the web UI AND the CLI (audit C-02):
+    neither surface may show an observed-vs-target distance comparison for
+    targets whose evidence is unsupported. The legacy bundled benchmark
+    targets are all 'unsupported' (missing source version/date range/
+    population/source hash/tolerance rationale), so this is currently
+    always False; it flips automatically if a fully-sourced target set is
+    ever added."""
+    if not targets:
+        return False
+    for t in targets.values():
+        evidence_id = t.get("evidence_id")
+        if not evidence_id:
+            return False
+        try:
+            if get_evidence(evidence_id).kind is EvidenceKind.UNSUPPORTED:
+                return False
+        except KeyError:
+            return False
+    return True
+
+
 def metric_evidence(evidence_id: str) -> dict[str, Any]:
     rec = get_evidence(evidence_id)
     return {
