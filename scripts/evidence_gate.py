@@ -24,15 +24,27 @@ def main() -> int:
         data = json.loads(registry.read_text(encoding="utf-8"))
         if len(data.get("assets", [])) < 92:
             errors.append("v4 asset registry has fewer than 92 assets")
-        # H-01: verify sha256 of each registered asset file
+        # H-01/H-02: verify sha256 of each registered asset file. The gate
+        # fails CLOSED: an asset with no sha256 cannot be integrity-verified
+        # and a registered file missing from disk is itself the failure --
+        # neither may be silently skipped.
         for asset in data.get("assets", []):
+            asset_id = asset.get("asset_id", asset.get("file_path", "?"))
             fp = ROOT / asset.get("file_path", "")
             expected_sha = asset.get("sha256", "")
-            if expected_sha and fp.is_file():
+            if not expected_sha:
+                errors.append(
+                    f"asset {asset_id}: no sha256 in registry "
+                    "(integrity cannot be verified; gate fails closed)")
+            elif not fp.is_file():
+                errors.append(
+                    f"asset {asset_id}: registered file missing: "
+                    f"{asset.get('file_path')}")
+            else:
                 actual_sha = sha(fp)
                 if actual_sha != expected_sha:
                     errors.append(
-                        f"asset {asset.get('asset_id', fp.name)}: "
+                        f"asset {asset_id}: "
                         f"sha256 mismatch (registry={expected_sha[:12]}... "
                         f"actual={actual_sha[:12]}...)"
                     )

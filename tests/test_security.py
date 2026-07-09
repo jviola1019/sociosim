@@ -304,6 +304,46 @@ def test_f01_expose_token_hidden_when_access_token_env_set(monkeypatch, tmp_path
         "expose_token must be False when SOCIOSIM_ACCESS_TOKEN env var is set")
 
 
+def _build_fake_asset_tree(tmp_path):
+    """92 placeholder assets + correct sha256s so the count check passes."""
+    import json
+    import hashlib
+
+    asset_dir = tmp_path / "socio_sim" / "web" / "static" / "assets" / "v4"
+    asset_dir.mkdir(parents=True)
+    assets = []
+    for i in range(92):
+        name = f"feed-cover-v4-{i:02d}.png"
+        content = f"asset {i}".encode()
+        (asset_dir / name).write_bytes(content)
+        assets.append({
+            "asset_id": f"feed-cover-v4-{i:02d}",
+            "file_path": f"socio_sim/web/static/assets/v4/{name}",
+            "sha256": hashlib.sha256(content).hexdigest(),
+        })
+
+    def write_registry():
+        (asset_dir / "registry.json").write_text(
+            json.dumps({"assets": assets}), encoding="utf-8")
+
+    return asset_dir, assets, write_registry
+
+
+def _load_evidence_gate(tmp_path, name):
+    """Import scripts/evidence_gate.py with ROOT redirected to tmp_path and
+    registry-schema validation stubbed out (asset checks are the focus)."""
+    import importlib.util
+    from pathlib import Path
+
+    gate_path = Path(__file__).resolve().parents[1] / "scripts" / "evidence_gate.py"
+    spec = importlib.util.spec_from_file_location(name, gate_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.ROOT = tmp_path
+    mod.validate_registry = lambda: []
+    return mod
+
+
 def test_h01_evidence_gate_sha_detects_tampered_asset(tmp_path):
     """H-01: sha() must now be called and catch a tampered asset file.
 
@@ -312,46 +352,29 @@ def test_h01_evidence_gate_sha_detects_tampered_asset(tmp_path):
     between the file's actual sha256 and the registry's stored sha256
     must surface as an error.
     """
-    import json
-    import hashlib
-    import importlib.util
-
-    # Build a minimal fake registry + asset tree under tmp_path
-    asset_dir = tmp_path / "socio_sim" / "web" / "static" / "assets" / "v4"
-    asset_dir.mkdir(parents=True)
-
-    # Write 92 placeholder assets so the count check passes
-    assets = []
-    for i in range(92):
-        name = f"feed-cover-v4-{i:02d}.png"
-        fp = asset_dir / name
-        content = f"asset {i}".encode()
-        fp.write_bytes(content)
-        assets.append({
-            "asset_id": f"feed-cover-v4-{i:02d}",
-            "file_path": f"socio_sim/web/static/assets/v4/{name}",
-            "sha256": hashlib.sha256(content).hexdigest(),
-        })
-
+    asset_dir, assets, write_registry = _build_fake_asset_tree(tmp_path)
     # Tamper one asset AFTER recording its hash
-    tampered = asset_dir / "feed-cover-v4-00.png"
-    tampered.write_bytes(b"TAMPERED CONTENT")
+    (asset_dir / "feed-cover-v4-00.png").write_bytes(b"TAMPERED CONTENT")
+    write_registry()
 
-    registry_path = asset_dir / "registry.json"
-    registry_path.write_text(json.dumps({"assets": assets}), encoding="utf-8")
-
-    # Load evidence_gate with ROOT pointing to tmp_path
-    from pathlib import Path
-    gate_path = Path(__file__).resolve().parents[1] / "scripts" / "evidence_gate.py"
-    spec = importlib.util.spec_from_file_location("evidence_gate_h01", gate_path)
-    mod = importlib.util.module_from_spec(spec)
-    # Patch ROOT before exec
-    mod.__dict__["ROOT"] = tmp_path
-    spec.loader.exec_module(mod)
-    mod.ROOT = tmp_path
-
-    # Patch validate_registry to return no errors (focus on sha check)
-    mod.validate_registry = lambda: []
-
+    mod = _load_evidence_gate(tmp_path, "evidence_gate_h01")
     rc = mod.main()
     assert rc == 1, "evidence gate should fail when an asset is tampered"
+
+
+def test_h02_evidence_gate_fails_closed_on_missing_sha_or_file(tmp_path, capsys):
+    """H-02: the gate must FAIL CLOSED -- an asset with no sha256 in the
+    registry, or whose registered file is missing from disk, is a hard
+    error, not a silent skip. Before the fix `if expected_sha and
+    fp.is_file():` silently passed both cases."""
+    asset_dir, assets, write_registry = _build_fake_asset_tree(tmp_path)
+    assets[0]["sha256"] = ""                             # unverifiable
+    (asset_dir / "feed-cover-v4-01.png").unlink()        # deleted asset
+    write_registry()
+
+    mod = _load_evidence_gate(tmp_path, "evidence_gate_h02")
+    rc = mod.main()
+    out = capsys.readouterr().out
+    assert rc == 1, "gate must fail when an asset cannot be verified"
+    assert "no sha256" in out, f"empty-sha256 asset must be reported, got: {out}"
+    assert "missing" in out, f"missing-file asset must be reported, got: {out}"
