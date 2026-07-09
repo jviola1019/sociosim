@@ -266,3 +266,92 @@ def test_build_config_rejects_ssrf_llm_url():
     with pytest.raises(Exception):
         app._build_config({"profile": "test", "jurisdictions": ["EU"],
                            "llm_base_url": "http://169.254.169.254"})
+
+
+def test_f01_expose_token_hidden_when_access_token_env_set(monkeypatch, tmp_path):
+    """F-01: expose_token must be False when SOCIOSIM_ACCESS_TOKEN is in env.
+
+    If an operator sets their own token (e.g. because the loopback console is
+    reverse-tunnelled), /api/meta must not hand it back to any page that asks.
+    """
+    from socio_sim.web.app import serve
+    import socio_sim.web.app as _app
+
+    monkeypatch.setenv("SOCIOSIM_ACCESS_TOKEN", "my-secret-token")
+    # Patch serve to capture the server object without actually binding
+    captured = {}
+
+    class _FakeServer:
+        def serve_forever(self): pass
+        def shutdown(self): pass
+
+    def _fake_make_server(addr, handler):
+        srv = _FakeServer()
+        srv.address = addr
+        captured['server'] = srv
+        return srv
+
+    monkeypatch.setattr(_app, "ThreadingHTTPServer", _fake_make_server)
+    monkeypatch.setattr(_app, "_STORE", _app._STORE)  # keep existing store
+    # serve() opens a browser timer and blocks; call it in a thread and stop it
+    import threading as _t
+    t = _t.Thread(target=serve, kwargs={"open_browser": False}, daemon=True)
+    t.start()
+    t.join(timeout=2)
+    srv = captured.get('server')
+    assert srv is not None
+    assert srv.expose_token is False, (
+        "expose_token must be False when SOCIOSIM_ACCESS_TOKEN env var is set")
+
+
+def test_h01_evidence_gate_sha_detects_tampered_asset(tmp_path):
+    """H-01: sha() must now be called and catch a tampered asset file.
+
+    Before the fix, sha() was defined but never called — a tampered PNG
+    would pass the evidence gate silently.  After the fix, a mismatch
+    between the file's actual sha256 and the registry's stored sha256
+    must surface as an error.
+    """
+    import json
+    import hashlib
+    import importlib.util
+
+    # Build a minimal fake registry + asset tree under tmp_path
+    asset_dir = tmp_path / "socio_sim" / "web" / "static" / "assets" / "v4"
+    asset_dir.mkdir(parents=True)
+
+    # Write 92 placeholder assets so the count check passes
+    assets = []
+    for i in range(92):
+        name = f"feed-cover-v4-{i:02d}.png"
+        fp = asset_dir / name
+        content = f"asset {i}".encode()
+        fp.write_bytes(content)
+        assets.append({
+            "asset_id": f"feed-cover-v4-{i:02d}",
+            "file_path": f"socio_sim/web/static/assets/v4/{name}",
+            "sha256": hashlib.sha256(content).hexdigest(),
+        })
+
+    # Tamper one asset AFTER recording its hash
+    tampered = asset_dir / "feed-cover-v4-00.png"
+    tampered.write_bytes(b"TAMPERED CONTENT")
+
+    registry_path = asset_dir / "registry.json"
+    registry_path.write_text(json.dumps({"assets": assets}), encoding="utf-8")
+
+    # Load evidence_gate with ROOT pointing to tmp_path
+    from pathlib import Path
+    gate_path = Path(__file__).resolve().parents[1] / "scripts" / "evidence_gate.py"
+    spec = importlib.util.spec_from_file_location("evidence_gate_h01", gate_path)
+    mod = importlib.util.module_from_spec(spec)
+    # Patch ROOT before exec
+    mod.__dict__["ROOT"] = tmp_path
+    spec.loader.exec_module(mod)
+    mod.ROOT = tmp_path
+
+    # Patch validate_registry to return no errors (focus on sha check)
+    mod.validate_registry = lambda: []
+
+    rc = mod.main()
+    assert rc == 1, "evidence gate should fail when an asset is tampered"

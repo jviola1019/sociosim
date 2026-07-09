@@ -16,11 +16,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Callable
 
 from socio_sim.content import llm_cache
+from socio_sim.security import validate_llm_url
 from socio_sim.content.generate import TOPICS, TemplateGenerator
 from socio_sim.content.items import ContentItem
 from socio_sim.content.semantic_guard import check_generated_text
@@ -43,6 +45,22 @@ _PROMPT_TEMPLATE = (
 
 #: CN explicit-label prefix that must survive text replacement.
 _CN_LABEL_PREFIX = "[AI-generated content] "
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """Refuse all HTTP redirects on LLM transport (audit E-02).
+
+    A validated loopback/allowed server could otherwise 302 the adapter to
+    an internal URL that never passed validate_llm_url.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise urllib.error.HTTPError(
+            req.full_url, code,
+            f"redirect to {newurl!r} refused by SSRF guard", headers, fp)
+
+
+_NO_REDIRECT_OPENER = urllib.request.build_opener(_NoRedirect)
 
 
 class LLMAdapter:
@@ -144,6 +162,14 @@ class LLMAdapter:
 
     # -- transports ----------------------------------------------------------
     def _http_transport(self, prompt: str) -> str:
+        """POST the prompt to the configured local LLM server.
+
+        SSRF hardening (E-02): the base URL is re-resolved and re-validated
+        on every call and redirects are refused (_NoRedirect). A narrow
+        TOCTOU window remains because urlopen performs its own DNS lookup
+        after ours; eliminating it entirely would require connecting to the
+        pinned, validated IP directly with an explicit Host header.
+        """
         if self.backend == "ollama":
             payload = {
                 "model": self.model,
@@ -167,7 +193,10 @@ class LLMAdapter:
 
         req = urllib.request.Request(url, data=json.dumps(payload).encode(),
                                      headers=headers)
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
+        # E-02: re-validate resolved IPs at call time (DNS-rebind window)
+        # and refuse redirects via _NO_REDIRECT_OPENER.
+        validate_llm_url(self.base_url)
+        with _NO_REDIRECT_OPENER.open(req, timeout=self.timeout) as resp:  # nosec B310
             body = json.loads(resp.read().decode("utf-8"))
         if self.backend == "ollama":
             return body["response"]

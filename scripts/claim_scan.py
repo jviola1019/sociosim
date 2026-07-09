@@ -68,7 +68,14 @@ ALLOW = (
     "AUDIT_LOG.md",
     "HANDOFF.md",
     "SOURCE_LEDGER.md",
+    "FABLE_AUDIT_LOG.md",
 )
+
+#: Directories fully exempt from both layers: forensic audit reports must
+#: quote the exact violating phrases they document (same rationale as
+#: AUDIT_LOG.md / FABLE_AUDIT_LOG.md above) -- they are records about claim
+#: language, not a claim surface shown to users.
+ALLOW_DIR_PREFIXES = ("docs/audits/",)
 
 # Context-aware layer: file extensions in scope, plus run.py for CLI help text.
 CONTEXT_LAYER_EXTENSIONS = {".md", ".html", ".js"}
@@ -174,7 +181,8 @@ def main() -> int:
     errors: list[str] = []
     for path in tracked_files():
         rel = path.relative_to(ROOT).as_posix()
-        if rel in ALLOW or path.suffix.lower() in {".png", ".gz", ".coverage"}:
+        if (rel in ALLOW or rel.startswith(ALLOW_DIR_PREFIXES)
+                or path.suffix.lower() in {".png", ".gz", ".coverage"}):
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
         errors.extend(_stale_phrase_errors(rel, text))

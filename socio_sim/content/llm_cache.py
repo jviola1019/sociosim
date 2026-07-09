@@ -142,4 +142,27 @@ def load(path: Path, on_error=None) -> dict:
     if not path.exists():
         return {}
     try:
-        dat
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        if on_error is not None:
+            on_error(f"cache file is corrupt ({exc!r}); starting with an "
+                      "empty cache")
+        return {}
+    if not isinstance(data, dict):
+        if on_error is not None:
+            on_error(f"cache file is not a JSON object "
+                     f"(got {type(data).__name__}); starting with an "
+                     "empty cache")
+        return {}
+    return data
+
+
+def save(path: Path, cache: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(cache, sort_keys=True), encoding="utf-8")
+
+
+def file_hash(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    return hashlib.sha256(path.read_bytes()).hexdigest()

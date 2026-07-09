@@ -403,3 +403,16 @@ def test_cache_hash_stable_and_changes(tmp_path):
     assert adapter2.cache_hash() == h1
     adapter2.generate(2, personas, tick=4)
     assert adapter2.cache_hash() != h1
+
+
+def test_e02_transport_revalidates_dns_and_blocks_rebind(tmp_path, monkeypatch):
+    gen, _ = setup()
+    adapter = LLMAdapter(base=gen, cache_path=tmp_path / "cache.json",
+                         backend="ollama",
+                         base_url="http://rebind.example:11434")
+    # Host that passed config-time validation now rebinds to cloud metadata.
+    monkeypatch.setattr(
+        "socio_sim.security.socket.getaddrinfo",
+        lambda *a, **k: [(2, 1, 6, "", ("169.254.169.254", 11434))])
+    with pytest.raises(ValueError, match="link-local"):
+        adapter._http_transport("hi")

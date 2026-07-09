@@ -111,7 +111,9 @@ def test_claude_adapter_cache_and_fallback(tmp_path):
     item = adapter.generate(author_id=1, personas=p, tick=0)
     assert item.text
     assert degradations
-    # Inject cache and confirm cached text is used (no network ever)
+    # A legacy bare-string entry was never screened by the semantic guard:
+    # it must be treated as a miss (E1 fix), and with no API key the adapter
+    # falls back to template text instead of serving unscreened content.
     adapter_key = ClaudeAdapter(base=FixedBase(), cache_path=cache, api_key=None,
                                 on_degradation=lambda r: None)
     key = adapter_key.prompt_key(author_id=2, personas=p, tick=0, topic=2, stance=0.1)
@@ -119,7 +121,16 @@ def test_claude_adapter_cache_and_fallback(tmp_path):
     adapter2 = ClaudeAdapter(base=FixedBase(), cache_path=cache, api_key=None,
                              on_degradation=lambda r: None)
     item2 = adapter2.generate(author_id=2, personas=p, tick=0)
-    assert item2.text == "cached post text"
+    assert item2.text == "template"  # legacy entry not trusted as content
+    # A current-schema accepted entry IS served verbatim, no network needed.
+    from socio_sim.content import llm_cache
+    cache.write_text(json.dumps(
+        {key: llm_cache.make_entry("cached post text", "accepted", [])}),
+        encoding="utf-8")
+    adapter3 = ClaudeAdapter(base=FixedBase(), cache_path=cache, api_key=None,
+                             on_degradation=lambda r: None)
+    item3 = adapter3.generate(author_id=2, personas=p, tick=0)
+    assert item3.text == "cached post text"
 
 
 def test_claude_cache_key_includes_model_topic_and_tick(tmp_path):

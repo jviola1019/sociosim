@@ -886,7 +886,10 @@ def serve(host="127.0.0.1", port=8765, open_browser=True):
             "Non-loopback bind requires explicit SOCIOSIM_ALLOWED_HOSTS "
             "(comma-separated hostnames or IPs clients will use).")
     server.access_token = configured_token or secrets.token_urlsafe(32)
-    server.expose_token = not remote
+    # F-01: do not expose the token via /api/meta when SOCIOSIM_ACCESS_TOKEN
+    # is explicitly set -- the operator is supplying it out-of-band and does
+    # not want it auto-revealed to any same-origin page (reverse tunnel risk).
+    server.expose_token = (not remote) and not os.environ.get("SOCIOSIM_ACCESS_TOKEN")
     server.allowed_hosts = extra_hosts if remote else set()
     if host not in _LOOPBACK_HOSTS:
         print(f"WARNING: binding {host} exposes the console beyond loopback — "
