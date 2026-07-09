@@ -75,6 +75,57 @@ being reported: `gh run watch` on runs `28560638302` (push) and `28560638906`
 (pull_request), both `completed success`, all 13 named steps green,
 `gh pr checks 5` -> `test pass` ×2.
 
+## Session 2026-07-09: headless Fable fix-loop left HEAD broken + uncommitted; full 0159-audit remediation (18/20 findings)
+
+Between 2026-07-02 and 07-03 a headless orchestration loop (`claude.exe
+--model claude-fable-5 -p` driven by root-level `.vbs`/`.ps1` scripts) ran a
+Fable audit (`docs/audits/fable_audit_20260703_0159.md`, 20 findings
+A-01..H-03) and attempted fixes via one-shot subprocess prompts. Outcome
+found this session, and the reason that workflow is now retired in favor of
+in-session TDD: the fix commits were unreliable — `283dff9` ("all fixes
+applied") actually *reverted* the H-01 evidence_gate hunk; HEAD's
+`llm_cache.py` was truncated mid-token (unimportable — the whole suite was
+red at HEAD); the real fix code sat uncommitted in the working tree with 4
+failing tests; and three stale `.git/*.lock` files from crashed runs blocked
+all commits. The prior commit trail (c71d02e..283dff9) also whole-file
+rewrote line endings, making diffs unreadable.
+
+This session: consolidated + verified the working tree (`0985a9b`), then
+closed the 0159 findings with test-first fixes, one verified commit per
+group. 328 -> 358 tests.
+
+| ID | Sev | Fix | Status |
+|----|-----|-----|--------|
+| E-01 accepted-entry guard-versioning gap (P1) | P1 | `make_entry` stamps `guard_version` on every entry (both adapters inherit — no per-adapter code to drift); accepted path in `resolve()` misses on stale/absent version | **DONE** (`ae3ad4a`) |
+| E-02 docstring said legacy entries "trusted as accepted" | P3 | docstring matches safe code; pinned by test | **DONE** (`ae3ad4a`) |
+| E-03 guard_version outside tamper envelope; dead `semantic_hash` | P3 | `record_hash` binds guard_version (old-formula entries verify then miss cleanly); dead field removed | **DONE** (`ae3ad4a`) |
+| E-04 blocked-success didn't reset `_fail_streak` | P3 | reset on guard-blocked transport success | **DONE** (`ae3ad4a`) |
+| H-02 evidence gate silently skipped missing sha256/file (P1) | P1 | fail-closed: both are hard errors | **DONE** (`9c5c994`) |
+| F-01 whole-second `out_dir` collision corrupts audit artifacts | P2 | uuid suffix | **DONE** (`394b994`) |
+| F-03 `/api/job` iterated live dict while workers inserted keys | P3 | `_job_set()` under `_LOCK` + locked snapshot reader | **DONE** (`394b994`) |
+| C-01 "95%" label on 2-replicate percentile range | P2 | `N=<n>` label below 20 replicates (web UI already honest) | **DONE** (`394b994`) |
+| C-02 CLI printed target table the web suppresses | P2 | shared `evidence.targets_metadata_complete` gate + CLI suppression notice | **DONE** (`394b994`) |
+| A-04 unlabeled cutoff 3.0 | P3 | 3-sigma convention cited | **DONE** (`394b994`) |
+| F-02 IPv6 `[::1]` Host rejected | P3 | bracket-aware parse | **DONE** (`ae70ce0`) |
+| F-04 cleartext-token risk unstated | P3 | RuntimeError + warning name cleartext HTTP / TLS proxy | **DONE** (`ae70ce0`) |
+| H-03 registry.json served as octet-stream | P3 | `.json` content type | **DONE** (`ae70ce0`) |
+| D-01 lift/p-values emitted with holdout<=0 | P2 | rejected when ads enabled | **DONE** (`ae70ce0`) |
+| A-05 profile scales hand-copied in 3 places | P2 | `_profile_scales()` derived from RunConfig factories, shared with /api/meta | **DONE** (`ae70ce0`) |
+| G-01 no alt-text enforcement | P2 | evidence_gate requires `accessibility_alt_template` (all 92 real assets carry one; UI already renders alt) | **DONE** (`ae70ce0`) |
+| B-01 CLI asserted "licensed" bare | P3 | cites docs/DATA_MANIFEST.md | **DONE** (`ae70ce0`) |
+| B-02 scanner missing achieves/outperforms/accuracy | P3 | added + "Reviewer accuracy" input-label exemption | **DONE** (`ae70ce0`) |
+| C-03 report gate was a 2-phrase list | P3 | reuses claim_scan vocabulary + hedge logic | **DONE** (`ae70ce0`) |
+| A-01/A-02/A-03 unlabeled scenario constants | P2 | named constants + per-field campaign `economics_provenance` + `/api/meta` `defaults_provenance` | **DONE** (`b76de4f`) |
+| H-01 (0159) `web_path` split-before-normalize | P2 | `_asset_web_path` normalizes first, skips marker-less records; found by this session's code-review pass (the earlier "H-01" commit fixed a *different* audit generation's H-01) | **DONE** (`5e87bc5`) |
+| E-05 DNS-rebind TOCTOU (validate-then-urlopen second lookup) | P3 | **DEFERRED** — needs pinned-IP connect + explicit Host header redesign; window documented in `_http_transport` docstring; threat model is a local single-user tool with per-call re-validation + no-redirect opener already in place | DEFERRED |
+| G-02 no automated a11y (axe-core) gate in CI | P3 | **DEFERRED** — new CI dependency; no WCAG-AA claim is made anywhere; manual ADA pass done Sprint 9 | DEFERRED |
+
+Post-remediation verification: 358 passed, ruff clean, claim_scan /
+evidence_gate / secret_scan all pass; independent code-review agent pass on
+the six fix commits found zero >=80-confidence issues and confirmed the
+determinism and blocked-cache invariants; security review of the branch diff
+returned an empty report (all deltas tighten posture).
+
 ## Determinism baselines (locked pre-refactor)
 - test/EU: `a8a8b243e5958c1620d5e4ed0e9bee55c866c78d4459993c57eeca3bf848bc36`
 - test/US: `f7473dc24c1ff189045e807f7f1e8798ed2416a5bf43020ca8f2344edbd27190`

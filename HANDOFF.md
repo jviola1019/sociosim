@@ -50,6 +50,33 @@ for one of two adapters implementing the same logic and false for the other,
 both caught only by re-running gates from a clean checkout rather than
 trusting the written record (see [[sociosim-audit-reports-overclaim-reverify]]).
 
+## Session 2026-07-09: headless fix-loop cleaned up; 0159 Fable audit remediated (18/20)
+
+A between-sessions headless loop (root-level `run_fable_*.vbs`/`.ps1`
+scripts driving `claude.exe -p`) had left this branch in a broken state:
+HEAD unimportable (truncated `llm_cache.py`), a commit titled "all fixes
+applied" that reverted a fix, the real fixes uncommitted with 4 failing
+tests, and stale `.git/*.lock` files blocking commits. That workflow is
+retired; full forensic account in `AUDIT_LOG.md` "Session 2026-07-09".
+
+This session consolidated the working tree (`0985a9b`) and remediated the
+`docs/audits/fable_audit_20260703_0159.md` findings test-first, one
+verified commit per group (`ae3ad4a`, `9c5c994`, `394b994`, `ae70ce0`,
+`b76de4f`, `5e87bc5`): E-01..E-04 cache trust model (guard_version on
+accepted entries — the P1), H-02 fail-closed evidence gate (P1), F-01
+out_dir uuid, F-03 locked job mutations, C-01/C-02/A-04 CLI honesty
+(shared `evidence.targets_metadata_complete`), F-02 IPv6 Host, F-04
+cleartext-token warnings, H-03 .json content type, D-01 holdout>0 with
+ads, A-05 factory-derived profile scales, G-01 alt-template gate, B-01/
+B-02/C-03 claim-scanner upgrades, A-01..A-03 scenario-assumption
+constants + per-field campaign `economics_provenance`, H-01(0159)
+`web_path` backslash fix. E-05 (DNS pinning) and G-02 (axe-core CI)
+deferred with rationale. Suite 328 -> 358; every commit preceded by full
+green gates. Independent code-review agent + branch security review both
+clean. **NOT yet pushed to origin (19 commits ahead)** — push + `gh run
+watch` CI verification is the next step per policy. R7-ASSETART remains
+the one large unstarted item from the original brief.
+
 ## Session 2026-07-02: fixed CI red (R11) + a real second instance of the P0 (R2/R12)
 
 Before continuing to R7-ASSETART (the item flagged below as the next planned
