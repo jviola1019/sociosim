@@ -187,7 +187,7 @@ function setVal(id, v) {
   updateAriaValueText(el);
 }
 const RATE_LIMITS = {
-  hate: { max: 0.10, step: 0.001, note: "Rare severe content; default 1.0%, realistic platform prevalence is far lower, upper range is for stress tests." },
+  hate: { max: 0.10, step: 0.001, note: "Rare severe category; default 1.0% is a scenario assumption, not a measured platform prevalence. Upper range is for stress tests." },
   harassment: { max: 0.10, step: 0.001, note: "Stress-test share of all posts." },
   fraud: { max: 0.10, step: 0.001, note: "Fraud/scam prevalence as share of all posts." },
   misinfo: { max: 0.20, step: 0.002, note: "Scenario prevalence; high values are stress tests." },
@@ -744,12 +744,25 @@ function render(r) {
   renderAds(Object.values(s.ads));
   $("#compare").innerHTML = `<p class="dim small">No comparison run for this result.</p>`;
 
-  $("#implaus").textContent = `implausibility I = ${fmt(r.implausibility, 2)} (dominant: ${esc(r.implausibility_dominant_metric || "n/a")}; history-matching cutoff 3.0; lower = closer to published aggregate benchmarks)`;
-  $("#calib").innerHTML = Object.entries(r.targets).map(([name, spec]) => {
-    const obs = r.observed[name]; if (obs == null) return "";
-    const lo0 = spec.value - 3 * spec.tolerance, hi0 = spec.value + 3 * spec.tolerance, sp = Math.max(hi0 - lo0, 1e-9), L = v => Math.max(0, Math.min(100, 100 * (v - lo0) / sp)), inb = Math.abs(obs - spec.value) <= spec.tolerance;
-    return `<div class="calib-row"><span class="nm">${esc(name.replace(/_/g, " "))}</span><div class="ctrack"><span class="tol" style="left:${L(spec.value - spec.tolerance)}%;width:${L(spec.value + spec.tolerance) - L(spec.value - spec.tolerance)}%"></span><span class="ctr" style="left:${L(spec.value)}%"></span><span class="obs ${inb ? "in" : "out"}" style="left:${L(obs)}%"></span></div><span class="vl">${fmt(obs, 3)} <span class="dim">/ ${spec.value}</span></span></div>`;
-  }).join("");
+  if (r.targets_metadata_complete) {
+    $("#implaus").textContent = `synthetic target-distance diagnostic I = ${fmt(r.implausibility, 2)} (dominant: ${esc(r.implausibility_dominant_metric || "n/a")}; history-matching cutoff 3.0; lower = closer to the loaded target set)`;
+    $("#calib").innerHTML = Object.entries(r.targets).map(([name, spec]) => {
+      const obs = r.observed[name]; if (obs == null) return "";
+      const lo0 = spec.value - 3 * spec.tolerance, hi0 = spec.value + 3 * spec.tolerance, sp = Math.max(hi0 - lo0, 1e-9), L = v => Math.max(0, Math.min(100, 100 * (v - lo0) / sp)), inb = Math.abs(obs - spec.value) <= spec.tolerance;
+      return `<div class="calib-row"><span class="nm">${esc(name.replace(/_/g, " "))}</span><div class="ctrack"><span class="tol" style="left:${L(spec.value - spec.tolerance)}%;width:${L(spec.value + spec.tolerance) - L(spec.value - spec.tolerance)}%"></span><span class="ctr" style="left:${L(spec.value)}%"></span><span class="obs ${inb ? "in" : "out"}" style="left:${L(obs)}%"></span></div><span class="vl">${fmt(obs, 3)} <span class="dim">/ ${spec.value}</span></span></div>`;
+    }).join("");
+  } else {
+    // Bundled legacy target sets are all evidence-kind "unsupported" (missing
+    // source version, date range, population, source hash, and tolerance
+    // rationale) -- no pass/fail seal or "closer to published benchmarks"
+    // framing is shown for them. Numbers are reported as a plain comparison
+    // table only, with no in/out styling.
+    $("#implaus").textContent = `Unsupported legacy target comparison (I = ${fmt(r.implausibility, 2)}). The loaded target set lacks complete source provenance (see SOURCE_LEDGER.md) and cannot support a validation, calibration, or backtest claim. This is a synthetic mechanism check only.`;
+    $("#calib").innerHTML = Object.entries(r.targets).map(([name, spec]) => {
+      const obs = r.observed[name]; if (obs == null) return "";
+      return `<div class="calib-row"><span class="nm">${esc(name.replace(/_/g, " "))}</span><span class="vl">observed ${fmt(obs, 3)} <span class="dim">/ unsupported target ${spec.value}</span></span></div>`;
+    }).join("");
+  }
   let prefix = "";
   if (r.mc) {
     prefix += `MONTE CARLO (provenance: mc-replicated, ${r.n_replicates} replicates)\n`;
@@ -848,7 +861,7 @@ async function refreshHistory() {
   let data; try { data = await (await fetch("/api/runs", { headers: authHeaders() })).json(); } catch (e) { return; }
   $("#histCount").textContent = data.count; const list = $("#histList");
   if (!data.runs.length) { list.innerHTML = `<div class="hist-empty">No saved runs yet.<br>Run a simulation to populate history.</div>`; return; }
-  list.innerHTML = data.runs.map((r, i) => `<div class="hist-card" style="animation-delay:${i * 35}ms"><div class="hc-top"><span class="hc-label">${esc(r.label || r.id)}</span><span class="hc-when">${ago(r.created_at)}</span></div><div class="hc-meta">${esc(r.jurisdictions || "—")} · ${r.n_agents}a×${r.n_ticks}t · ${esc(r.content_mode)} · ${r.replay_ok ? "✓ replay" : "replay n/a"}</div><div class="hc-stats"><span>harm <b>${r.harmful_rate == null ? "—" : pct(r.harmful_rate)}</b></span><span>prec <b>${fmt(r.mod_precision, 2)}</b></span><span>I <b>${fmt(r.implausibility, 2)}</b></span></div><div class="hc-actions"><button class="open" data-open="${r.id}">Open</button><a href="/api/runs/${r.id}/export?fmt=report" data-export="/api/runs/${r.id}/export?fmt=report" data-filename="sociosim-${r.id}-report.md">Export</a><button class="del" data-del="${r.id}">Delete</button></div></div>`).join("");
+  list.innerHTML = data.runs.map((r, i) => `<div class="hist-card" style="animation-delay:${i * 35}ms"><div class="hc-top"><span class="hc-label">${esc(r.label || r.id)}</span><span class="hc-when">${ago(r.created_at)}</span></div><div class="hc-meta">${esc(r.jurisdictions || "—")} · ${r.n_agents}a×${r.n_ticks}t · ${esc(r.content_mode)} · ${r.replay_ok === 1 ? "✓ replay" : r.replay_ok === 0 ? "replay FAILED" : "replay n/a"}</div><div class="hc-stats"><span>harm <b>${r.harmful_rate == null ? "—" : pct(r.harmful_rate)}</b></span><span>prec <b>${fmt(r.mod_precision, 2)}</b></span><span>I <b>${fmt(r.implausibility, 2)}</b></span></div><div class="hc-actions"><button class="open" data-open="${r.id}">Open</button><a href="/api/runs/${r.id}/export?fmt=report" data-export="/api/runs/${r.id}/export?fmt=report" data-filename="sociosim-${r.id}-report.md">Export</a><button class="del" data-del="${r.id}">Delete</button></div></div>`).join("");
   $$("[data-open]", list).forEach(b => b.addEventListener("click", () => openRun(b.dataset.open)));
   $$("[data-export]", list).forEach(a => a.addEventListener("click", e => { e.preventDefault(); downloadProtected(a.dataset.export, a.dataset.filename); }));
   $$("[data-del]", list).forEach(b => b.addEventListener("click", async () => {

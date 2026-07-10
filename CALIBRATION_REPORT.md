@@ -1,7 +1,8 @@
 # Aggregate-Fit Diagnostic Note
 
-This file supersedes the former calibration report. The old "calibrated profile"
-language has been retired.
+This file supersedes the former aggregate-matching note. The "calibrated
+profile" name is no longer used -- it was not a calibration claim, and the
+profile is now called `aggregate_matched_prototype`.
 
 ## Current Status
 

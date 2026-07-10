@@ -19,6 +19,7 @@ import threading
 import time
 import uuid
 import webbrowser
+from dataclasses import fields as dc_fields
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -29,8 +30,14 @@ from socio_sim import (NO_REAL_PERSON_DATA_NOTICE, NOT_LEGAL_ADVICE_NOTICE,
                        RESEARCH_USE_NOTICE, __version__)
 from socio_sim.analytics.lens import run_lens
 from socio_sim.analytics.metrics import cascade_sizes, cascade_tree
-from socio_sim.config import ADVERSARIES, CATEGORIES, RunConfig
-from socio_sim.llm_bootstrap import ensure_model, ensure_server, server_up
+from socio_sim.ads.campaigns import Campaign
+from socio_sim.config import (ADVERSARIES, CATEGORIES,
+                              DEFAULT_CLASSIFIER_PRECISION,
+                              DEFAULT_CLASSIFIER_RECALL,
+                              HARMFUL_CATEGORIES, RunConfig)
+from socio_sim.evidence import targets_metadata_complete
+from socio_sim.llm_bootstrap import (DEFAULT_HOST, ensure_model,
+                                     ensure_server, server_up)
 from socio_sim.pipeline import run_and_analyze
 from socio_sim.presets import PRESETS
 from socio_sim.security import LOOPBACK_HOSTS, validate_llm_url
@@ -41,7 +48,10 @@ _CONTENT_TYPES = {".html": "text/html; charset=utf-8",
                   ".css": "text/css; charset=utf-8",
                   ".js": "text/javascript; charset=utf-8",
                   ".svg": "image/svg+xml",
-                  ".png": "image/png"}
+                  ".png": "image/png",
+                  # H-03: registry.json et al. must not be octet-stream
+                  # under X-Content-Type-Options: nosniff.
+                  ".json": "application/json; charset=utf-8"}
 
 #: Max JSON body accepted on POST (DoS guard; ASVS V5). 2 MB is ample for configs.
 MAX_BODY_BYTES = 2 * 1024 * 1024
@@ -87,18 +97,74 @@ def _host_allowed(headers, server=None) -> bool:
     This closes the read side of DNS-rebinding: a browser can reach loopback, but
     a rebound page sends its attacker-controlled Host header.
     """
-    host = (headers.get("Host") or "").rsplit(":", 1)[0].strip("[]")
+    raw = (headers.get("Host") or "").strip()
+    if raw.startswith("["):
+        # F-02: bracketed IPv6 -- "[::1]" or "[::1]:8765". Splitting on the
+        # last ":" first mangles the default-port form to ":".
+        host = raw[1:raw.index("]")] if "]" in raw else ""
+    else:
+        host = raw.rsplit(":", 1)[0]
     allowed = set(_LOOPBACK_HOSTS)
     allowed.update(getattr(server, "allowed_hosts", set()) or set())
-    return not host or host in allowed
+    # F-02 fix: require a non-empty Host header. HTTP/1.1 mandates it and
+    # browsers always send it; allowing absent Host lets any HTTP/1.0-style
+    # client bypass the DNS-rebinding guard entirely.
+    return bool(host) and host in allowed
 
-HARMFUL_CATS = ("hate", "harassment", "fraud", "misinfo", "adult",
-                "illegal_goods", "self_harm")
+HARMFUL_CATS = HARMFUL_CATEGORIES  # single source: socio_sim.config
+
+#: Scenario-assumption defaults (A-01/A-02/A-03): illustrative synthetic
+#: operating points, NOT measured classifier benchmarks, DSA/industry
+#: statistics, or advertising benchmarks -- they merely resemble such
+#: figures. Each has a per-default provenance entry in
+#: socio_sim/data/scenario_assumptions.json (see SOURCE_LEDGER.md).
+#: Values are DERIVED from their canonical definitions (config.py /
+#: the Campaign dataclass) rather than hand-copied, so they cannot drift.
+_RUNCONFIG_DEFAULTS = RunConfig()
+DEFAULT_EU_OPTOUT_RATE = _RUNCONFIG_DEFAULTS.eu_optout_rate
+DEFAULT_HUMAN_REVIEW_ACCURACY = _RUNCONFIG_DEFAULTS.human_review_accuracy
+DEFAULT_APPEAL_GRANT_FP_RATE = _RUNCONFIG_DEFAULTS.appeal_grant_fp_rate
+
+_CAMPAIGN_FIELD_DEFAULTS = {f.name: f.default for f in dc_fields(Campaign)}
+CAMPAIGN_ECON_DEFAULTS = {
+    # Web campaign-editor pre-fills (registry entry
+    # assumption.web.campaign_editor_defaults): bid and base_ctr mirror the
+    # brand-general demo campaign; base_ctr 0.012 is deliberately distinct
+    # from the Campaign dataclass fallback 0.01
+    # (assumption.campaign.base_ctr) -- a blank editor field means "use the
+    # demo-like example", not "use the engine fallback".
+    "bid": 2.0, "budget": 100.0, "base_ctr": 0.012,
+    # The rest are the Campaign dataclass fallbacks (single source).
+    "base_cvr": _CAMPAIGN_FIELD_DEFAULTS["base_cvr"],
+    "conversion_value": _CAMPAIGN_FIELD_DEFAULTS["conversion_value"],
+    "ltv_multiplier": _CAMPAIGN_FIELD_DEFAULTS["ltv_multiplier"],
+    "attribution_window_ticks": _CAMPAIGN_FIELD_DEFAULTS["attribution_window_ticks"],
+}
 
 _JOBS: dict = {}
 _LOCK = threading.Lock()
-_LLM_HOST = "127.0.0.1:11434"
+
+
+def _job_set(job: dict, **fields) -> None:
+    """All worker-thread mutations of a job dict go through here, under
+    _LOCK, pairing with the locked snapshot in GET /api/job (F-03): a dict
+    insertion can resize the dict mid-iteration and intermittently 500 the
+    polling endpoint with 'dictionary changed size during iteration'."""
+    with _LOCK:
+        job.update(fields)
+_LLM_HOST = DEFAULT_HOST  # single source: socio_sim.llm_bootstrap
 _STORE = RunStore()  # persistent run history (out/sociosim.db)
+
+
+def _asset_web_path(rec) -> str | None:
+    """Registry file_path -> web path. Normalizes separators BEFORE the
+    split (H-01): a registry.json regenerated with Windows backslash paths
+    previously raised IndexError here and 500'd /api/meta. A path without
+    the socio_sim/web/ marker is skipped (None), not a crash."""
+    p = str(rec.get("file_path", "")).replace("\\", "/")
+    if "socio_sim/web/" not in p:
+        return None
+    return "/" + p.split("socio_sim/web/", 1)[1]
 
 
 def _asset_registry() -> dict:
@@ -108,16 +174,22 @@ def _asset_registry() -> dict:
     data = json.loads(p.read_text(encoding="utf-8"))
     rows = data.get("assets", [])
 
-    def web_path(rec):
-        return "/" + rec["file_path"].split("socio_sim/web/", 1)[1].replace("\\", "/")
+    def paths(role):
+        found = (_asset_web_path(r) for r in rows if r.get("role") == role)
+        return [x for x in found if x]
 
     return {
-        "feed_covers": [web_path(r) for r in rows if r.get("role") == "feed_cover"],
-        "ad_creatives": [web_path(r) for r in rows if r.get("role") == "ad_creative"],
-        "editorial": [web_path(r) for r in rows if r.get("role") == "editorial_system"],
+        "feed_covers": paths("feed_cover"),
+        "ad_creatives": paths("ad_creative"),
+        "editorial": paths("editorial_system"),
         "human_review": data.get("human_review", {}),
         "evidence_id": "ev.synthetic_engineering.assets_v4",
     }
+
+
+# Shared with the CLI (audit C-02): one gate decides, for every surface,
+# whether observed-vs-target comparisons may be shown at all.
+_targets_metadata_complete = targets_metadata_complete
 
 
 def _jsonable(obj):
@@ -136,7 +208,25 @@ def _jsonable(obj):
 
 
 _MISSING = object()
-_PROFILES = {"quick", "test", "standard", "aggregate_matched_prototype", "calibrated"}
+#: Publicly selectable profiles. "calibrated" is intentionally absent: it is
+#: not advertised or accepted as a fresh choice, only migrated (see
+#: _migrate_legacy_profile) when an old saved request/script still sends it.
+_PROFILE_FACTORIES = {
+    "quick": RunConfig.quick,
+    "test": RunConfig.test,
+    "standard": RunConfig.standard,
+    "aggregate_matched_prototype": RunConfig.aggregate_matched_prototype,
+}
+_PROFILES = set(_PROFILE_FACTORIES)
+
+
+def _profile_scales() -> dict:
+    """Per-profile scale (n_agents/n_ticks) derived from the RunConfig
+    factories -- the single source of truth (A-05). Hand-copied scale dicts
+    here previously duplicated the factories and could silently drift,
+    mis-sizing SBM blocks and mislabeling the UI."""
+    return {name: {"n_agents": f().n_agents, "n_ticks": f().n_ticks}
+            for name, f in _PROFILE_FACTORIES.items()}
 _GRAPH_KINDS = {"ba", "plc", "ws", "sbm"}
 _AGE_SEGMENTS = {"13-17", "18-24", "25-34", "35-49", "50-64", "65+"}
 
@@ -189,6 +279,14 @@ def _choice_list(body, key, default, allowed: set) -> tuple:
     return tuple(vals)
 
 
+def _migrate_legacy_profile(raw: str) -> str:
+    """Explicit migration path for old saved requests/scripts that still send
+    profile=='calibrated'. Not advertised in _PROFILES or the UI; exists only
+    so a stale client doesn't hard-fail. Maps to the current, honestly-named
+    equivalent (RunConfig.aggregate_matched_prototype)."""
+    return "aggregate_matched_prototype" if raw == "calibrated" else raw
+
+
 def _build_config(body: dict) -> RunConfig:
     """Map the granular web form into a validated RunConfig.
 
@@ -196,11 +294,10 @@ def _build_config(body: dict) -> RunConfig:
     moderation / feed / ads). A profile sets the scale baseline; explicit
     agents/ticks override it.
     """
+    body = dict(body)
+    body["profile"] = _migrate_legacy_profile(body.get("profile", "quick"))
     profile = _choice(body, "profile", "quick", _PROFILES)
-    factory = {"quick": RunConfig.quick, "test": RunConfig.test,
-               "standard": RunConfig.standard,
-               "aggregate_matched_prototype": RunConfig.aggregate_matched_prototype,
-               "calibrated": RunConfig.calibrated}[profile]
+    factory = _PROFILE_FACTORIES[profile]
 
     jurisdictions = _choice_list(body, "jurisdictions", ["EU"], {"US", "EU", "CN"})
     raw_red_team = body.get("red_team", [])
@@ -211,8 +308,8 @@ def _build_config(body: dict) -> RunConfig:
     classifier_mode = _choice(
         body, "classifier_mode", "synthetic_noise_classifier",
         {"synthetic_noise_classifier", "synthetic_template_classifier"})
-    prec = _f(body, "classifier_precision", 0.90)
-    rec = _f(body, "classifier_recall", 0.85)
+    prec = _f(body, "classifier_precision", DEFAULT_CLASSIFIER_PRECISION)
+    rec = _f(body, "classifier_recall", DEFAULT_CLASSIFIER_RECALL)
     classifier_targets = {c: {"precision": prec, "recall": rec}
                           for c in CATEGORIES}
     if classifier_mode == "synthetic_template_classifier":
@@ -224,14 +321,13 @@ def _build_config(body: dict) -> RunConfig:
         if f"rate_{cat}" in body:
             base_rates[cat] = _f(body, f"rate_{cat}", base_rates.get(cat, 0.0))
 
-    graph_default = "plc" if profile in {"calibrated", "aggregate_matched_prototype"} else "ba"
+    graph_default = "plc" if profile == "aggregate_matched_prototype" else "ba"
     graph_kind = _choice(body, "graph_kind", graph_default, _GRAPH_KINDS)
     # SBM blocks must sum to the agent count (else the graph has a different node
     # count than n_agents -> engine indexing error). Derive from the effective n.
-    _prof_n = {"quick": 1000, "test": 200, "standard": 10000,
-               "calibrated": 1000, "aggregate_matched_prototype": 1000}.get(profile, 1000)
-    _prof_ticks = {"quick": 168, "test": 48, "standard": 672,
-                   "calibrated": 168, "aggregate_matched_prototype": 168}.get(profile, 168)
+    _scale = _profile_scales()[profile]           # A-05: factory-derived
+    _prof_n = _scale["n_agents"]
+    _prof_ticks = _scale["n_ticks"]
     _n = _f(body, "n_agents", _prof_n)
     _half = _n // 2
     if graph_kind == "ba":
@@ -246,11 +342,21 @@ def _build_config(body: dict) -> RunConfig:
         graph_params = {"block_sizes": [_half, _n - _half],
                         "p_matrix": [[0.02, 0.002], [0.002, 0.02]]}
 
+    ads_enabled = _bool(body, "ads_enabled", True)
+    holdout_fraction = _f(body, "holdout_fraction", 0.10)
+    # D-01: lift/p-value/BH-FDR outputs are causal claims that need a control
+    # group. Reject a zero/negative holdout while ads are enabled instead of
+    # emitting significance language with no experimental design behind it.
+    if ads_enabled and holdout_fraction <= 0:
+        raise ValueError(
+            "holdout_fraction: ad lift/significance require a non-empty "
+            "holdout; set holdout_fraction > 0 or ads_enabled=false")
+
     overrides = dict(
         jurisdictions=jurisdictions,
         ftc_enabled=_bool(body, "ftc_enabled", True),
         feed_strategy=body.get("feed_strategy", "personalized"),
-        eu_optout_rate=_f(body, "eu_optout_rate", 0.20),
+        eu_optout_rate=_f(body, "eu_optout_rate", DEFAULT_EU_OPTOUT_RATE),
         exploration_epsilon=_f(body, "exploration_epsilon", 0.10),
         feed_size=int(_f(body, "feed_size", 20)),
         ad_slot_interval=int(_f(body, "ad_slot_interval", 5)),
@@ -264,20 +370,25 @@ def _build_config(body: dict) -> RunConfig:
         n_topics=int(_f(body, "n_topics", 8)),
         classifier_targets=classifier_targets,
         category_base_rates=base_rates,
-        ads_enabled=_bool(body, "ads_enabled", True),
-        holdout_fraction=_f(body, "holdout_fraction", 0.10),
+        ads_enabled=ads_enabled,
+        holdout_fraction=holdout_fraction,
         ad_frequency_cap_per_day=int(_f(body, "ad_frequency_cap_per_day", 4)),
         ftc_compliance=_bool(body, "ftc_compliance", True),
         graph_kind=graph_kind,
         graph_params=graph_params,
         homophily_rewire_fraction=_f(body, "homophily_rewire_fraction", 0.15),
-        human_review_accuracy=_f(body, "human_review_accuracy", 0.92),
+        human_review_accuracy=_f(body, "human_review_accuracy",
+                                 DEFAULT_HUMAN_REVIEW_ACCURACY),
         human_review_delay_ticks=int(_f(body, "human_review_delay_ticks", 6)),
-        appeal_grant_fp_rate=_f(body, "appeal_grant_fp_rate", 0.70),
+        appeal_grant_fp_rate=_f(body, "appeal_grant_fp_rate",
+                                DEFAULT_APPEAL_GRANT_FP_RATE),
         red_team=red_team,
         root_seed=int(_f(body, "root_seed", 42)),
         tick_hours=int(_f(body, "tick_hours", 1)),
-        out_dir=f"out/web/{int(time.time())}",
+        # F-01: whole-second timestamps collide when two jobs start in the
+        # same second, interleaving their events.jsonl/manifest.json audit
+        # records -- suffix with a uuid so every job gets its own directory.
+        out_dir=f"out/web/{int(time.time())}-{uuid.uuid4().hex[:8]}",
     )
     if body.get("n_agents"):
         overrides["n_agents"] = _f(body, "n_agents", _prof_n)
@@ -334,13 +445,23 @@ def _normalize_campaign_specs(body: dict) -> list[dict]:
                 if topic < 0:
                     raise ValueError(f"campaigns[{idx}].market: expected non-negative topic")
                 targeting["topics"] = [topic]
-            bid = c_float("bid", 2.0)
-            budget = c_float("budget", 100.0)
-            base_ctr = c_float("base_ctr", 0.012)
-            base_cvr = c_float("base_cvr", 0.05)
-            conversion_value = c_float("conversion_value", 1.0)
-            ltv_multiplier = c_float("ltv_multiplier", 3.0)
-            attribution_window_ticks = c_int("attribution_window_ticks", 168)
+            d = CAMPAIGN_ECON_DEFAULTS
+            bid = c_float("bid", d["bid"])
+            budget = c_float("budget", d["budget"])
+            base_ctr = c_float("base_ctr", d["base_ctr"])
+            base_cvr = c_float("base_cvr", d["base_cvr"])
+            conversion_value = c_float("conversion_value", d["conversion_value"])
+            ltv_multiplier = c_float("ltv_multiplier", d["ltv_multiplier"])
+            attribution_window_ticks = c_int(
+                "attribution_window_ticks", d["attribution_window_ticks"])
+            # A-03: record, per economics field, whether the value came from
+            # the user or is a scenario-assumption default -- these numbers
+            # resemble industry benchmarks and must not masquerade as such.
+            provenance = {
+                f: ("user_supplied" if s.get(f) not in (None, "")
+                    else "scenario_assumption_default")
+                for f in CAMPAIGN_ECON_DEFAULTS
+            }
             if bid <= 0:
                 raise ValueError(f"campaigns[{idx}].bid: must be positive")
             if budget <= 0:
@@ -367,6 +488,7 @@ def _normalize_campaign_specs(body: dict) -> list[dict]:
                 ltv_multiplier=ltv_multiplier,
                 attribution_window_ticks=attribution_window_ticks,
                 targeting=targeting,
+                economics_provenance=provenance,
             ))
         except (TypeError, ValueError):
             raise
@@ -380,8 +502,10 @@ def _campaigns_fn(body: dict):
     clean = _normalize_campaign_specs(body)
     if not clean:
         return None
-    from socio_sim.ads.campaigns import Campaign
-    return lambda cfg: [Campaign(**c) for c in clean]
+    # economics_provenance is payload metadata (A-03), not a Campaign field.
+    return lambda cfg: [
+        Campaign(**{k: v for k, v in c.items() if k != "economics_provenance"})
+        for c in clean]
 
 
 def _chart_data(result, summary) -> dict:
@@ -484,30 +608,29 @@ def _run_job(job_id: str, body: dict):
     job = _JOBS[job_id]
     try:
         cfg = _build_config(body)
-        job["n_ticks"] = cfg.n_ticks
+        _job_set(job, n_ticks=cfg.n_ticks)
         # Preview (1) vs Research (N replicates -> Monte Carlo intervals).
         n_replicates = max(1, min(int(body.get("n_replicates", 1) or 1), 200))
 
         # On-demand local LLM bootstrap so the dashboard's ollama mode works
         # without separate setup (skip for user-supplied openai_compatible).
         if cfg.content_mode == "ollama" and not server_up(_LLM_HOST):
-            job["phase"] = "starting local LLM"
-            ensure_server(_LLM_HOST, log=lambda m: job.__setitem__("phase", m))
-            job["phase"] = "loading model"
+            _job_set(job, phase="starting local LLM")
+            ensure_server(_LLM_HOST, log=lambda m: _job_set(job, phase=m))
+            _job_set(job, phase="loading model")
             ensure_model(cfg.llm_model or "qwen2.5:0.5b", _LLM_HOST,
-                         log=lambda m: job.__setitem__("phase", m))
+                         log=lambda m: _job_set(job, phase=m))
         started = time.time()
 
         def on_progress(tick, total):
-            job["progress"] = tick / total
-            job["tick"] = tick
+            _job_set(job, progress=tick / total, tick=tick)
 
         # Same run → analyze → verify pipeline the CLI and examples use.
         verify_replay = bool(body.get("verify_replay", cfg.n_agents <= 2000))
         a = run_and_analyze(
             cfg, verify_replay=verify_replay, n_replicates=n_replicates,
             campaigns_fn=_campaigns_fn(body), progress_callback=on_progress,
-            on_phase=lambda p: job.__setitem__("phase", p))
+            on_phase=lambda p: _job_set(job, phase=p))
         result = a.result
         campaign_specs = _normalize_campaign_specs(body)
 
@@ -520,7 +643,7 @@ def _run_job(job_id: str, body: dict):
             if c < 60:
                 ev_sample.append(e)
                 _per_kind[e["kind"]] = c + 1
-        job["result"] = _jsonable({
+        result_payload = _jsonable({
             "summary": a.summary,
             "charts": _chart_data(result, a.summary),
             "feed": _sample_feed(result),
@@ -531,6 +654,7 @@ def _run_job(job_id: str, body: dict):
             "campaign_specs": campaign_specs,
             "observed": a.observed,
             "targets": a.targets,
+            "targets_metadata_complete": _targets_metadata_complete(a.targets),
             "implausibility": a.implausibility,
             "implausibility_components": a.implausibility_components,
             "implausibility_dominant_metric": a.implausibility_dominant_metric,
@@ -557,17 +681,16 @@ def _run_job(job_id: str, body: dict):
                             if llm_calls else None),
             "out_dir": cfg.out_dir,
         })
+        _job_set(job, result=result_payload)
         # Persist to the run database so it appears in History and can be
         # reopened, compared, or exported later.
         try:
-            _STORE.save(job_id, job["result"], label=body.get("label", ""))
+            _STORE.save(job_id, result_payload, label=body.get("label", ""))
         except Exception as exc:
-            job["history_warning"] = f"{type(exc).__name__}: {exc}"
-        job["status"] = "done"
-        job["progress"] = 1.0
+            _job_set(job, history_warning=f"{type(exc).__name__}: {exc}")
+        _job_set(job, status="done", progress=1.0)
     except Exception as exc:
-        job["status"] = "error"
-        job["error"] = f"{type(exc).__name__}: {exc}"
+        _job_set(job, status="error", error=f"{type(exc).__name__}: {exc}")
 
 
 def _run_compare(job_id: str, body: dict):
@@ -579,22 +702,20 @@ def _run_compare(job_id: str, body: dict):
         from socio_sim.experiments.compare import compare
         from socio_sim.pipeline import _headline_metrics
         n = max(2, min(int(body.get("compare_replicates", 10) or 10), 100))
-        job["phase"] = "comparing (baseline vs intervention)"
+        _job_set(job, phase="comparing (baseline vs intervention)")
         base = _build_config(body)
         interv = _build_config({**body, **(body.get("intervention") or {})})
         res = compare(base, interv, n, _headline_metrics,
                       campaigns_fn=_campaigns_fn(body))
-        job["result"] = _jsonable({
+        _job_set(job, result=_jsonable({
             "compare": res, "n_replicates": n,
             "baseline_jurisdictions": list(base.jurisdictions),
             "intervention_jurisdictions": list(interv.jurisdictions),
             "provenance": "crn-paired-monte-carlo",
-        })
-        job["status"] = "done"
-        job["progress"] = 1.0
+        }))
+        _job_set(job, status="done", progress=1.0)
     except Exception as exc:
-        job["status"] = "error"
-        job["error"] = f"{type(exc).__name__}: {exc}"
+        _job_set(job, status="error", error=f"{type(exc).__name__}: {exc}")
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -683,19 +804,25 @@ class Handler(BaseHTTPRequestHandler):
                 "adversaries": list(ADVERSARIES),
                 "harmful_categories": list(HARMFUL_CATS),
                 "defaults": RunConfig().category_base_rates,
+                # A-01/A-02: these defaults are scenario assumptions, not
+                # measured statistics; per-default provenance entries live
+                # in socio_sim/data/scenario_assumptions.json.
+                "defaults_provenance": "scenario_assumption",
                 "presets": PRESETS,
                 "assets": _asset_registry(),
                 "llm_available": server_up(_LLM_HOST, timeout=0.4),
-                "profiles": {"quick": {"n_agents": 1000, "n_ticks": 168},
-                             "test": {"n_agents": 200, "n_ticks": 48},
-                             "standard": {"n_agents": 10000, "n_ticks": 672}},
+                "profiles": _profile_scales(),  # A-05: factory-derived
             })
         elif route.startswith("/api/job"):
-            job = _JOBS.get(route.rsplit("/", 1)[-1])
-            if not job:
+            # F-03: snapshot under the lock -- worker threads insert keys via
+            # _job_set and iterating the live dict can raise mid-resize.
+            with _LOCK:
+                job = _JOBS.get(route.rsplit("/", 1)[-1])
+                snapshot = dict(job) if job else None
+            if not snapshot:
                 self._send_json({"error": "unknown job"}, 404)
                 return
-            self._send_json({k: v for k, v in job.items() if k != "body"})
+            self._send_json({k: v for k, v in snapshot.items() if k != "body"})
         elif route == "/api/runs":
             self._send_json({"runs": _STORE.list(), "count": _STORE.count()})
         elif route.startswith("/api/runs/"):
@@ -842,17 +969,25 @@ def serve(host="127.0.0.1", port=8765, open_browser=True):
     if remote and not configured_token:
         raise RuntimeError(
             "Non-loopback bind requires SOCIOSIM_ACCESS_TOKEN. The built-in "
-            "token is a CSRF guard, not network authentication.")
+            "token is a CSRF guard, not network authentication. Note (F-04): "
+            "there is no TLS in this stack -- the token travels as a "
+            "cleartext HTTP header. Put a TLS-terminating reverse proxy in "
+            "front for any non-trusted network.")
     if remote and not extra_hosts:
         raise RuntimeError(
             "Non-loopback bind requires explicit SOCIOSIM_ALLOWED_HOSTS "
             "(comma-separated hostnames or IPs clients will use).")
     server.access_token = configured_token or secrets.token_urlsafe(32)
-    server.expose_token = not remote
+    # F-01: do not expose the token via /api/meta when SOCIOSIM_ACCESS_TOKEN
+    # is explicitly set -- the operator is supplying it out-of-band and does
+    # not want it auto-revealed to any same-origin page (reverse tunnel risk).
+    server.expose_token = (not remote) and not os.environ.get("SOCIOSIM_ACCESS_TOKEN")
     server.allowed_hosts = extra_hosts if remote else set()
     if host not in _LOOPBACK_HOSTS:
         print(f"WARNING: binding {host} exposes the console beyond loopback — "
-              "use only on a trusted host/network.")
+              "use only on a trusted host/network. All traffic (including "
+              "the access token) is cleartext HTTP; front with a "
+              "TLS-terminating reverse proxy on untrusted networks.")
     url = f"http://{host}:{port}"
     print(f"SocioSim web console running at {url}")
     print("Research use only. Press Ctrl+C to stop.")

@@ -1,61 +1,724 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "assumptions": [
     {
-      "id": "assumption.behavior_defaults",
+      "id": "assumption.behavior.p_post_given_active",
       "evidence_id": "ev.scenario_assumption.default_parameters",
-      "label": "Behavior parameter defaults",
-      "units": "probabilities, ticks, and scalar multipliers",
-      "scope": "Synthetic agent mechanics",
-      "path": "socio_sim.behavior.BehaviorParams"
+      "label": "P(post | agent active this tick), non-spammer",
+      "path": "socio_sim.behavior.BehaviorParams.p_post_given_active",
+      "value": 0.3,
+      "units": "probability",
+      "scope": "Synthetic agent behavioral mechanics",
+      "rationale": "Scenario default for posting propensity conditional on being active this tick. Not derived from platform data; sensitivity-tested in VALIDATION_REPORT.md."
     },
     {
-      "id": "assumption.persona_distributions",
+      "id": "assumption.behavior.p_share_given_engaged",
       "evidence_id": "ev.scenario_assumption.default_parameters",
-      "label": "Persona distributions",
-      "units": "synthetic categorical and probability distributions",
-      "scope": "Synthetic agents",
-      "path": "socio_sim.agents.personas"
+      "label": "P(reshare | an engaged like)",
+      "path": "socio_sim.behavior.BehaviorParams.p_share_given_engaged",
+      "value": 0.1,
+      "units": "probability",
+      "scope": "Synthetic agent behavioral mechanics",
+      "rationale": "Drives cascade branching factor. Scenario default; sensitivity-tested."
     },
     {
-      "id": "assumption.category_base_rates",
+      "id": "assumption.behavior.p_flag_scale",
       "evidence_id": "ev.scenario_assumption.default_parameters",
-      "label": "Content category base rates",
+      "label": "User-flag probability scale",
+      "path": "socio_sim.behavior.BehaviorParams.p_flag_scale",
+      "value": 0.3,
+      "units": "probability scale (multiplies moderation_attitude)",
+      "scope": "Synthetic agent behavioral mechanics",
+      "rationale": "user-flag prob = p_flag_scale * moderation_attitude. Scenario default."
+    },
+    {
+      "id": "assumption.behavior.impression_fatigue",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Fatigue added per impression seen",
+      "path": "socio_sim.behavior.BehaviorParams.impression_fatigue",
+      "value": 0.005,
+      "units": "fatigue units per impression",
+      "scope": "Synthetic agent behavioral mechanics",
+      "rationale": "Advanced knob: influence is regime/sample dependent (Saltelli ST~0.09, see SPRINT 8 settings audit). Keep explicit and sensitivity-tested; do not treat older small-N influence rankings as final."
+    },
+    {
+      "id": "assumption.behavior.fatigue_decay_per_tick",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Multiplicative fatigue decay per tick",
+      "path": "socio_sim.behavior.BehaviorParams.fatigue_decay_per_tick",
+      "value": 0.05,
+      "units": "fraction per tick",
+      "scope": "Synthetic agent behavioral mechanics",
+      "rationale": "Scenario default for how quickly accumulated fatigue decays."
+    },
+    {
+      "id": "assumption.behavior.recent_window_ticks",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Feed candidate recency window",
+      "path": "socio_sim.behavior.BehaviorParams.recent_window_ticks",
+      "value": 48,
+      "units": "ticks",
+      "scope": "Synthetic agent behavioral mechanics",
+      "rationale": "How far back posts remain feed candidates. Engineering/scenario choice, not an empirical platform measurement."
+    },
+    {
+      "id": "assumption.behavior.exploration_pool_size",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Max unseen-author exploration candidates",
+      "path": "socio_sim.behavior.BehaviorParams.exploration_pool_size",
+      "value": 10,
+      "units": "count",
+      "scope": "Synthetic agent behavioral mechanics",
+      "rationale": "Feed-ranking exploration budget. Scenario/engineering default."
+    },
+    {
+      "id": "assumption.behavior.engagement_base",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Base engagement propensity scalar",
+      "path": "socio_sim.behavior.BehaviorParams.engagement_base",
+      "value": 0.3,
+      "units": "probability scale",
+      "scope": "Synthetic agent behavioral mechanics",
+      "rationale": "Scenario default scaling baseline engagement probability."
+    },
+    {
+      "id": "assumption.behavior.trusted_review_delay_ticks",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Trusted-flagger priority review latency",
+      "path": "socio_sim.behavior.BehaviorParams.trusted_review_delay_ticks",
+      "value": 1,
+      "units": "ticks",
+      "scope": "Synthetic agent behavioral mechanics",
+      "rationale": "DSA Art. 22 trusted-flagger escalations get priority review; 1 tick is a modeling choice for 'priority' relative to human_review_delay_ticks, not a statutory deadline (see policy/packs/eu_dsa.yaml legal_uncertainty fields for the statutory text itself)."
+    },
+    {
+      "id": "assumption.behavior.spammer_post_prob",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Spammer-archetype post probability",
+      "path": "socio_sim.behavior.BehaviorParams.spammer_post_prob",
+      "value": 1.0,
+      "units": "probability",
+      "scope": "Synthetic agent behavioral mechanics",
+      "rationale": "Red-team archetype intensity (Spec S3.10): spammers post every active tick by construction (adversary stress-test parameter, not a platform measurement)."
+    },
+    {
+      "id": "assumption.behavior.amplifier_misinfo_prob",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Misinfo-amplifier injection probability",
+      "path": "socio_sim.behavior.BehaviorParams.amplifier_misinfo_prob",
+      "value": 0.6,
+      "units": "probability",
+      "scope": "Synthetic agent behavioral mechanics",
+      "rationale": "Red-team archetype intensity (Spec S3.10): P(amplifier injects misinfo into a post)."
+    },
+    {
+      "id": "assumption.behavior.amplifier_stance_gain",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Amplifier stance multiplier",
+      "path": "socio_sim.behavior.BehaviorParams.amplifier_stance_gain",
+      "value": 1.5,
+      "units": "multiplier",
+      "scope": "Synthetic agent behavioral mechanics",
+      "rationale": "Red-team archetype intensity (Spec S3.10): stance multiplier for amplified posts."
+    },
+    {
+      "id": "assumption.behavior.brigade_flag_prob",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Brigading-ring bad-faith flag probability",
+      "path": "socio_sim.behavior.BehaviorParams.brigade_flag_prob",
+      "value": 0.8,
+      "units": "probability",
+      "scope": "Synthetic agent behavioral mechanics",
+      "rationale": "Red-team archetype intensity (Spec S3.10): P(brigader bad-faith flags an influencer post)."
+    },
+    {
+      "id": "assumption.category_base_rate.hate",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Ground-truth prevalence: hate",
+      "path": "socio_sim.config._default_base_rates['hate']",
+      "value": 0.01,
       "units": "probability per generated post",
-      "scope": "Synthetic content generation",
-      "path": "socio_sim.config._default_base_rates"
+      "scope": "Synthetic content-category prevalence",
+      "rationale": "Scenario default for organic content-category prevalence; not derived from a measured platform prevalence study. User-adjustable per run (rate_<category> web/CLI fields)."
     },
     {
-      "id": "assumption.classifier_operating_points",
+      "id": "assumption.category_base_rate.harassment",
       "evidence_id": "ev.scenario_assumption.default_parameters",
-      "label": "Synthetic classifier operating points",
-      "units": "precision and recall scenario inputs",
-      "scope": "Noisy classifier mechanics",
-      "path": "socio_sim.config._default_classifier_targets"
+      "label": "Ground-truth prevalence: harassment",
+      "path": "socio_sim.config._default_base_rates['harassment']",
+      "value": 0.015,
+      "units": "probability per generated post",
+      "scope": "Synthetic content-category prevalence",
+      "rationale": "Scenario default for organic content-category prevalence; not derived from a measured platform prevalence study. User-adjustable per run (rate_<category> web/CLI fields)."
     },
     {
-      "id": "assumption.ad_campaign_defaults",
+      "id": "assumption.category_base_rate.fraud",
       "evidence_id": "ev.scenario_assumption.default_parameters",
-      "label": "Ad campaign defaults",
-      "units": "bid, budget, CTR, CVR, value, LTV multiplier, attribution ticks",
-      "scope": "Synthetic advertising mechanics",
-      "path": "socio_sim.ads.campaigns.Campaign"
+      "label": "Ground-truth prevalence: fraud",
+      "path": "socio_sim.config._default_base_rates['fraud']",
+      "value": 0.008,
+      "units": "probability per generated post",
+      "scope": "Synthetic content-category prevalence",
+      "rationale": "Scenario default for organic content-category prevalence; not derived from a measured platform prevalence study. User-adjustable per run (rate_<category> web/CLI fields)."
     },
     {
-      "id": "assumption.policy_timing_defaults",
+      "id": "assumption.category_base_rate.misinfo",
       "evidence_id": "ev.scenario_assumption.default_parameters",
-      "label": "Policy and review timing defaults",
-      "units": "probability and ticks",
-      "scope": "Synthetic policy workflow mechanics",
-      "path": "socio_sim.config.RunConfig"
+      "label": "Ground-truth prevalence: misinfo",
+      "path": "socio_sim.config._default_base_rates['misinfo']",
+      "value": 0.02,
+      "units": "probability per generated post",
+      "scope": "Synthetic content-category prevalence",
+      "rationale": "Scenario default for organic content-category prevalence; not derived from a measured platform prevalence study. User-adjustable per run (rate_<category> web/CLI fields)."
     },
     {
-      "id": "assumption.profile_defaults",
+      "id": "assumption.category_base_rate.adult",
       "evidence_id": "ev.scenario_assumption.default_parameters",
-      "label": "Run profile defaults",
-      "units": "agents, ticks, graph parameters, replicates",
-      "scope": "Synthetic run scale presets",
-      "path": "socio_sim.config.RunConfig"
+      "label": "Ground-truth prevalence: adult",
+      "path": "socio_sim.config._default_base_rates['adult']",
+      "value": 0.01,
+      "units": "probability per generated post",
+      "scope": "Synthetic content-category prevalence",
+      "rationale": "Scenario default for organic content-category prevalence; not derived from a measured platform prevalence study. User-adjustable per run (rate_<category> web/CLI fields)."
+    },
+    {
+      "id": "assumption.category_base_rate.illegal_goods",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Ground-truth prevalence: illegal_goods",
+      "path": "socio_sim.config._default_base_rates['illegal_goods']",
+      "value": 0.003,
+      "units": "probability per generated post",
+      "scope": "Synthetic content-category prevalence",
+      "rationale": "Scenario default for organic content-category prevalence; not derived from a measured platform prevalence study. User-adjustable per run (rate_<category> web/CLI fields)."
+    },
+    {
+      "id": "assumption.category_base_rate.self_harm",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Ground-truth prevalence: self_harm",
+      "path": "socio_sim.config._default_base_rates['self_harm']",
+      "value": 0.004,
+      "units": "probability per generated post",
+      "scope": "Synthetic content-category prevalence",
+      "rationale": "Scenario default for organic content-category prevalence; not derived from a measured platform prevalence study. User-adjustable per run (rate_<category> web/CLI fields)."
+    },
+    {
+      "id": "assumption.category_base_rate.political",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Ground-truth prevalence: political",
+      "path": "socio_sim.config._default_base_rates['political']",
+      "value": 0.15,
+      "units": "probability per generated post",
+      "scope": "Synthetic content-category prevalence",
+      "rationale": "Scenario default for organic content-category prevalence; not derived from a measured platform prevalence study. User-adjustable per run (rate_<category> web/CLI fields)."
+    },
+    {
+      "id": "assumption.category_base_rate.ai_generated",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Ground-truth prevalence: ai_generated",
+      "path": "socio_sim.config._default_base_rates['ai_generated']",
+      "value": 0.08,
+      "units": "probability per generated post",
+      "scope": "Synthetic content-category prevalence",
+      "rationale": "Scenario default for organic content-category prevalence; not derived from a measured platform prevalence study. User-adjustable per run (rate_<category> web/CLI fields)."
+    },
+    {
+      "id": "assumption.classifier_target.precision",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Default classifier precision operating point",
+      "path": "socio_sim.config._default_classifier_targets()[*]['precision']",
+      "value": 0.9,
+      "units": "probability",
+      "scope": "Synthetic noisy-classifier operating point",
+      "rationale": "Applied uniformly across all content categories as a scenario default for synthetic_noise_classifier; not a measured classifier metric. See BENCHMARK_REPORT.md for the separately measured-on-benchmark component F1/AUC, which does not validate this runtime operating point."
+    },
+    {
+      "id": "assumption.classifier_target.recall",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Default classifier recall operating point",
+      "path": "socio_sim.config._default_classifier_targets()[*]['recall']",
+      "value": 0.85,
+      "units": "probability",
+      "scope": "Synthetic noisy-classifier operating point",
+      "rationale": "Applied uniformly across all content categories as a scenario default for synthetic_noise_classifier; not a measured classifier metric."
+    },
+    {
+      "id": "assumption.runconfig.eu_optout_rate",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "EU non-personalised-feed opt-out rate",
+      "path": "socio_sim.config.RunConfig.eu_optout_rate",
+      "value": 0.2,
+      "units": "probability",
+      "scope": "Synthetic platform-mechanics scenario default",
+      "rationale": "Synthetic share of EU agents assumed to opt out of personalisation when offered the DSA Art. 38 non-personalised-feed option. Not a measured uptake rate."
+    },
+    {
+      "id": "assumption.runconfig.exploration_epsilon",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Feed-ranking exploration epsilon",
+      "path": "socio_sim.config.RunConfig.exploration_epsilon",
+      "value": 0.1,
+      "units": "probability",
+      "scope": "Synthetic platform-mechanics scenario default",
+      "rationale": "Epsilon-greedy exploration share in feed ranking. Engineering/scenario default."
+    },
+    {
+      "id": "assumption.runconfig.feed_size",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Feed page size",
+      "path": "socio_sim.config.RunConfig.feed_size",
+      "value": 20,
+      "units": "items",
+      "scope": "Synthetic platform-mechanics scenario default",
+      "rationale": "Number of items rendered per feed pull. Structural/engineering default."
+    },
+    {
+      "id": "assumption.runconfig.ad_slot_interval",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Ad slot interval",
+      "path": "socio_sim.config.RunConfig.ad_slot_interval",
+      "value": 5,
+      "units": "feed positions",
+      "scope": "Synthetic platform-mechanics scenario default",
+      "rationale": "Every Nth feed position is an ad slot. Structural/engineering default, not an empirically observed platform ad density."
+    },
+    {
+      "id": "assumption.runconfig.holdout_fraction",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Default ad holdout fraction",
+      "path": "socio_sim.config.RunConfig.holdout_fraction",
+      "value": 0.1,
+      "units": "probability",
+      "scope": "Synthetic platform-mechanics scenario default",
+      "rationale": "Share of audience withheld from ad exposure for incrementality measurement. Experiment-design choice (statistical power trade-off), not a platform fact."
+    },
+    {
+      "id": "assumption.runconfig.ad_frequency_cap_per_day",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Ad frequency cap",
+      "path": "socio_sim.config.RunConfig.ad_frequency_cap_per_day",
+      "value": 4,
+      "units": "impressions/agent/day",
+      "scope": "Synthetic platform-mechanics scenario default",
+      "rationale": "Synthetic frequency-capping default. Not derived from a measured platform policy."
+    },
+    {
+      "id": "assumption.runconfig.homophily_rewire_fraction",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Homophily rewiring fraction",
+      "path": "socio_sim.config.RunConfig.homophily_rewire_fraction",
+      "value": 0.15,
+      "units": "fraction of cross-attribute edges",
+      "scope": "Synthetic platform-mechanics scenario default",
+      "rationale": "Share of cross-attribute edges rewired to same-attribute pairs to model homophily on top of the base graph topology. Calibration knob, not a measured platform homophily statistic."
+    },
+    {
+      "id": "assumption.runconfig.human_review_accuracy",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Simulated human-reviewer accuracy",
+      "path": "socio_sim.config.RunConfig.human_review_accuracy",
+      "value": 0.92,
+      "units": "probability",
+      "scope": "Synthetic platform-mechanics scenario default",
+      "rationale": "Probability the simulated human reviewer reaches the policy-correct decision. Scenario assumption; not a measured reviewer-accuracy study (see AUDIT_LOG.md Q-REVIEW, still open: reviewer ground-truth heuristic needs its own writeup)."
+    },
+    {
+      "id": "assumption.runconfig.human_review_delay_ticks",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Human review queue latency",
+      "path": "socio_sim.config.RunConfig.human_review_delay_ticks",
+      "value": 6,
+      "units": "ticks",
+      "scope": "Synthetic platform-mechanics scenario default",
+      "rationale": "Modeling assumption for time-to-decision in the simulated human review queue; not a statutory or measured platform SLA (policy packs separately cite the actual statutory deadlines that exist, e.g. policy/packs/eu_dsa.yaml)."
+    },
+    {
+      "id": "assumption.runconfig.appeal_grant_fp_rate",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Appeal grant rate for false positives",
+      "path": "socio_sim.config.RunConfig.appeal_grant_fp_rate",
+      "value": 0.7,
+      "units": "probability",
+      "scope": "Synthetic platform-mechanics scenario default",
+      "rationale": "Probability a successfully-appealed false-positive removal is reinstated in the simulated appeal workflow. Scenario assumption, distinct from the unsupported legacy appeal_grant_rate aggregate target (see ev.unsupported.aggregate_targets_legacy)."
+    },
+    {
+      "id": "assumption.runconfig.dynamic_graph_rates_disabled",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Dynamic graph evolution rates",
+      "path": "socio_sim.config.RunConfig.follow_rate / unfollow_rate / churn_rate",
+      "value": 0.0,
+      "units": "probability per active agent per day",
+      "scope": "Synthetic platform-mechanics scenario default",
+      "rationale": "All three default to 0.0 (static graph; preserves determinism baselines). Non-zero values are an opt-in scenario assumption for follow/unfollow/churn dynamics, not a measured platform churn rate."
+    },
+    {
+      "id": "assumption.runconfig.graph_default_m",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Default BA/PLC attachment parameter m",
+      "path": "socio_sim.config.RunConfig.graph_params default; fallback gp.get('m', 5)",
+      "value": 5,
+      "units": "edges per new node",
+      "scope": "Synthetic platform-mechanics scenario default",
+      "rationale": "Barabasi-Albert / Holme-Kim preferential-attachment parameter. Scenario default chosen for a plausible degree distribution, not fit to a specific platform (see ev.unsupported.aggregate_targets_legacy for the separate aggregate-fit diagnostic that does compare resulting degree-tail exponent to published targets)."
+    },
+    {
+      "id": "assumption.runconfig.graph_default_plc_p",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Default PLC triad-formation probability",
+      "path": "socio_sim.config.RunConfig.graph_params fallback gp.get('p', 0.3) when graph_kind=='plc'",
+      "value": 0.3,
+      "units": "probability",
+      "scope": "Synthetic platform-mechanics scenario default",
+      "rationale": "Holme-Kim triad-formation probability; controls clustering. 0.3 is the engine's structural fallback when 'plc' is selected without an explicit p; the aggregate_matched_prototype profile overrides it to 0.7 (see assumption.profile.aggregate_matched_prototype)."
+    },
+    {
+      "id": "assumption.runconfig.graph_default_ws_k",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Default Watts-Strogatz k",
+      "path": "socio_sim.config.RunConfig.graph_params fallback gp.get('k', 10) when graph_kind=='ws'",
+      "value": 10,
+      "units": "nearest neighbors",
+      "scope": "Synthetic platform-mechanics scenario default",
+      "rationale": "Watts-Strogatz ring-lattice neighbor count fallback default."
+    },
+    {
+      "id": "assumption.runconfig.graph_default_ws_p",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Default Watts-Strogatz rewiring probability",
+      "path": "socio_sim.config.RunConfig.graph_params fallback gp.get('p', 0.05) when graph_kind=='ws'",
+      "value": 0.05,
+      "units": "probability",
+      "scope": "Synthetic platform-mechanics scenario default",
+      "rationale": "Watts-Strogatz rewiring probability fallback default."
+    },
+    {
+      "id": "assumption.auction.reserve_price",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Ad auction reserve price",
+      "path": "socio_sim.ads.auction.RESERVE_PRICE",
+      "value": 0.005,
+      "units": "currency units per impression",
+      "scope": "Synthetic ad-auction mechanics",
+      "rationale": "Minimum bid accepted in the synthetic second-price auction. Engineering/scenario default, not a measured market reserve price."
+    },
+    {
+      "id": "assumption.profile.standard",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Standard profile scale",
+      "path": "socio_sim.config.RunConfig.standard (class-level field defaults)",
+      "value": {
+        "n_agents": 10000,
+        "n_ticks": 672,
+        "n_replicates": 100
+      },
+      "units": "agents/ticks/replicates",
+      "scope": "Synthetic run-scale preset",
+      "rationale": "Full-scale demonstration run size. A coordinated scale choice (not an empirical platform-size claim) for a single coherent profile."
+    },
+    {
+      "id": "assumption.profile.quick",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Quick profile scale",
+      "path": "socio_sim.config.RunConfig.quick",
+      "value": {
+        "n_agents": 1000,
+        "n_ticks": 168,
+        "n_replicates": 20
+      },
+      "units": "agents/ticks/replicates",
+      "scope": "Synthetic run-scale preset",
+      "rationale": "Fast iteration scale preset; one coordinated scale choice."
+    },
+    {
+      "id": "assumption.profile.test",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Test profile scale",
+      "path": "socio_sim.config.RunConfig.test",
+      "value": {
+        "n_agents": 200,
+        "n_ticks": 48,
+        "n_replicates": 2
+      },
+      "units": "agents/ticks/replicates",
+      "scope": "Synthetic run-scale preset",
+      "rationale": "CI/unit-test scale preset; chosen for fast deterministic test runs, not for realism."
+    },
+    {
+      "id": "assumption.profile.aggregate_matched_prototype",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Aggregate-matched prototype profile scale + graph",
+      "path": "socio_sim.config.RunConfig.aggregate_matched_prototype",
+      "value": {
+        "n_agents": 1000,
+        "n_ticks": 168,
+        "n_replicates": 20,
+        "graph_kind": "plc",
+        "graph_params": {
+          "m": 5,
+          "p": 0.7
+        }
+      },
+      "units": "agents/ticks/replicates/graph",
+      "scope": "Synthetic run-scale preset",
+      "rationale": "Synthetic scenario preset whose PLC triad-formation probability (p=0.7) was chosen so the resulting graph clustering/degree-tail aggregate diagnostic falls in-band against published targets (CALIBRATION_REPORT.md). This is an aggregate-fit diagnostic on graph structure only -- it does not validate unrelated behavioral outputs (content, moderation, ads). Legacy docs called this profile 'calibrated'; that label is intentionally not used."
+    },
+    {
+      "id": "assumption.persona.age_distribution",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Age-group distribution",
+      "path": "socio_sim.agents.personas.AGE_PROBS",
+      "value": [
+        0.08,
+        0.18,
+        0.26,
+        0.25,
+        0.15,
+        0.08
+      ],
+      "units": "probability (categorical, sums to 1)",
+      "scope": "Synthetic persona distribution",
+      "rationale": "Synthetic age-bracket mix across ['13-17','18-24','25-34','35-49','50-64','65+']. Illustrative scenario distribution, not derived from a named platform's real user-age census."
+    },
+    {
+      "id": "assumption.persona.diurnal_curve",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Hourly activity multiplier curve",
+      "path": "socio_sim.agents.personas.DIURNAL_CURVE",
+      "value": "24 hourly multipliers, normalized to mean 1 (see source)",
+      "units": "multiplier",
+      "scope": "Synthetic persona distribution",
+      "rationale": "Shape follows general circadian-posting-literature pattern (peak ~16-19h, trough ~04-06h local time) but the exact per-hour multipliers are an illustrative scenario curve, not digitized from a specific cited dataset. Compare against the cited diurnal_peak_hour/diurnal_trough_hour aggregate targets in default_targets.json for the actual sourced peak/trough claims."
+    },
+    {
+      "id": "assumption.persona.ideology_distribution",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Ideology draw (2 axes)",
+      "path": "socio_sim.agents.personas.sample(): np.random.Generator.normal(0.0, 0.45, size=(n,2)), clipped to [-1,1]",
+      "value": {
+        "mean": 0.0,
+        "sigma": 0.45
+      },
+      "units": "scale units on a [-1, 1] axis",
+      "scope": "Synthetic persona distribution",
+      "rationale": "Synthetic bell-shaped ideology distribution centered at 0 (no partisan skew assumed). Not derived from a measured electorate or platform ideology survey."
+    },
+    {
+      "id": "assumption.persona.trust_distribution",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Trust draw",
+      "path": "socio_sim.agents.personas.sample(): rng.beta(2, 2, size=n)",
+      "value": {
+        "alpha": 2,
+        "beta": 2
+      },
+      "units": "Beta distribution parameters, support [0,1]",
+      "scope": "Synthetic persona distribution",
+      "rationale": "Symmetric, mid-weighted synthetic trust distribution. Scenario assumption."
+    },
+    {
+      "id": "assumption.persona.activity_distribution",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Posting-activity draw",
+      "path": "socio_sim.agents.personas.sample(): rng.lognormal(mean=-3.2, sigma=1.0, size=n), clipped to [0,1]",
+      "value": {
+        "mean": -3.2,
+        "sigma": 1.0
+      },
+      "units": "lognormal parameters (log-space)",
+      "scope": "Synthetic persona distribution",
+      "rationale": "Heavy-tailed activity propensity; median corresponds to roughly a few posts/day equivalent. Illustrative heavy-tail shape consistent with general posting-rate literature direction, not fit to a specific cited dataset."
+    },
+    {
+      "id": "assumption.persona.ad_responsiveness_distribution",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Ad-responsiveness draw",
+      "path": "socio_sim.agents.personas.sample(): rng.beta(2, 5, size=n)",
+      "value": {
+        "alpha": 2,
+        "beta": 5
+      },
+      "units": "Beta distribution parameters, support [0,1]",
+      "scope": "Synthetic persona distribution",
+      "rationale": "Right-skewed synthetic ad-responsiveness distribution (most agents low responsiveness, few high). Scenario assumption."
+    },
+    {
+      "id": "assumption.persona.moderation_attitude_distribution",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Moderation-attitude draw",
+      "path": "socio_sim.agents.personas.sample(): rng.uniform(0, 1, size=n)",
+      "value": {
+        "low": 0.0,
+        "high": 1.0
+      },
+      "units": "Uniform distribution bounds",
+      "scope": "Synthetic persona distribution",
+      "rationale": "Non-informative uniform prior over flag/appeal propensity. Deliberately uninformative rather than fit to any specific platform."
+    },
+    {
+      "id": "assumption.persona.vulnerable_extra_rate",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Non-minor 'vulnerable' flag extra rate",
+      "path": "socio_sim.agents.personas.sample(): vulnerable = is_minor | (rng.random(n) < 0.05)",
+      "value": 0.05,
+      "units": "probability",
+      "scope": "Synthetic persona distribution",
+      "rationale": "Additional synthetic vulnerable-population share among non-minor agents, for fairness-diagnostic coverage. Not a measured vulnerability prevalence."
+    },
+    {
+      "id": "assumption.persona.interests_concentration",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Topic-interest Dirichlet concentration",
+      "path": "socio_sim.agents.personas.sample(): rng.dirichlet(np.ones(n_topics) * 0.7, size=n)",
+      "value": 0.7,
+      "units": "Dirichlet concentration parameter",
+      "scope": "Synthetic persona distribution",
+      "rationale": "Concentration < 1 biases agents toward a few dominant topic interests rather than uniform interest across all topics. Scenario assumption."
+    },
+    {
+      "id": "assumption.persona.base_conversion_distribution",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Organic (non-ad) conversion-propensity draw",
+      "path": "socio_sim.agents.personas.sample(): rng.beta(2.0, 50.0, size=n)",
+      "value": {
+        "alpha": 2.0,
+        "beta": 50.0
+      },
+      "units": "Beta distribution parameters, support [0,1]; mean ~3.8%",
+      "scope": "Synthetic persona distribution",
+      "rationale": "Latent ad-independent conversion propensity; makes the synthetic holdout baseline non-degenerate so lift is a real (within-scenario) estimate rather than a tautology. The mean (~3.8%) is a deliberately chosen plausible-order-of-magnitude scenario value, not a measured organic-conversion-rate study; the prior code comment calling this 'realistic' has been corrected (see AUDIT_LOG.md R9-PERSONACOMMENT)."
+    },
+    {
+      "id": "assumption.persona.trusted_flagger_rate",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "DSA Art. 22 trusted-flagger population share",
+      "path": "socio_sim.agents.personas.sample(): trusted_flagger = rng.random(n) < 0.02",
+      "value": 0.02,
+      "units": "probability",
+      "scope": "Synthetic persona distribution",
+      "rationale": "Synthetic share of agents designated as trusted flaggers for priority-review testing. Not a measured count of any platform's actual trusted-flagger program."
+    },
+    {
+      "id": "assumption.persona.influencer_degree_cutoff",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Influencer degree-percentile cutoff",
+      "path": "socio_sim.agents.personas.sample(): influencer = degrees >= np.quantile(degrees, 0.99)",
+      "value": 0.99,
+      "units": "degree percentile",
+      "scope": "Synthetic persona distribution",
+      "rationale": "Structural definition choice ('top ~1% by graph degree counts as an influencer'), not an empirical claim about any platform's influencer share."
+    },
+    {
+      "id": "assumption.campaign.base_ctr",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Default scenario click-through rate",
+      "path": "socio_sim.ads.campaigns.Campaign.base_ctr",
+      "value": 0.01,
+      "units": "probability",
+      "scope": "Synthetic ad-campaign economics default",
+      "rationale": "Scenario click-through assumption used when a campaign does not specify its own base_ctr. Not a measured market CTR (compare against the separately unsupported ad_ctr aggregate target in default_targets.json)."
+    },
+    {
+      "id": "assumption.campaign.base_cvr",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Default scenario conversion rate",
+      "path": "socio_sim.ads.campaigns.Campaign.base_cvr",
+      "value": 0.05,
+      "units": "probability",
+      "scope": "Synthetic ad-campaign economics default",
+      "rationale": "Scenario conversion-rate assumption used when a campaign does not specify its own base_cvr."
+    },
+    {
+      "id": "assumption.campaign.conversion_value",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Default conversion value",
+      "path": "socio_sim.ads.campaigns.Campaign.conversion_value",
+      "value": 1.0,
+      "units": "currency units",
+      "scope": "Synthetic ad-campaign economics default",
+      "rationale": "Placeholder per-conversion value in arbitrary currency units; not tied to any real product price."
+    },
+    {
+      "id": "assumption.campaign.ltv_multiplier",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Default LTV multiplier",
+      "path": "socio_sim.ads.campaigns.Campaign.ltv_multiplier",
+      "value": 3.0,
+      "units": "multiplier on conversion_value",
+      "scope": "Synthetic ad-campaign economics default",
+      "rationale": "SYNTHETIC assumption: LTV = conversion_value x this multiplier. Not derived from a measured customer-lifetime-value study."
+    },
+    {
+      "id": "assumption.campaign.attribution_window_ticks",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Default attribution window",
+      "path": "socio_sim.ads.campaigns.Campaign.attribution_window_ticks",
+      "value": 168,
+      "units": "ticks (hours, at tick_hours=1)",
+      "scope": "Synthetic ad-campaign economics default",
+      "rationale": "A conversion is credited to an impression only within this window. Experiment-design choice (one week at hourly ticks), not a platform-specific attribution policy."
+    },
+    {
+      "id": "assumption.demo_campaign.brand_general",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Demo campaign: brand-general",
+      "path": "socio_sim.engine.default_campaigns() id='brand-general'",
+      "value": {
+        "bid": 2.0,
+        "budget": "0.02 * n_agents",
+        "base_ctr": 0.012,
+        "base_cvr": 0.05
+      },
+      "units": "mixed (currency/probability)",
+      "scope": "Illustrative demo campaign (not calibrated ad-market data)",
+      "rationale": "Illustrative example campaign shown when no campaigns are explicitly configured. Fictional advertiser ('BrandCo'); values are example inputs for the marketing-suite UI, not calibrated to any real ad market."
+    },
+    {
+      "id": "assumption.demo_campaign.tech_niche",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Demo campaign: tech-niche",
+      "path": "socio_sim.engine.default_campaigns() id='tech-niche'",
+      "value": {
+        "bid": 3.5,
+        "budget": "0.01 * n_agents",
+        "base_ctr": 0.02,
+        "base_cvr": 0.08
+      },
+      "units": "mixed (currency/probability)",
+      "scope": "Illustrative demo campaign (not calibrated ad-market data)",
+      "rationale": "Illustrative example campaign (fictional advertiser 'GadgetInc'); not calibrated to any real ad market."
+    },
+    {
+      "id": "assumption.demo_campaign.adults_finance",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Demo campaign: adults-finance",
+      "path": "socio_sim.engine.default_campaigns() id='adults-finance'",
+      "value": {
+        "bid": 2.8,
+        "budget": "0.01 * n_agents",
+        "base_ctr": 0.008,
+        "base_cvr": 0.1
+      },
+      "units": "mixed (currency/probability)",
+      "scope": "Illustrative demo campaign (not calibrated ad-market data)",
+      "rationale": "Illustrative example campaign (fictional advertiser 'FinServe'); not calibrated to any real ad market."
+    },
+    {
+      "id": "assumption.web.campaign_editor_defaults",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Web campaign-editor pre-filled defaults",
+      "path": "socio_sim.web.app.CAMPAIGN_ECON_DEFAULTS",
+      "value": {
+        "bid": 2.0,
+        "budget": 100.0,
+        "base_ctr": 0.012,
+        "base_cvr": 0.05,
+        "conversion_value": 1.0,
+        "ltv_multiplier": 3.0,
+        "attribution_window_ticks": 168
+      },
+      "units": "mixed (currency/probability/ticks)",
+      "scope": "Synthetic campaign-editor pre-fill (not an industry benchmark)",
+      "rationale": "Values pre-filled when a web campaign-editor field is left blank; recorded per-field as economics_provenance='scenario_assumption_default' in the run payload. bid and base_ctr deliberately mirror the brand-general demo campaign (assumption.demo_campaign.brand_general), so base_ctr 0.012 differs from the engine's Campaign dataclass fallback 0.01 (assumption.campaign.base_ctr): a blank editor field means 'use the demo-like example', not 'use the engine fallback'. The remaining fields are bound to the Campaign dataclass defaults in code and cannot drift."
     }
   ]
 }

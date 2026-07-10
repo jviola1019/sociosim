@@ -15,14 +15,20 @@ on_degradation — never silently.
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
-import urllib.request
+import socket
+import ssl
 from pathlib import Path
 from typing import Callable
+from urllib.parse import urlparse
 
-from socio_sim.content.generate import TOPICS, TemplateGenerator
+from socio_sim.content import llm_cache
+from socio_sim.security import validate_llm_url
+from socio_sim.content.generate import (CN_LABEL_PREFIX, TOPICS,
+                                        TemplateGenerator)
 from socio_sim.content.items import ContentItem
-from socio_sim.content.semantic_guard import check_generated_text, semantic_hash
+from socio_sim.content.semantic_guard import check_generated_text
 
 DEFAULT_MODELS = {
     "ollama": "qwen2.5:0.5b",          # ~400MB pull; adequate for short posts
@@ -41,7 +47,38 @@ _PROMPT_TEMPLATE = (
 )
 
 #: CN explicit-label prefix that must survive text replacement.
-_CN_LABEL_PREFIX = "[AI-generated content] "
+#: Single source: socio_sim.content.generate.CN_LABEL_PREFIX.
+_CN_LABEL_PREFIX = CN_LABEL_PREFIX
+
+
+class _PinnedHTTPConnection(http.client.HTTPConnection):
+    """TCP-connects to a pre-validated IP while keeping the original
+    hostname for the Host header (E-05): between validate_llm_url() and the
+    connect there is no second DNS lookup left to rebind."""
+
+    def __init__(self, host, port, pinned_ip, timeout):
+        super().__init__(host, port, timeout=timeout)
+        self._pinned_ip = pinned_ip
+
+    def connect(self):
+        self.sock = socket.create_connection(
+            (self._pinned_ip, self.port), self.timeout)
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPS variant of _PinnedHTTPConnection: dials the pinned IP but
+    keeps TLS SNI + certificate hostname verification on the ORIGINAL
+    hostname, so pinning does not weaken certificate checks."""
+
+    def __init__(self, host, port, pinned_ip, timeout):
+        super().__init__(host, port, timeout=timeout,
+                         context=ssl.create_default_context())
+        self._pinned_ip = pinned_ip
+
+    def connect(self):
+        sock = socket.create_connection(
+            (self._pinned_ip, self.port), self.timeout)
+        self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
 
 
 class LLMAdapter:
@@ -62,9 +99,7 @@ class LLMAdapter:
         self.timeout = timeout
         self.transport = transport or self._http_transport
         self.cache_path = Path(cache_path)
-        self._cache: dict = {}
-        if self.cache_path.exists():
-            self._cache = json.loads(self.cache_path.read_text(encoding="utf-8"))
+        self._cache: dict = llm_cache.load(self.cache_path, on_error=self.on_degradation)
         # After this many consecutive transport failures we stop calling out and
         # degrade instantly — avoids minutes of per-call connect timeouts when a
         # local server is down. Reset on any success.
@@ -85,69 +120,79 @@ class LLMAdapter:
         return hashlib.sha256(f"{self.model}|{prompt}".encode()).hexdigest()
 
     def cache_hash(self) -> str | None:
-        if not self.cache_path.exists():
-            return None
-        return hashlib.sha256(self.cache_path.read_bytes()).hexdigest()
+        return llm_cache.file_hash(self.cache_path)
 
     def _save_cache(self):
-        self.cache_path.parent.mkdir(parents=True, exist_ok=True)
-        self.cache_path.write_text(json.dumps(self._cache, sort_keys=True),
-                                   encoding="utf-8")
+        llm_cache.save(self.cache_path, self._cache)
+
+    def _apply_text(self, item: ContentItem, text: str) -> None:
+        # Preserve the CN explicit label when replacing surface text.
+        item.text = (_CN_LABEL_PREFIX + text) if item.explicit_label else text
 
     # -- generation ----------------------------------------------------------
     def generate(self, author_id: int, personas, tick: int) -> ContentItem:
         item = self.base.generate(author_id, personas, tick)
         prompt = self._prompt(author_id, personas, item.topic, tick)
         key = self.prompt_key(prompt)
-        cached = self._cache.get(key)
-        text = cached.get("text") if isinstance(cached, dict) else cached
-        if text is None:
-            if self._disabled:
-                return item  # already gave up; serve template silently
-            try:
-                text = (self.transport(prompt) or "").strip()
-                if not text:
-                    raise ValueError("empty LLM response")
-                text = " ".join(text.split())[:280]
-                reasons = check_generated_text(text, item)
-                if reasons:
-                    self._cache[key] = {
-                        "text": text,
-                        "semantic_hash": semantic_hash(text),
-                        "status": "blocked",
-                        "reason_codes": reasons,
-                    }
-                    self._save_cache()
-                    self.on_degradation(
-                        f"semantic_mismatch:{','.join(reasons)}; template text used")
-                    return item
-                self._cache[key] = {
-                    "text": text,
-                    "semantic_hash": semantic_hash(text),
-                    "status": "accepted",
-                    "reason_codes": [],
-                }
+        lookup = llm_cache.resolve(self._cache.get(key))
+
+        if lookup.degradation:
+            self.on_degradation(lookup.degradation)
+        if lookup.hit:
+            if lookup.text is not None:
+                self._apply_text(item, lookup.text)
+            return item  # blocked or tamper-free accepted hit; never re-call
+
+        if self._disabled:
+            self.on_degradation(
+                f"{self.backend} disabled after repeated failures; "
+                f"template text used")
+            return item
+        try:
+            text = (self.transport(prompt) or "").strip()
+            if not text:
+                raise ValueError("empty LLM response")
+            text = " ".join(text.split())[:280]
+            reasons = check_generated_text(text, item)
+            if reasons:
+                self._cache[key] = llm_cache.make_entry(
+                    text, "blocked", reasons,
+                    guard_version=llm_cache.BLOCKED_GUARD_VERSION)
                 self._save_cache()
+                # E-04: the transport call SUCCEEDED (only the content was
+                # rejected) -- reset the consecutive-failure streak so a
+                # live backend isn't disabled by interleaved guard blocks.
                 self._fail_streak = 0
-            except Exception as exc:
-                self._fail_streak += 1
                 self.on_degradation(
-                    f"{self.backend} call failed: {exc!r}; template text used")
-                if self._fail_streak >= self._give_up_after:
-                    self._disabled = True
-                    self.on_degradation(
-                        f"{self.backend} unreachable after {self._fail_streak} "
-                        f"attempts; using template text for the rest of this run")
+                    f"semantic_mismatch:{','.join(reasons)}; template text used")
                 return item
-        # Preserve the CN explicit label when replacing surface text.
-        if item.explicit_label:
-            item.text = _CN_LABEL_PREFIX + text
-        else:
-            item.text = text
+            self._cache[key] = llm_cache.make_entry(text, "accepted", [])
+            self._save_cache()
+            self._fail_streak = 0
+        except Exception as exc:
+            self._fail_streak += 1
+            self.on_degradation(
+                f"{self.backend} call failed: {exc!r}; template text used")
+            if self._fail_streak >= self._give_up_after:
+                self._disabled = True
+                self.on_degradation(
+                    f"{self.backend} unreachable after {self._fail_streak} "
+                    f"attempts; using template text for the rest of this run")
+            return item
+        self._apply_text(item, text)
         return item
 
     # -- transports ----------------------------------------------------------
     def _http_transport(self, prompt: str) -> str:
+        """POST the prompt to the configured local LLM server.
+
+        SSRF hardening (E-02 + E-05): the allow-list check runs on every
+        call and returns the exact IP it checked; the TCP connection is
+        made to THAT pinned IP (original hostname kept for the Host header
+        and TLS SNI/certificate verification), so no second DNS lookup
+        exists to rebind. Redirects are never followed: any 3xx response
+        is a hard error.
+        """
         if self.backend == "ollama":
             payload = {
                 "model": self.model,
@@ -169,10 +214,27 @@ class LLMAdapter:
             if self.api_key:
                 headers["Authorization"] = f"Bearer {self.api_key}"
 
-        req = urllib.request.Request(url, data=json.dumps(payload).encode(),
-                                     headers=headers)
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:  # nosec B310
+        pinned_ip = validate_llm_url(self.base_url)
+        if pinned_ip is None:  # unreachable: base_url always has a default
+            raise ValueError("llm_base_url is empty")
+        p = urlparse(url)
+        port = p.port or (443 if p.scheme == "https" else 80)
+        path = p.path + (f"?{p.query}" if p.query else "")
+        conn_cls = (_PinnedHTTPSConnection if p.scheme == "https"
+                    else _PinnedHTTPConnection)
+        conn = conn_cls(p.hostname, port, pinned_ip, self.timeout)
+        try:
+            conn.request("POST", path, body=json.dumps(payload).encode(),
+                         headers=headers)
+            resp = conn.getresponse()
+            if 300 <= resp.status < 400:
+                raise ValueError(
+                    f"redirect (HTTP {resp.status}) refused by SSRF guard")
+            if resp.status != 200:
+                raise ValueError(f"LLM server returned HTTP {resp.status}")
             body = json.loads(resp.read().decode("utf-8"))
+        finally:
+            conn.close()
         if self.backend == "ollama":
             return body["response"]
         return body["choices"][0]["message"]["content"]

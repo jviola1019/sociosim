@@ -18,14 +18,17 @@ artifact produced by that command.
 
 ## Validation Ladder
 
-The implemented ladder labels are:
+The ladder defines six labels; only the three marked "exercised" are
+currently produced by code (`validation/stylized.py`,
+`validation/backtest.py`, `validation/benchmark_eval.py`) — the other three
+are defined rungs with no supporting artifact yet:
 
-- `synthetic_mechanism_check`
-- `aggregate_fit_check`
-- `external_temporal_holdout`
-- `external_platform_holdout`
-- `component_benchmark`
-- `operational_validation`
+- `synthetic_mechanism_check` (exercised)
+- `aggregate_fit_check` (exercised)
+- `external_temporal_holdout` (defined only)
+- `external_platform_holdout` (defined only)
+- `component_benchmark` (exercised)
+- `operational_validation` (defined only)
 
 Current built-in aggregate target files have incomplete metadata for external
 validation claims. They may be used only as synthetic aggregate-fit diagnostics

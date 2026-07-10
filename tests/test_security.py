@@ -266,3 +266,177 @@ def test_build_config_rejects_ssrf_llm_url():
     with pytest.raises(Exception):
         app._build_config({"profile": "test", "jurisdictions": ["EU"],
                            "llm_base_url": "http://169.254.169.254"})
+
+
+def test_f01_expose_token_hidden_when_access_token_env_set(monkeypatch, tmp_path):
+    """F-01: expose_token must be False when SOCIOSIM_ACCESS_TOKEN is in env.
+
+    If an operator sets their own token (e.g. because the loopback console is
+    reverse-tunnelled), /api/meta must not hand it back to any page that asks.
+    """
+    from socio_sim.web.app import serve
+    import socio_sim.web.app as _app
+
+    monkeypatch.setenv("SOCIOSIM_ACCESS_TOKEN", "my-secret-token")
+    # Patch serve to capture the server object without actually binding
+    captured = {}
+
+    class _FakeServer:
+        def serve_forever(self): pass
+        def shutdown(self): pass
+
+    def _fake_make_server(addr, handler):
+        srv = _FakeServer()
+        srv.address = addr
+        captured['server'] = srv
+        return srv
+
+    monkeypatch.setattr(_app, "ThreadingHTTPServer", _fake_make_server)
+    monkeypatch.setattr(_app, "_STORE", _app._STORE)  # keep existing store
+    # serve() opens a browser timer and blocks; call it in a thread and stop it
+    import threading as _t
+    t = _t.Thread(target=serve, kwargs={"open_browser": False}, daemon=True)
+    t.start()
+    t.join(timeout=2)
+    srv = captured.get('server')
+    assert srv is not None
+    assert srv.expose_token is False, (
+        "expose_token must be False when SOCIOSIM_ACCESS_TOKEN env var is set")
+
+
+def _build_fake_asset_tree(tmp_path):
+    """92 placeholder assets + correct sha256s so the count check passes."""
+    import json
+    import hashlib
+
+    asset_dir = tmp_path / "socio_sim" / "web" / "static" / "assets" / "v4"
+    asset_dir.mkdir(parents=True)
+    assets = []
+    for i in range(92):
+        name = f"feed-cover-v4-{i:02d}.png"
+        content = f"asset {i}".encode()
+        (asset_dir / name).write_bytes(content)
+        assets.append({
+            "asset_id": f"feed-cover-v4-{i:02d}",
+            "file_path": f"socio_sim/web/static/assets/v4/{name}",
+            "sha256": hashlib.sha256(content).hexdigest(),
+            "accessibility_alt_template":
+                "Synthetic decorative artwork for a SocioSim {role}; not evidence.",
+        })
+
+    def write_registry():
+        (asset_dir / "registry.json").write_text(
+            json.dumps({"assets": assets}), encoding="utf-8")
+
+    return asset_dir, assets, write_registry
+
+
+def _load_evidence_gate(tmp_path, name):
+    """Import scripts/evidence_gate.py with ROOT redirected to tmp_path and
+    registry-schema validation stubbed out (asset checks are the focus)."""
+    import importlib.util
+    from pathlib import Path
+
+    gate_path = Path(__file__).resolve().parents[1] / "scripts" / "evidence_gate.py"
+    spec = importlib.util.spec_from_file_location(name, gate_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.ROOT = tmp_path
+    mod.validate_registry = lambda: []
+    return mod
+
+
+def test_h01_evidence_gate_sha_detects_tampered_asset(tmp_path):
+    """H-01: sha() must now be called and catch a tampered asset file.
+
+    Before the fix, sha() was defined but never called — a tampered PNG
+    would pass the evidence gate silently.  After the fix, a mismatch
+    between the file's actual sha256 and the registry's stored sha256
+    must surface as an error.
+    """
+    asset_dir, assets, write_registry = _build_fake_asset_tree(tmp_path)
+    # Tamper one asset AFTER recording its hash
+    (asset_dir / "feed-cover-v4-00.png").write_bytes(b"TAMPERED CONTENT")
+    write_registry()
+
+    mod = _load_evidence_gate(tmp_path, "evidence_gate_h01")
+    rc = mod.main()
+    assert rc == 1, "evidence gate should fail when an asset is tampered"
+
+
+def test_g01_evidence_gate_flags_missing_alt_template(tmp_path, capsys):
+    """G-01: every registered asset must carry a non-empty
+    accessibility_alt_template (WCAG 2.2 SC 1.1.1 text alternative); a
+    registry entry without one must fail the gate."""
+    asset_dir, assets, write_registry = _build_fake_asset_tree(tmp_path)
+    assets[0]["accessibility_alt_template"] = "  "
+    del assets[1]["accessibility_alt_template"]
+    write_registry()
+
+    mod = _load_evidence_gate(tmp_path, "evidence_gate_g01")
+    rc = mod.main()
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "accessibility_alt_template" in out
+
+
+def test_e05_validate_llm_url_returns_pinned_ip(monkeypatch):
+    """E-05: the guard returns the exact IP it validated so the transport
+    can connect to it directly (no second DNS lookup to rebind)."""
+    from socio_sim.security import validate_llm_url
+    # IP-literal loopback pins itself.
+    assert validate_llm_url("http://127.0.0.1:11434") == "127.0.0.1"
+    # Empty URL still means "use backend default".
+    assert validate_llm_url("") is None
+    # Allow-listed private host pins the address that was checked.
+    monkeypatch.setenv("SOCIOSIM_LLM_ALLOWED_HOSTS", "llmbox")
+    monkeypatch.setattr(
+        "socio_sim.security.socket.getaddrinfo",
+        lambda *a, **k: [(2, 1, 6, "", ("10.1.2.3", 8080))])
+    assert validate_llm_url("http://llmbox:8080") == "10.1.2.3"
+
+
+def test_c03_evidence_gate_scans_reports_with_full_claim_vocabulary(tmp_path, capsys):
+    """C-03: a regenerated report saying 'fully validated' must fail the
+    gate -- the stale-claim check now reuses the claim scanner's risky-term
+    vocabulary, not a private two-phrase list."""
+    _, _, write_registry = _build_fake_asset_tree(tmp_path)
+    write_registry()
+    (tmp_path / "BENCHMARK_REPORT.md").write_text(
+        "The classifier is fully validated against production data.",
+        encoding="utf-8")
+
+    mod = _load_evidence_gate(tmp_path, "evidence_gate_c03")
+    rc = mod.main()
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "validated" in out
+
+
+def test_f04_remote_bind_error_names_cleartext_token_risk(monkeypatch):
+    """F-04: the guidance for non-loopback binds must say the token travels
+    as cleartext HTTP and recommend a TLS-terminating proxy -- 'network
+    authentication' language without that is misleading."""
+    import socio_sim.web.app as _app
+    monkeypatch.delenv("SOCIOSIM_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("SOCIOSIM_ALLOWED_HOSTS", raising=False)
+    with pytest.raises(RuntimeError, match="cleartext"):
+        _app.serve(host="0.0.0.0", port=0, open_browser=False)
+
+
+def test_h02_evidence_gate_fails_closed_on_missing_sha_or_file(tmp_path, capsys):
+    """H-02: the gate must FAIL CLOSED -- an asset with no sha256 in the
+    registry, or whose registered file is missing from disk, is a hard
+    error, not a silent skip. Before the fix `if expected_sha and
+    fp.is_file():` silently passed both cases."""
+    asset_dir, assets, write_registry = _build_fake_asset_tree(tmp_path)
+    assets[0]["sha256"] = ""                             # unverifiable
+    (asset_dir / "feed-cover-v4-01.png").unlink()        # deleted asset
+    write_registry()
+
+    mod = _load_evidence_gate(tmp_path, "evidence_gate_h02")
+    rc = mod.main()
+    out = capsys.readouterr().out
+    assert rc == 1, "gate must fail when an asset cannot be verified"
+    assert "no sha256" in out, f"empty-sha256 asset must be reported, got: {out}"
+    assert "missing" in out, f"missing-file asset must be reported, got: {out}"

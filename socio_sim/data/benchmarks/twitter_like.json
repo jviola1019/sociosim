@@ -4,37 +4,44 @@
     "degree_tail_exponent": {
       "value": 2.3,
       "tolerance": 0.4,
-      "source": "Follower-degree power-law exponent ~2.3-2.4 (Kwak, Lee, Park & Moon 2010, 'What is Twitter, a Social Network or a News Media?', WWW; Myers et al. 2014)"
+      "source": "Follower-degree power-law exponent ~2.3-2.4 (Kwak, Lee, Park & Moon 2010, 'What is Twitter, a Social Network or a News Media?', WWW; Myers et al. 2014)",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     },
     "clustering": {
-      "value": 0.10,
+      "value": 0.1,
       "tolerance": 0.05,
-      "source": "Low average clustering ~0.1 for the follower graph (Kwak et al. 2010)"
+      "source": "Low average clustering ~0.1 for the follower graph (Kwak et al. 2010)",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     },
     "diurnal_peak_hour": {
       "value": 12,
       "tolerance": 3,
-      "source": "Microblog posting activity peaks around midday/early afternoon local time (circadian posting studies)"
+      "source": "Microblog posting activity peaks around midday/early afternoon local time (circadian posting studies)",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     },
     "diurnal_trough_hour": {
       "value": 4,
       "tolerance": 2,
-      "source": "Overnight trough ~03-05h local time (circadian posting studies)"
+      "source": "Overnight trough ~03-05h local time (circadian posting studies)",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     },
     "posts_per_agent_day": {
       "value": 0.5,
       "tolerance": 0.4,
-      "source": "Heavy-tailed; median user posts < 1x/day, mean higher (platform usage aggregates)"
+      "source": "Heavy-tailed; median user posts < 1x/day, mean higher (platform usage aggregates)",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     },
     "ad_ctr": {
-      "value": 0.010,
+      "value": 0.01,
       "tolerance": 0.008,
-      "source": "Microblog/social display ad CTR ~0.5-1.5% (industry aggregates)"
+      "source": "Microblog/social display ad CTR ~0.5-1.5% (industry aggregates)",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     },
     "appeal_grant_rate": {
-      "value": 0.20,
+      "value": 0.2,
       "tolerance": 0.15,
-      "source": "Reinstatement on appeal ~10-30% (platform transparency reports)"
+      "source": "Reinstatement on appeal ~10-30% (platform transparency reports)",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     }
   }
 }

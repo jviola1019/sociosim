@@ -2,34 +2,40 @@
   "description": "Social-network (Facebook-like) legacy aggregate targets: PUBLISHED AGGREGATE statistics only (no individual-level data). NOTE: the Facebook friend-degree distribution is NOT a clean power-law (Ugander et al. 2011), so degree_tail_exponent is deliberately OMITTED rather than fabricated.",
   "targets": {
     "clustering": {
-      "value": 0.60,
+      "value": 0.6,
       "tolerance": 0.12,
-      "source": "High average clustering ~0.6 for the Facebook friendship graph (Ugander, Karrer, Backstrom & Marlow 2011, 'The Anatomy of the Facebook Social Graph')"
+      "source": "High average clustering ~0.6 for the Facebook friendship graph (Ugander, Karrer, Backstrom & Marlow 2011, 'The Anatomy of the Facebook Social Graph')",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     },
     "diurnal_peak_hour": {
       "value": 20,
       "tolerance": 3,
-      "source": "Social-network engagement peaks in the evening ~19-21h local time (circadian engagement studies)"
+      "source": "Social-network engagement peaks in the evening ~19-21h local time (circadian engagement studies)",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     },
     "diurnal_trough_hour": {
       "value": 4,
       "tolerance": 2,
-      "source": "Overnight trough ~03-05h local time (circadian engagement studies)"
+      "source": "Overnight trough ~03-05h local time (circadian engagement studies)",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     },
     "posts_per_agent_day": {
       "value": 0.5,
       "tolerance": 0.4,
-      "source": "Heavy-tailed; most users post < 1x/day (platform usage aggregates)"
+      "source": "Heavy-tailed; most users post < 1x/day (platform usage aggregates)",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     },
     "ad_ctr": {
       "value": 0.011,
       "tolerance": 0.006,
-      "source": "Facebook average ad click-through ~0.9-1.2% (industry aggregates)"
+      "source": "Facebook average ad click-through ~0.9-1.2% (industry aggregates)",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     },
     "appeal_grant_rate": {
-      "value": 0.20,
+      "value": 0.2,
       "tolerance": 0.15,
-      "source": "Content reinstatement on appeal varies ~10-30% (Meta transparency reports / Oversight Board)"
+      "source": "Content reinstatement on appeal varies ~10-30% (Meta transparency reports / Oversight Board)",
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
     }
   }
 }

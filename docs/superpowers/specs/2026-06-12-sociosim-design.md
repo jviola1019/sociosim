@@ -1,5 +1,12 @@
 # SocioSim — Design Document
 
+**HISTORICAL RECORD — not current state.** This is the original
+pre-implementation design document. Substantial honesty-labeling,
+evidence-registry, and naming remediation has happened since this was
+written (see `AUDIT_REMEDIATION_REPORT.md`, `AUDIT_LOG.md`); terms like
+"calibrated"/"validation" here describe the initial design intent, not the
+current, corrected public surface.
+
 Date: 2026-06-12
 Status: Approved (clarifications resolved via Q&A; scale and architecture grounded in cited literature)
 Requirements source: "SocioSim: A Rigorous Social-Interaction Simulator" specification (provided by user; referred to below as "the Spec")

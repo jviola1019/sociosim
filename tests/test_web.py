@@ -70,6 +70,27 @@ def test_build_config_parses_boolean_strings_and_preserves_aggregate_profile():
     assert cfg.ftc_enabled is False and cfg.ads_enabled is True
 
 
+def test_calibrated_profile_not_publicly_advertised():
+    assert "calibrated" not in app._PROFILES
+
+
+def test_legacy_calibrated_profile_migrates_to_aggregate_matched_prototype():
+    """Old saved requests/scripts may still send profile=='calibrated'; it
+    must be silently migrated to the current name rather than exposed as a
+    normal choice or rejected outright."""
+    cfg = app._build_config({"profile": "calibrated"})
+    cfg2 = app._build_config({"profile": "aggregate_matched_prototype"})
+    assert cfg.graph_kind == cfg2.graph_kind == "plc"
+    assert cfg.graph_params == cfg2.graph_params == {"m": 5, "p": 0.7}
+    assert cfg.n_agents == cfg2.n_agents
+    assert cfg.n_ticks == cfg2.n_ticks
+
+
+def test_unknown_profile_still_rejected():
+    with pytest.raises(ValueError, match="profile"):
+        app._build_config({"profile": "made_up_profile"})
+
+
 def test_template_classifier_ignores_precision_targets_for_identity():
     a = app._build_config({"classifier_mode": "synthetic_template_classifier",
                            "classifier_precision": 0.5, "classifier_recall": 0.5})
@@ -163,7 +184,7 @@ def test_live_server_runs_simulation_end_to_end():
         assert isinstance(result["implausibility"], (int, float))
         assert result["implausibility_components"]
         assert result["implausibility_dominant_metric"]
-        assert "report_md" in result and "RUN REPORT" not in result  # report present
+        assert "report_md" in result  # report present
         assert not re.search(r"\bnan\b", result["report_md"].lower())
         assert "not legal advice" in result["report_md"]
         assert "no_real_person_data" in result
@@ -268,6 +289,66 @@ def test_campaign_specs_are_normalized_for_persistence():
     assert clean[0]["conversion_value"] == 6.0
 
 
+def test_a03_campaign_spec_provenance_distinguishes_defaults_from_user_input():
+    """A-03: campaign economics inputs look like industry benchmarks; each
+    normalized spec must record, per field, whether the value was
+    user-supplied or a scenario-assumption default."""
+    clean = app._normalize_campaign_specs({"campaigns": [
+        {"bid": 1, "budget": 100, "base_cvr": "0.04"}]})
+    prov = clean[0]["economics_provenance"]
+    assert prov["bid"] == "user_supplied"
+    assert prov["base_cvr"] == "user_supplied"
+    assert prov["base_ctr"] == "scenario_assumption_default"
+    assert prov["ltv_multiplier"] == "scenario_assumption_default"
+    assert prov["attribution_window_ticks"] == "scenario_assumption_default"
+
+
+def test_a03_campaigns_fn_still_builds_campaign_objects():
+    # The provenance field must not leak into Campaign(**spec).
+    fn = app._campaigns_fn({"campaigns": [{"bid": 1, "budget": 100}]})
+    camps = fn(None)
+    assert camps and camps[0].bid == 1.0
+
+
+def test_campaign_econ_defaults_bound_to_registry_and_dataclass():
+    """Drift guard: the web editor defaults must match their provenance
+    registry entry (assumption.web.campaign_editor_defaults), and the
+    dataclass-backed fields must equal the Campaign dataclass fallbacks.
+    (base_ctr 0.012 vs the dataclass 0.01 is DELIBERATE -- it mirrors the
+    brand-general demo campaign -- and is documented in the registry.)"""
+    import dataclasses
+    from socio_sim.ads.campaigns import Campaign
+    from socio_sim.evidence import scenario_assumptions
+    entry = scenario_assumptions()["assumption.web.campaign_editor_defaults"]
+    assert entry["value"] == app.CAMPAIGN_ECON_DEFAULTS
+    dc = {f.name: f.default for f in dataclasses.fields(Campaign)}
+    for name in ("base_cvr", "conversion_value", "ltv_multiplier",
+                 "attribution_window_ticks"):
+        assert app.CAMPAIGN_ECON_DEFAULTS[name] == dc[name], name
+
+
+def test_harmful_categories_single_source():
+    """The harmful-category set previously lived in three hand-copied
+    definitions (engine, analytics, web); all now derive from config."""
+    from socio_sim import engine
+    from socio_sim.analytics.metrics import HARMFUL
+    from socio_sim.config import HARMFUL_CATEGORIES
+    assert set(HARMFUL_CATEGORIES) == HARMFUL == engine.HARMFUL_CATEGORIES
+    assert app.HARMFUL_CATS == HARMFUL_CATEGORIES
+
+
+def test_a01_a02_scenario_defaults_are_named_labeled_constants():
+    """A-01/A-02: classifier operating point and DSA-lookalike defaults come
+    from named scenario-assumption constants, not bare inline literals that
+    read like measured benchmarks."""
+    cfg = app._build_config({"profile": "test", "jurisdictions": ["EU"]})
+    assert cfg.classifier_targets["hate"]["precision"] == app.DEFAULT_CLASSIFIER_PRECISION
+    assert cfg.classifier_targets["hate"]["recall"] == app.DEFAULT_CLASSIFIER_RECALL
+    assert cfg.eu_optout_rate == app.DEFAULT_EU_OPTOUT_RATE
+    assert cfg.human_review_accuracy == app.DEFAULT_HUMAN_REVIEW_ACCURACY
+    assert cfg.appeal_grant_fp_rate == app.DEFAULT_APPEAL_GRANT_FP_RATE
+
+
 def test_campaign_specs_reject_non_deliverable_or_malformed_rows():
     bad_specs = [
         {"bid": 0, "budget": 100},
@@ -287,7 +368,7 @@ def test_bundled_v4_assets_exist_and_are_unignored():
     assert (v4 / "registry.json").is_file()
     assert len(list(v4.glob("feed-cover-v4-*.png"))) == 48
     assert len(list(v4.glob("ad-creative-v4-*.png"))) == 32
-    assert len(list(v4.glob("editorial-v4-*.png"))) == 12
+    assert len(list(v4.glob("editorial-v4-*.png"))) == 16
     gitignore = (root / ".gitignore").read_text(encoding="utf-8")
     assert "!socio_sim/web/static/assets/v4/*.png" in gitignore
 
@@ -432,3 +513,124 @@ def test_bad_job_id_404():
         assert raised
     finally:
         server.shutdown()
+
+
+def test_h01_web_path_handles_windows_backslash_registry_paths():
+    """H-01 (0159): a registry.json regenerated on Windows may carry
+    backslash file_paths; web_path must normalize BEFORE splitting instead
+    of raising IndexError and 500ing /api/meta on dashboard bootstrap."""
+    rec = {"file_path": "socio_sim\\web\\static\\assets\\v4\\x.png"}
+    assert app._asset_web_path(rec) == "/static/assets/v4/x.png"
+    # A path without the marker is skipped (None), not a crash.
+    assert app._asset_web_path({"file_path": "elsewhere/y.png"}) is None
+
+
+def test_f02_ipv6_bracketed_host_allowed():
+    """F-02: a bracketed IPv6 loopback Host header must parse correctly in
+    BOTH forms -- default-port `[::1]` previously parsed to ':' and was
+    rejected, breaking the allow-list for legitimate IPv6 clients."""
+    assert app._host_allowed({"Host": "[::1]"}) is True
+    assert app._host_allowed({"Host": "[::1]:8765"}) is True
+    assert app._host_allowed({"Host": "[2001:db8::1]:8765"}) is False
+
+
+def test_h03_registry_json_served_with_json_content_type():
+    """H-03: /static/**/*.json must be application/json, not
+    application/octet-stream, under X-Content-Type-Options: nosniff."""
+    from http.server import ThreadingHTTPServer
+    import threading
+    port = _free_port()
+    server = ThreadingHTTPServer(("127.0.0.1", port), app.Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        resp = urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/static/assets/v4/registry.json")
+        assert resp.headers["Content-Type"] == "application/json; charset=utf-8"
+    finally:
+        server.shutdown()
+
+
+def test_d01_ads_with_zero_holdout_rejected():
+    """D-01: lift/significance fields are causal claims that need a control
+    group; a run with ads enabled and holdout_fraction<=0 must be rejected,
+    not silently emit lift_*/p-value output with no experimental design."""
+    with pytest.raises(ValueError, match="holdout"):
+        app._build_config({"profile": "test", "jurisdictions": ["EU"],
+                           "ads_enabled": True, "holdout_fraction": 0})
+    with pytest.raises(ValueError, match="holdout"):
+        app._build_config({"profile": "test", "jurisdictions": ["EU"],
+                           "ads_enabled": True, "holdout_fraction": -0.1})
+    # Disabling ads makes a zero holdout legitimate (nothing to measure).
+    cfg = app._build_config({"profile": "test", "jurisdictions": ["EU"],
+                             "ads_enabled": False, "holdout_fraction": 0})
+    assert cfg.ads_enabled is False
+
+
+def test_a05_profile_scales_derived_from_config_factories():
+    """A-05: profile scale numbers must come from the RunConfig factories,
+    not hand-copied dicts that can silently drift (mis-sizing SBM blocks
+    and mislabeling the UI)."""
+    from socio_sim.config import RunConfig
+    scales = app._profile_scales()
+    for name, factory in (("quick", RunConfig.quick), ("test", RunConfig.test),
+                          ("standard", RunConfig.standard),
+                          ("aggregate_matched_prototype",
+                           RunConfig.aggregate_matched_prototype)):
+        assert scales[name]["n_agents"] == factory().n_agents, name
+        assert scales[name]["n_ticks"] == factory().n_ticks, name
+    # And _build_config's profile default must match the factory too.
+    cfg = app._build_config({"profile": "quick", "jurisdictions": ["EU"]})
+    assert cfg.n_agents == RunConfig.quick().n_agents
+
+
+def test_f01_distinct_out_dirs_for_builds_in_the_same_second():
+    """F-01: two jobs started within the same wall-clock second must not
+    share an out_dir, or their events.jsonl / manifest.json audit records
+    clobber each other -- the exact artifacts replay evidence rests on."""
+    cfg1 = app._build_config({"profile": "test", "jurisdictions": ["EU"]})
+    cfg2 = app._build_config({"profile": "test", "jurisdictions": ["EU"]})
+    assert cfg1.out_dir != cfg2.out_dir
+
+
+def test_c01_store_distinguishes_replay_skipped_vs_failed(tmp_path):
+    """C-01: replay_ok=NULL for skipped, 0 for failed, 1 for ok.
+
+    Before the fix, both skipped (checked=False) and failed (checked=True,
+    ok=False) were stored as replay_ok=0, making them indistinguishable.
+    """
+    from socio_sim.web.store import RunStore
+
+    base_result = {
+        "manifest": {"config_hash": "abc", "stream_hash": "def",
+                     "campaign_specs": []},
+        "config": {"profile": "test", "jurisdictions": ["US"],
+                   "n_agents": 200, "n_ticks": 24},
+        "summary": {},
+        "n_events": 0,
+        "elapsed_s": 0.1,
+        "implausibility": 0.1,
+        "content_mode": "template",
+    }
+
+    # pytest tmp_path, not tempfile.TemporaryDirectory: RunStore keeps its
+    # sqlite connection open and Windows refuses to delete an open file at
+    # context exit; pytest reaps its tmp dirs lazily on later runs instead.
+    store = RunStore(tmp_path / "test.db")
+
+    # Skipped replay
+    r_skip = {**base_result, "replay": {"checked": False, "ok": None, "msg": "skipped"}}
+    store.save("skip1", r_skip)
+    row_skip = store.meta("skip1")
+    assert row_skip["replay_ok"] is None, f"expected None for skipped, got {row_skip['replay_ok']}"
+
+    # Failed replay
+    r_fail = {**base_result, "replay": {"checked": True, "ok": False, "msg": "mismatch"}}
+    store.save("fail1", r_fail)
+    row_fail = store.meta("fail1")
+    assert row_fail["replay_ok"] == 0, f"expected 0 for failed, got {row_fail['replay_ok']}"
+
+    # Successful replay
+    r_ok = {**base_result, "replay": {"checked": True, "ok": True, "msg": "ok"}}
+    store.save("ok1", r_ok)
+    row_ok = store.meta("ok1")
+    assert row_ok["replay_ok"] == 1, f"expected 1 for ok, got {row_ok['replay_ok']}"

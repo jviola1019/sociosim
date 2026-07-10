@@ -123,6 +123,328 @@ def test_semantic_guard_flags_category_topic_and_harmful_contradictions():
         "stock earnings crypto rally", item)
 
 
+def test_blocked_result_not_served_from_cache_same_adapter(tmp_path):
+    """Regression for the P0 cache-bypass bug: a cached status=='blocked'
+    entry must not leak the blocked LLM text on a later identical request
+    from the same adapter, and must not trigger a second remote call."""
+    gen, personas = setup()
+    degradations = []
+    calls = []
+
+    def emailer(prompt):
+        calls.append(prompt)
+        return "local news email me at a@b.com"
+
+    adapter = LLMAdapter(
+        base=gen, cache_path=tmp_path / "cache.json", backend="ollama",
+        transport=emailer, on_degradation=degradations.append)
+
+    first = adapter.generate(1, personas, tick=3)
+    assert "email me" not in first.text
+    assert len(calls) == 1
+
+    second = adapter.generate(1, personas, tick=3)
+    assert "email me" not in second.text
+    # NOTE: text content itself need not be byte-identical across calls --
+    # self.base.generate() draws fresh template/slant randomness on every
+    # invocation regardless of cache hit. What matters for this regression
+    # is that the blocked LLM text never leaks and no second remote call
+    # is made for the same cache key.
+    assert len(calls) == 1, "must not re-contact the LLM for a cached blocked prompt"
+    assert len(degradations) == 2
+    assert all("semantic_mismatch" in d and "pii_like_output" in d
+               for d in degradations)
+
+
+def test_blocked_result_not_served_from_cache_new_adapter_instance(tmp_path):
+    """Same regression as above, but the cache is reloaded from disk by a
+    fresh adapter instance -- the actual reported scenario: a new run
+    loading a persisted cache file must not serve a previously blocked
+    response as if it were accepted."""
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+
+    adapter1 = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                          transport=lambda p: "local news email me at a@b.com")
+    first = adapter1.generate(1, personas, tick=3)
+    assert "email me" not in first.text
+
+    def exploding(prompt):
+        raise AssertionError("must not contact the LLM for a cached blocked prompt")
+
+    degradations2 = []
+    adapter2 = LLMAdapter(base=setup()[0], cache_path=cache_path, backend="ollama",
+                          transport=exploding, on_degradation=degradations2.append)
+    second = adapter2.generate(1, personas, tick=3)
+    assert "email me" not in second.text
+    assert second.text == first.text
+    assert degradations2 and "semantic_mismatch" in degradations2[0]
+    assert "pii_like_output" in degradations2[0]
+
+
+def test_blocked_cache_replay_is_deterministic(tmp_path):
+    """Two independent adapter instances loading the same persisted
+    blocked-cache entry must produce bit-identical output and must not
+    rewrite the cache file (cache_hash stays stable)."""
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "email me at a@b.com")
+    adapter.generate(1, personas, tick=3)
+    h1 = adapter.cache_hash()
+
+    def exploding(prompt):
+        raise AssertionError("must not contact the LLM for a cached blocked prompt")
+
+    results = []
+    for _ in range(2):
+        fresh_adapter = LLMAdapter(base=setup()[0], cache_path=cache_path,
+                                   backend="ollama", transport=exploding)
+        item = fresh_adapter.generate(1, personas, tick=3)
+        results.append(item.text)
+        assert fresh_adapter.cache_hash() == h1
+    assert results[0] == results[1]
+
+
+def test_accepted_cache_entries_still_function(tmp_path):
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "totally fine accepted text")
+    item1 = adapter.generate(1, personas, tick=3)
+    assert item1.text == "totally fine accepted text"
+    cache = json.loads(cache_path.read_text())
+    assert list(cache.values())[0]["status"] == "accepted"
+
+    def exploding(prompt):
+        raise AssertionError("must not call transport on an accepted cache hit")
+
+    adapter2 = LLMAdapter(base=setup()[0], cache_path=cache_path, backend="ollama",
+                          transport=exploding)
+    item2 = adapter2.generate(1, personas, tick=3)
+    assert item2.text == "totally fine accepted text"
+
+
+def test_cn_explicit_label_preserved_for_blocked_output(tmp_path):
+    gen, personas = setup(cn=True)
+    adapter = LLMAdapter(base=gen, cache_path=tmp_path / "c.json", backend="ollama",
+                         transport=lambda p: "email me at a@b.com")
+    labelled_blocked = None
+    for i in range(600):
+        item = adapter.generate(i % personas.n, personas, tick=0)
+        if item.explicit_label:
+            labelled_blocked = item
+            break
+    assert labelled_blocked is not None
+    assert labelled_blocked.text.startswith("[AI-generated content] ")
+    assert "email me" not in labelled_blocked.text
+
+
+def test_legacy_cache_entry_without_status_field_triggers_rescreen(tmp_path):
+    # E1 fix: status-less dict entries (pre-schema) must be re-screened,
+    # not served as accepted hits. The transport IS called for re-generation.
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "legacy accepted text")
+    adapter.generate(1, personas, tick=3)
+    cache = json.loads(cache_path.read_text())
+    key = next(iter(cache))
+    # Simulate a genuine pre-schema cache record: status and record_hash
+    # didn't exist yet, so a real legacy record has neither field.
+    del cache[key]["status"]
+    del cache[key]["record_hash"]
+    cache_path.write_text(json.dumps(cache))
+
+    rescreened_calls = []
+
+    def rescreening_transport(prompt):
+        rescreened_calls.append(prompt)
+        return "freshly screened text"
+
+    adapter2 = LLMAdapter(base=setup()[0], cache_path=cache_path, backend="ollama",
+                          transport=rescreening_transport)
+    item = adapter2.generate(1, personas, tick=3)
+    assert len(rescreened_calls) == 1, "legacy entry must trigger re-screen transport call"
+    assert item.text == "freshly screened text"
+
+
+def test_legacy_bare_string_cache_entry_triggers_rescreen(tmp_path):
+    # E1 fix: legacy bare-string entries must be re-screened, not served as
+    # accepted hits. The transport IS called for re-generation.
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "ancient bare-string cached text")
+    adapter.generate(1, personas, tick=3)
+    cache = json.loads(cache_path.read_text())
+    key = next(iter(cache))
+    cache_path.write_text(json.dumps({key: "ancient bare-string cached text"}))
+
+    rescreened_calls = []
+
+    def rescreening_transport(prompt):
+        rescreened_calls.append(prompt)
+        return "freshly screened replacement"
+
+    adapter2 = LLMAdapter(base=setup()[0], cache_path=cache_path, backend="ollama",
+                          transport=rescreening_transport)
+    item = adapter2.generate(1, personas, tick=3)
+    assert len(rescreened_calls) == 1, "legacy bare-string entry must trigger re-screen transport call"
+    assert item.text == "freshly screened replacement"
+
+
+def test_blocked_cache_invalidated_by_deliberate_guard_version_bump(tmp_path, monkeypatch):
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "email me at a@b.com")
+    adapter.generate(1, personas, tick=3)
+    cache = json.loads(cache_path.read_text())
+    assert list(cache.values())[0]["status"] == "blocked"
+
+    from socio_sim.content import llm_cache
+    monkeypatch.setattr(llm_cache, "BLOCKED_GUARD_VERSION", 2)
+
+    calls = []
+
+    def safe_text(prompt):
+        calls.append(prompt)
+        return "totally fine local news text"
+
+    adapter2 = LLMAdapter(base=setup()[0], cache_path=cache_path, backend="ollama",
+                          transport=safe_text)
+    item = adapter2.generate(1, personas, tick=3)
+    assert len(calls) == 1, "a guard-version bump must force re-evaluation"
+    assert item.text == "totally fine local news text"
+
+
+def test_e01_accepted_cache_invalidated_by_deliberate_guard_version_bump(
+        tmp_path, monkeypatch):
+    """E-01: bumping BLOCKED_GUARD_VERSION must re-screen previously
+    ACCEPTED text too, not only previously blocked prompts -- otherwise text
+    accepted under an older, weaker guard is served verbatim forever and the
+    safety-relevant direction of a guard tightening never takes effect."""
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "benign text under the old guard")
+    adapter.generate(1, personas, tick=3)
+    cache = json.loads(cache_path.read_text())
+    assert list(cache.values())[0]["status"] == "accepted"
+
+    from socio_sim.content import llm_cache
+    monkeypatch.setattr(llm_cache, "BLOCKED_GUARD_VERSION", 2)
+
+    calls = []
+
+    def rescreen(prompt):
+        calls.append(prompt)
+        return "fresh text screened under the new guard"
+
+    adapter2 = LLMAdapter(base=setup()[0], cache_path=cache_path, backend="ollama",
+                          transport=rescreen)
+    item = adapter2.generate(1, personas, tick=3)
+    assert len(calls) == 1, "a guard-version bump must re-screen accepted entries"
+    assert item.text == "fresh text screened under the new guard"
+
+
+def test_e04_guard_blocked_response_resets_fail_streak(tmp_path):
+    """E-04: a transport success whose content the guard blocks is still a
+    transport SUCCESS and must reset the consecutive-failure streak. The
+    sequence fail, fail, blocked-success, fail must NOT disable a live
+    backend (give_up_after is 3 consecutive failures)."""
+    gen, personas = setup()
+    responses = iter(["FAIL", "FAIL", "local news email me at a@b.com", "FAIL"])
+
+    def flaky(prompt):
+        r = next(responses)
+        if r == "FAIL":
+            raise ConnectionError("transient")
+        return r
+
+    adapter = LLMAdapter(base=gen, cache_path=tmp_path / "c.json",
+                         backend="ollama", transport=flaky)
+    # Distinct days -> distinct prompts -> no cache hits between calls.
+    for tick in (24, 48, 72, 96):
+        adapter.generate(1, personas, tick=tick)
+    assert adapter._disabled is False, (
+        "a blocked-but-successful transport call must reset the fail streak")
+    assert adapter._fail_streak == 1  # only the final failure counts
+
+
+def test_tampered_cache_entry_is_discarded_and_not_served(tmp_path):
+    """Regression for cache poisoning: an entry that was blocked, then had
+    its status hand-edited to 'accepted' without recomputing record_hash,
+    must never be served -- the tamper must be detected and the prompt
+    regenerated from a fresh, re-screened call rather than trusted."""
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "email me at a@b.com")
+    adapter.generate(1, personas, tick=3)
+    cache = json.loads(cache_path.read_text())
+    key = next(iter(cache))
+    assert cache[key]["status"] == "blocked"
+    cache[key]["status"] = "accepted"  # forged after the fact, hash untouched
+    cache_path.write_text(json.dumps(cache))
+
+    calls = []
+    degradations = []
+
+    def safe_text(prompt):
+        calls.append(prompt)
+        return "totally fine local news text"
+
+    adapter2 = LLMAdapter(base=setup()[0], cache_path=cache_path, backend="ollama",
+                          transport=safe_text, on_degradation=degradations.append)
+    item = adapter2.generate(1, personas, tick=3)
+    assert len(calls) == 1, "a tampered entry must not be trusted -- must re-fetch"
+    assert item.text == "totally fine local news text"
+    assert "email me" not in item.text
+    assert any("cache_tampered" in d for d in degradations)
+
+
+def test_tampered_cache_text_swap_is_discarded_and_not_served(tmp_path):
+    """A different tamper shape: text swapped on an accepted entry without
+    recomputing record_hash. Must not be served verbatim."""
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "totally fine accepted text")
+    adapter.generate(1, personas, tick=3)
+    cache = json.loads(cache_path.read_text())
+    key = next(iter(cache))
+    cache[key]["text"] = "swapped-in text the guard never screened"
+    cache_path.write_text(json.dumps(cache))
+
+    calls = []
+
+    def safe_text(prompt):
+        calls.append(prompt)
+        return "regenerated safe text"
+
+    adapter2 = LLMAdapter(base=setup()[0], cache_path=cache_path, backend="ollama",
+                          transport=safe_text)
+    item = adapter2.generate(1, personas, tick=3)
+    assert len(calls) == 1
+    assert item.text == "regenerated safe text"
+    assert "swapped-in" not in item.text
+
+
+def test_corrupt_cache_file_is_treated_as_empty_not_a_crash(tmp_path):
+    cache_path = tmp_path / "cache.json"
+    cache_path.write_text("{not valid json at all", encoding="utf-8")
+    gen, personas = setup()
+    degradations = []
+    adapter = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "fresh safe text",
+                         on_degradation=degradations.append)
+    item = adapter.generate(1, personas, tick=0)
+    assert item.text == "fresh safe text"
+    assert any("corrupt" in d for d in degradations)
+
+
 def test_cache_hash_stable_and_changes(tmp_path):
     gen, personas = setup()
     cache = tmp_path / "cache.json"
@@ -135,3 +457,81 @@ def test_cache_hash_stable_and_changes(tmp_path):
     assert adapter2.cache_hash() == h1
     adapter2.generate(2, personas, tick=4)
     assert adapter2.cache_hash() != h1
+
+
+def test_e05_transport_connects_to_pinned_ip_not_rebound_dns(tmp_path, monkeypatch):
+    """E-05: the transport must TCP-connect to the exact IP the SSRF guard
+    validated, not re-resolve DNS afterwards -- a fast-flux server that
+    passes validation then rebinds to 169.254.169.254 must never be dialed
+    at the rebound address."""
+    import socket as _socket
+    gen, _ = setup()
+    adapter = LLMAdapter(base=gen, cache_path=tmp_path / "cache.json",
+                         backend="ollama",
+                         base_url="http://pinned.example:11434")
+    monkeypatch.setenv("SOCIOSIM_LLM_ALLOWED_HOSTS", "pinned.example")
+
+    calls = {"n": 0}
+
+    def rebinding_getaddrinfo(*a, **k):
+        calls["n"] += 1
+        ip = "10.0.0.5" if calls["n"] == 1 else "169.254.169.254"
+        return [(2, 1, 6, "", (ip, 11434))]
+
+    monkeypatch.setattr("socio_sim.security.socket.getaddrinfo",
+                        rebinding_getaddrinfo)
+
+    dialed = []
+
+    def capturing_create_connection(address, *a, **k):
+        dialed.append(address)
+        raise ConnectionRefusedError("test stops before real I/O")
+
+    monkeypatch.setattr(_socket, "create_connection",
+                        capturing_create_connection)
+
+    with pytest.raises(ConnectionRefusedError):
+        adapter._http_transport("hi")
+    assert dialed == [("10.0.0.5", 11434)], (
+        "must dial the validated pinned IP, never a re-resolved address")
+
+
+def test_e05_redirect_response_is_refused_not_followed(tmp_path):
+    """E-05/E-02: a 3xx from the (validated) LLM server must be an error --
+    never followed to a Location the SSRF guard did not approve."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    class Redirector(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.send_response(302)
+            self.send_header("Location", "http://169.254.169.254/latest/")
+            self.end_headers()
+
+        def log_message(self, *a):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Redirector)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        gen, _ = setup()
+        adapter = LLMAdapter(
+            base=gen, cache_path=tmp_path / "cache.json", backend="ollama",
+            base_url=f"http://127.0.0.1:{server.server_address[1]}")
+        with pytest.raises(ValueError, match="redirect"):
+            adapter._http_transport("hi")
+    finally:
+        server.shutdown()
+
+
+def test_e02_transport_revalidates_dns_and_blocks_rebind(tmp_path, monkeypatch):
+    gen, _ = setup()
+    adapter = LLMAdapter(base=gen, cache_path=tmp_path / "cache.json",
+                         backend="ollama",
+                         base_url="http://rebind.example:11434")
+    # Host that passed config-time validation now rebinds to cloud metadata.
+    monkeypatch.setattr(
+        "socio_sim.security.socket.getaddrinfo",
+        lambda *a, **k: [(2, 1, 6, "", ("169.254.169.254", 11434))])
+    with pytest.raises(ValueError, match="link-local"):
+        adapter._http_transport("hi")

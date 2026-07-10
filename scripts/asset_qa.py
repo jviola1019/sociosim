@@ -128,6 +128,24 @@ def main() -> int:
         for bid, hq in hashes[i + 1:]:
             if hamming_hex(hp, hq) <= 4:
                 errors.append(f"suspicious near duplicate: {aid} {bid}")
+    # R7: eight distinct art-directed visual families, each represented in
+    # every role (feed cover, ad creative, editorial).
+    fam_roles: dict = {}
+    for rec in records:
+        fam = str(rec.get("family") or "").strip()
+        if not fam:
+            errors.append(f"{rec['asset_id']}: missing family")
+            continue
+        fam_roles.setdefault(fam, set()).add(rec["role"])
+    if len(fam_roles) != 8:
+        errors.append(
+            f"expected 8 visual families, found {len(fam_roles)}: "
+            f"{sorted(fam_roles)}")
+    all_roles = {"feed_cover", "ad_creative", "editorial_system"}
+    for fam, roles in sorted(fam_roles.items()):
+        missing = all_roles - roles
+        if missing:
+            errors.append(f"family {fam!r} missing roles: {sorted(missing)}")
     orphans = sorted(p for p in ASSET_DIR.glob("*.png")
                      if p.name != "contact-sheet-v4.png" and p.resolve() not in seen_files)
     if orphans:
@@ -135,12 +153,21 @@ def main() -> int:
     tracked = subprocess.run(["git", "grep", "-nE",
                               "feed-atlas-v3|ad-atlas-v3|feed-cover-v3|ad-creative-v3"],
                              cwd=ROOT, text=True, capture_output=True)
+    # Files allowed to mention legacy v3 filenames: the scanners themselves
+    # (which must contain the literal strings to detect them), this script's
+    # own report/doc outputs, and BASELINE_AUDIT_SNAPSHOT.md -- an explicitly
+    # labeled historical record of pre-remediation state, not a current claim.
+    _ALLOWED_STALE_REFS = (
+        "AUDIT_REMEDIATION_REPORT",
+        "ASSET_QA",
+        "scripts/asset_qa.py",
+        "scripts/claim_scan.py",
+        "tests/test_asset_v4.py",
+        "BASELINE_AUDIT_SNAPSHOT.md",
+    )
     stale_lines = [
         line for line in tracked.stdout.splitlines()
-        if "AUDIT_REMEDIATION_REPORT" not in line
-        and "ASSET_QA" not in line
-        and "scripts/asset_qa.py" not in line
-        and "tests/test_asset_v4.py" not in line
+        if not any(allowed in line for allowed in _ALLOWED_STALE_REFS)
     ]
     if stale_lines:
         errors.append("legacy asset references remain:\n" + "\n".join(stale_lines[:40]))

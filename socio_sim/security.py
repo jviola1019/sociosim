@@ -10,22 +10,38 @@ from urllib.parse import urlparse
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]"}
 
 
-def validate_llm_url(url: str) -> None:
+def validate_llm_url(url: str) -> str | None:
     """SSRF guard for user-supplied local LLM endpoints.
 
-    Empty URLs are allowed and mean "use the backend default". Non-empty URLs
-    must be http(s). Loopback hosts are allowed by default. RFC1918/private
-    hosts are allowed only when explicitly named in SOCIOSIM_LLM_ALLOWED_HOSTS;
-    link-local metadata hosts, multicast and reserved ranges are always blocked.
+    Empty URLs are allowed and mean "use the backend default" (returns
+    None). Non-empty URLs must be http(s). Loopback hosts are allowed by
+    default. RFC1918/private hosts are allowed only when explicitly named in
+    SOCIOSIM_LLM_ALLOWED_HOSTS; link-local metadata hosts, multicast and
+    reserved ranges are always blocked.
+
+    Returns the exact IP address that passed the checks (E-05): callers
+    that make the request must TCP-connect to THIS pinned address (keeping
+    the original hostname for the Host header / TLS SNI) rather than
+    resolving DNS again, which would reopen the validate-then-rebind
+    TOCTOU window this guard exists to close.
     """
     if not url:
-        return
+        return None
     p = urlparse(url)
     if p.scheme not in ("http", "https"):
         raise ValueError("llm_base_url scheme must be http or https")
     host = p.hostname or ""
+    try:
+        # An IP-literal host (127.0.0.1, ::1, 10.0.0.5, ...) pins itself.
+        literal = ipaddress.ip_address(host)
+    except ValueError:
+        literal = None
+    if literal is not None and literal.is_loopback:
+        return str(literal)
     if host in LOOPBACK_HOSTS:
-        return
+        # Named loopback ("localhost"): pin the canonical loopback address
+        # rather than trusting a later resolver call.
+        return "127.0.0.1"
     allowed_private = {
         h.strip().lower()
         for h in os.environ.get("SOCIOSIM_LLM_ALLOWED_HOSTS", "").split(",")
@@ -50,3 +66,5 @@ def validate_llm_url(url: str) -> None:
         else:
             raise ValueError(
                 f"llm_base_url must point to a loopback/allowed private host (got public {ip})")
+    # Every resolved address passed; pin the first one.
+    return str(ipaddress.ip_address(infos[0][4][0]))

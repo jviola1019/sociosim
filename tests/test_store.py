@@ -11,7 +11,11 @@ def sample_result(cfg_hash="abc", stream="def", n_agents=200):
         "config": {"jurisdictions": ["EU"], "n_agents": n_agents, "n_ticks": 48},
         "manifest": {"config_hash": cfg_hash, "stream_hash": stream},
         "content_mode": "template", "n_events": 1234, "elapsed_s": 1.5,
-        "implausibility": 1.4, "replay": {"ok": True}, "report_md": "# report",
+        "implausibility": 1.4,
+        # Shape matches pipeline.run_and_analyze: replay always carries
+        # checked/ok/msg (C-01: replay_ok NULL=skipped, 0=failed, 1=ok).
+        "replay": {"checked": True, "ok": True, "msg": "ok"},
+        "report_md": "# report",
     }
 
 

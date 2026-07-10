@@ -1,5 +1,10 @@
 # Baseline Audit Snapshot
 
+**HISTORICAL RECORD — not current state.** This document is frozen at the
+commit below and describes files and results that existed only at that
+point in time (including v3 assets later deleted by remediation). Do not
+read any line in this file as a claim about the present repository.
+
 This snapshot records the starting point for branch
 `fix/evidence-first-v4-assets`, created from clean `main` at
 `59632c4d5336bfc2920214d84df83b328c529478`.

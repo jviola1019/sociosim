@@ -10,13 +10,14 @@ from __future__ import annotations
 import numpy as np
 
 from socio_sim.ads.measure import apply_fdr, measure_campaign
+from socio_sim.config import HARMFUL_CATEGORIES
 from socio_sim.evidence import metric_evidence
 from socio_sim.logs.events import EventLog
 from socio_sim.rng import SeedTree
 from socio_sim.stats import wilson_interval  # re-exported for callers/tests
 
-HARMFUL = {"hate", "harassment", "fraud", "misinfo", "adult",
-           "illegal_goods", "self_harm"}
+# Single source: socio_sim.config.HARMFUL_CATEGORIES.
+HARMFUL = frozenset(HARMFUL_CATEGORIES)
 
 TERMINAL_ACTIONS = {"remove", "downrank"}
 
