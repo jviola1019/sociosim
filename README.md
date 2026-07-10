@@ -11,7 +11,8 @@ of real-world performance.
 
 ```bash
 python -m venv .venv
-.venv\Scripts\activate
+.venv\Scripts\activate          # Windows
+source .venv/bin/activate       # macOS/Linux
 pip install -e .
 pip install -e .[dev,e2e,security,asset]
 ```
@@ -21,10 +22,40 @@ pip install -e .[dev,e2e,security,asset]
 ```bash
 python run.py
 python run.py --web
+python run.py --llm                     # bootstrap a free local Ollama model for post text
 python run.py --profile aggregate_matched_prototype
 python run.py --classifier synthetic_template_classifier
 python run.py --measure-classifier
+python run.py --validate                # sensitivity + aggregate-fit diagnostics
+python run.py --backtest                # held-out aggregate-fit diagnostics
 ```
+
+All 23 CLI flags are documented in `docs/usage.md` (or `python run.py -h`).
+Determinism contract: the same config + seed produces a bit-identical event
+stream, with deterministic replay verified by SHA-256 comparison.
+
+### Web console security model
+
+The console binds `127.0.0.1` and is a single-user research tool. Mutating
+requests require a per-session token; Host/Origin allow-lists guard DNS
+rebinding. Binding beyond loopback (`--bind`) requires
+`SOCIOSIM_ACCESS_TOKEN` and `SOCIOSIM_ALLOWED_HOSTS`, and the token then
+travels as cleartext HTTP — front with a TLS-terminating reverse proxy on
+untrusted networks. A private/RFC1918 `llm_base_url` requires
+`SOCIOSIM_LLM_ALLOWED_HOSTS`. Details: `SECURITY.md`;
+residual limitations: `KNOWN_LIMITATIONS.md`.
+
+### Output honesty gates
+
+- Observed-vs-target comparisons are suppressed on the CLI and web UI alike
+  while the bundled targets' evidence is `unsupported`
+  (`socio_sim.evidence.targets_metadata_complete`).
+- Replicate intervals are labeled "95%" only at 20+ replicates.
+- A web run with ads enabled requires `holdout_fraction > 0` (HTTP 400
+  otherwise) — lift/significance output needs a control group.
+- Campaign-editor economics echo per-field `economics_provenance`
+  (`user_supplied` vs `scenario_assumption_default`), and `/api/meta`
+  labels its defaults `scenario_assumption`.
 
 Classifier modes are synthetic mechanics modes:
 
@@ -70,6 +101,7 @@ python scripts/asset_qa.py
 ```bash
 python -m ruff check socio_sim tests run.py
 python -m pytest -q --cov=socio_sim --cov-report=term-missing --cov-fail-under=85
+python -m playwright install --with-deps chromium   # once, before the e2e run
 python -m pytest -q tests/test_e2e_playwright.py
 python scripts/evidence_gate.py
 python scripts/claim_scan.py

@@ -9,6 +9,17 @@ out/
 .ipynb_checkpoints/
 .playwright-mcp/
 .coverage
+# Local orchestration helpers and logs (never ship; see AUDIT_LOG.md
+# "Session 2026-07-09" for why the headless fable loop was retired).
+# Anchored to the repo root so tracked docs/audits/fable_audit_*.md and
+# FABLE_AUDIT_LOG.md are unaffected.
+*.log
+/fable_*.txt
+/fable_*.ps1
+/run_fable_*
+/run_audit_now.vbs
+/open_vscode.bat
+/start_ssh_tunnel.bat
 *.png
 !socio_sim/web/static/assets/
 !socio_sim/web/static/assets/*.png

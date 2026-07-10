@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "socio-sim"
 version = "0.1.0"
-description = "SocioSim: a reproducible, uncertainty-quantified, policy-as-code social-interaction simulator (research use only)"
+description = "SocioSim: a reproducible, policy-as-code social-interaction simulator with replicate-level uncertainty diagnostics (research use only)"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

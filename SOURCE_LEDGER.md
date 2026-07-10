@@ -17,10 +17,11 @@ operational-use claims.
   revision, retrieval date, license, population, limitations, valid/invalid
   uses) live in `socio_sim/data/evidence_registry.json`.
 - Individual decision-facing numeric defaults live in
-  `socio_sim/data/scenario_assumptions.json`: **64 entries, one per default**
+  `socio_sim/data/scenario_assumptions.json`: **65 entries, one per default**
   (13 BehaviorParams fields, 9 category base rates, 2 classifier operating
   points, 15 RunConfig/graph/auction defaults, 4 profile-scale presets, 12
-  persona distributions, 5 Campaign defaults, 3 demo-campaign entries), each
+  persona distributions, 5 Campaign defaults, 3 demo-campaign entries, 1 web
+  campaign-editor defaults entry), each
   with its own `path`, current `value`, `units`, and `rationale` — not one
   record standing in for a whole module. Most share the single
   `ev.scenario_assumption.default_parameters` evidence-kind record, which is

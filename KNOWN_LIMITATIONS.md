@@ -43,3 +43,12 @@ This file tracks the evidence-first operating limits after the v4 remediation.
   checks are CI gates.
 - The GPU/CuPy path and optional external image/LLM backends are not validated by
   default local CI.
+- The SSRF guard on `llm_base_url` re-resolves DNS and re-checks the
+  allow-list on every transport call and refuses redirects, but `urllib`
+  performs its own DNS lookup after ours: a narrow DNS-rebind TOCTOU window
+  remains. Closing it fully would require connecting to the pinned
+  allow-listed IP with an explicit Host header; deferred as low-risk for a
+  loopback-default, single-user tool (audit finding E-05).
+- CI has no automated accessibility gate (e.g. axe-core): the WCAG-oriented
+  pass in SECURITY.md was browser-verified manually, and no WCAG-AA
+  conformance is claimed (audit finding G-02).

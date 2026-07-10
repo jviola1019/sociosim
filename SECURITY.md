@@ -4,8 +4,8 @@ SocioSim is a **single-user, localhost research tool**. The web console is a
 Python stdlib (`http.server`) app serving a vanilla-JS UI over a JSON API. This
 document states what is protected, how, and what is explicitly out of scope.
 Grounded in OWASP Top 10 (2021), OWASP ASVS, the OWASP Secure Headers & SSRF
-Prevention cheat sheets, and MDN security-header guidance (see
-`docs/RESEARCH_EVIDENCE.md` Part B for citations).
+Prevention cheat sheets, and MDN security-header guidance (framework names
+cited inline below; this repo bundles no copies of those documents).
 
 ## Assets
 - Simulation configuration and results; the served console (HTML/JS/CSS).
@@ -21,11 +21,11 @@ Prevention cheat sheets, and MDN security-header guidance (see
 | # | Control | What it stops | Where |
 |---|---------|---------------|-------|
 | 1 | **Bind `127.0.0.1`** by default; require explicit token + allowed hosts on non-loopback bind | LAN/internet exposure (OWASP A05) | `serve()` / `run.py --bind` |
-| 2 | **Per-session access token** (`secrets.token_urlsafe(32)`), required on state-changing POST/DELETE and protected GETs in remote mode, constant-time compare; served via same-origin `/api/meta` only for loopback mode; remote exports use headers, not query-token URLs | Browser CSRF / forged mutation / token leakage (A01) | `Handler._token_ok` |
+| 2 | **Per-session access token** (`secrets.token_urlsafe(32)`), required on state-changing POST/DELETE and protected GETs whenever the auto-token is not exposed, constant-time compare; served via same-origin `/api/meta` **only when bound to loopback AND no `SOCIOSIM_ACCESS_TOKEN` is configured** — setting the env var means the operator supplies the token out-of-band (e.g. a reverse-tunneled loopback console) and it is never auto-revealed; remote exports use headers, not query-token URLs | Browser CSRF / forged mutation / token leakage (A01) | `Handler._token_ok`, `serve()` `expose_token` |
 | 3 | **Host allow-list on every route** plus Origin/Referer allow-list on mutations (loopback by default; foreign Host/Origin → 403) | CSRF & **DNS-rebinding** (loopback is reachable from a browser page) | `_host_allowed`, `Handler._origin_ok` |
 | 4 | **Security headers** on every response: CSP (`default-src 'self'`, `frame-ancestors 'none'`, `base-uri 'none'`, `object-src 'none'`), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` | XSS blast-radius, MIME sniffing, clickjacking (CWE-79/1021) | `Handler._security_headers` |
 | 5 | **JSON body-size limit** (2 MB), valid non-negative `Content-Length`, and `Content-Type: application/json` required | Oversized-body DoS, malformed-body hangs/crashes, type confusion (ASVS V5) | `Handler.do_POST` |
-| 6 | **SSRF allow-list** on `llm_base_url`: http(s) only; resolve-then-validate; loopback by default; private/RFC1918 hosts require explicit `SOCIOSIM_LLM_ALLOWED_HOSTS`; block link-local incl. cloud-metadata `169.254.169.254`, multicast, reserved | SSRF to internal/metadata services (A10 / CWE-918) | `_validate_llm_url` |
+| 6 | **SSRF allow-list** on `llm_base_url`: http(s) only; loopback by default; private/RFC1918 hosts require explicit `SOCIOSIM_LLM_ALLOWED_HOSTS`; block link-local incl. cloud-metadata `169.254.169.254`, multicast, reserved. The URL allow-list check runs at config time AND **again on every transport call (re-resolving DNS)**, with HTTP redirects refused outright (`_NoRedirect`). Known residual: `urlopen` performs its own DNS lookup after ours, leaving a narrow DNS-rebind TOCTOU window (see `KNOWN_LIMITATIONS.md`) | SSRF to internal/metadata services (A10 / CWE-918) | `_validate_llm_url`, `LLMAdapter._http_transport` |
 | 7 | **Path jail** on `/static/` (canonicalize + contain to dir) | Path traversal / symlink escape (CWE-22) | `safe_static_path` |
 | 8 | No client input reflected into response headers | CRLF/header injection (stdlib caveat, bpo-32084) | response builders |
 
@@ -42,7 +42,10 @@ rate-limiting/WAF, secrets-vault integration, full audit-logging/SIEM, and
 dependency supply-chain attestation. Running with `--bind 0.0.0.0` exposes the
 console beyond loopback and is supported only with `SOCIOSIM_ACCESS_TOKEN`,
 `SOCIOSIM_ALLOWED_HOSTS`, and trusted network controls. The built-in token is not
-a substitute for enterprise authentication.
+a substitute for enterprise authentication, and **there is no TLS in this
+stack: on any non-loopback bind the token travels as a cleartext HTTP
+header — put a TLS-terminating reverse proxy in front on untrusted
+networks** (the server prints this warning at startup).
 
 ## Verification (Sprint 9)
 - **No committed secrets** — full tracked-tree scan (api keys / tokens / passwords
