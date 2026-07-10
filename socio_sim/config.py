@@ -48,10 +48,24 @@ CATEGORIES = (
     "ai_generated",
 )
 
+#: The subset of CATEGORIES counted as harmful for exposure metrics --
+#: single source shared by the engine, analytics, and the web layer
+#: (previously three hand-copied definitions that could drift).
+HARMFUL_CATEGORIES = ("hate", "harassment", "fraud", "misinfo", "adult",
+                      "illegal_goods", "self_harm")
+
+#: Default synthetic classifier operating point (scenario assumption, not a
+#: measured benchmark; see socio_sim/data/scenario_assumptions.json) --
+#: single source for _default_classifier_targets and the web form's
+#: uniform default.
+DEFAULT_CLASSIFIER_PRECISION = 0.90
+DEFAULT_CLASSIFIER_RECALL = 0.85
+
 
 def _default_classifier_targets() -> dict:
     """Per-category classifier operating points (precision/recall)."""
-    return {cat: {"precision": 0.90, "recall": 0.85} for cat in CATEGORIES}
+    return {cat: {"precision": DEFAULT_CLASSIFIER_PRECISION,
+                  "recall": DEFAULT_CLASSIFIER_RECALL} for cat in CATEGORIES}
 
 
 def _default_base_rates() -> dict:

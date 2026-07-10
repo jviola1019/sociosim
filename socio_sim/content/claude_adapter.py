@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Callable
 
 from socio_sim.content import llm_cache
-from socio_sim.content.generate import TOPICS, TemplateGenerator
+from socio_sim.content.generate import (CN_LABEL_PREFIX, TOPICS,
+                                        TemplateGenerator)
 from socio_sim.content.items import ContentItem
 from socio_sim.content.semantic_guard import check_generated_text
 
@@ -26,7 +27,8 @@ _PROMPT_TEMPLATE = (
     "{tone} tone. Persona: {age} year-old, ideology {ideo:+.1f} on a -1..1 "
     "scale. Simulation day {day}. Output only the post text."
 )
-_CN_LABEL_PREFIX = "[AI-generated content] "
+#: Single source: socio_sim.content.generate.CN_LABEL_PREFIX.
+_CN_LABEL_PREFIX = CN_LABEL_PREFIX
 
 
 class ClaudeAdapter:

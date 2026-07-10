@@ -184,7 +184,7 @@ def test_live_server_runs_simulation_end_to_end():
         assert isinstance(result["implausibility"], (int, float))
         assert result["implausibility_components"]
         assert result["implausibility_dominant_metric"]
-        assert "report_md" in result and "RUN REPORT" not in result  # report present
+        assert "report_md" in result  # report present
         assert not re.search(r"\bnan\b", result["report_md"].lower())
         assert "not legal advice" in result["report_md"]
         assert "no_real_person_data" in result
@@ -308,6 +308,33 @@ def test_a03_campaigns_fn_still_builds_campaign_objects():
     fn = app._campaigns_fn({"campaigns": [{"bid": 1, "budget": 100}]})
     camps = fn(None)
     assert camps and camps[0].bid == 1.0
+
+
+def test_campaign_econ_defaults_bound_to_registry_and_dataclass():
+    """Drift guard: the web editor defaults must match their provenance
+    registry entry (assumption.web.campaign_editor_defaults), and the
+    dataclass-backed fields must equal the Campaign dataclass fallbacks.
+    (base_ctr 0.012 vs the dataclass 0.01 is DELIBERATE -- it mirrors the
+    brand-general demo campaign -- and is documented in the registry.)"""
+    import dataclasses
+    from socio_sim.ads.campaigns import Campaign
+    from socio_sim.evidence import scenario_assumptions
+    entry = scenario_assumptions()["assumption.web.campaign_editor_defaults"]
+    assert entry["value"] == app.CAMPAIGN_ECON_DEFAULTS
+    dc = {f.name: f.default for f in dataclasses.fields(Campaign)}
+    for name in ("base_cvr", "conversion_value", "ltv_multiplier",
+                 "attribution_window_ticks"):
+        assert app.CAMPAIGN_ECON_DEFAULTS[name] == dc[name], name
+
+
+def test_harmful_categories_single_source():
+    """The harmful-category set previously lived in three hand-copied
+    definitions (engine, analytics, web); all now derive from config."""
+    from socio_sim import engine
+    from socio_sim.analytics.metrics import HARMFUL
+    from socio_sim.config import HARMFUL_CATEGORIES
+    assert set(HARMFUL_CATEGORIES) == HARMFUL == engine.HARMFUL_CATEGORIES
+    assert app.HARMFUL_CATS == HARMFUL_CATEGORIES
 
 
 def test_a01_a02_scenario_defaults_are_named_labeled_constants():

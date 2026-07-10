@@ -88,7 +88,9 @@ CONTEXT_LAYER_EXTRA_FILES = {"run.py"}
 CONTEXT_LAYER_FILE_EXEMPT = {
     "CHANGELOG.md",
     "PLAN_P2.md",
-    "CALIBRATION_REPORT.md",
+    # CALIBRATION_REPORT.md deliberately NOT exempt: a generated report whose
+    # very name invites calibration claims must pass the context-aware layer
+    # (it is also scanned by evidence_gate.py alongside the other reports).
 }
 
 HISTORICAL_MARKER = "HISTORICAL RECORD"

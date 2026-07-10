@@ -23,7 +23,8 @@ from typing import Callable
 
 from socio_sim.content import llm_cache
 from socio_sim.security import validate_llm_url
-from socio_sim.content.generate import TOPICS, TemplateGenerator
+from socio_sim.content.generate import (CN_LABEL_PREFIX, TOPICS,
+                                        TemplateGenerator)
 from socio_sim.content.items import ContentItem
 from socio_sim.content.semantic_guard import check_generated_text
 
@@ -44,7 +45,8 @@ _PROMPT_TEMPLATE = (
 )
 
 #: CN explicit-label prefix that must survive text replacement.
-_CN_LABEL_PREFIX = "[AI-generated content] "
+#: Single source: socio_sim.content.generate.CN_LABEL_PREFIX.
+_CN_LABEL_PREFIX = CN_LABEL_PREFIX
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):

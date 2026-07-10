@@ -6,7 +6,6 @@ obvious contradictions between generated text and the simulator metadata.
 
 from __future__ import annotations
 
-import hashlib
 import re
 
 from socio_sim.content.generate import TOPICS
@@ -35,10 +34,6 @@ _TOPIC_TERMS = {
     "finance": {"crypto", "earnings", "inflation", "loan", "stock"},
     "lifestyle": {"fashion", "recipe", "routine", "travel", "wellness"},
 }
-
-
-def semantic_hash(text: str) -> str:
-    return hashlib.sha256(" ".join(str(text).split()).encode("utf-8")).hexdigest()
 
 
 def check_generated_text(text: str, item) -> list[str]:

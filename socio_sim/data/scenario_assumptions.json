@@ -701,6 +701,24 @@
       "units": "mixed (currency/probability)",
       "scope": "Illustrative demo campaign (not calibrated ad-market data)",
       "rationale": "Illustrative example campaign (fictional advertiser 'FinServe'); not calibrated to any real ad market."
+    },
+    {
+      "id": "assumption.web.campaign_editor_defaults",
+      "evidence_id": "ev.scenario_assumption.default_parameters",
+      "label": "Web campaign-editor pre-filled defaults",
+      "path": "socio_sim.web.app.CAMPAIGN_ECON_DEFAULTS",
+      "value": {
+        "bid": 2.0,
+        "budget": 100.0,
+        "base_ctr": 0.012,
+        "base_cvr": 0.05,
+        "conversion_value": 1.0,
+        "ltv_multiplier": 3.0,
+        "attribution_window_ticks": 168
+      },
+      "units": "mixed (currency/probability/ticks)",
+      "scope": "Synthetic campaign-editor pre-fill (not an industry benchmark)",
+      "rationale": "Values pre-filled when a web campaign-editor field is left blank; recorded per-field as economics_provenance='scenario_assumption_default' in the run payload. bid and base_ctr deliberately mirror the brand-general demo campaign (assumption.demo_campaign.brand_general), so base_ctr 0.012 differs from the engine's Campaign dataclass fallback 0.01 (assumption.campaign.base_ctr): a blank editor field means 'use the demo-like example', not 'use the engine fallback'. The remaining fields are bound to the Campaign dataclass defaults in code and cannot drift."
     }
   ]
 }

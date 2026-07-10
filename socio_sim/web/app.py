@@ -19,6 +19,7 @@ import threading
 import time
 import uuid
 import webbrowser
+from dataclasses import fields as dc_fields
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -29,9 +30,14 @@ from socio_sim import (NO_REAL_PERSON_DATA_NOTICE, NOT_LEGAL_ADVICE_NOTICE,
                        RESEARCH_USE_NOTICE, __version__)
 from socio_sim.analytics.lens import run_lens
 from socio_sim.analytics.metrics import cascade_sizes, cascade_tree
-from socio_sim.config import ADVERSARIES, CATEGORIES, RunConfig
+from socio_sim.ads.campaigns import Campaign
+from socio_sim.config import (ADVERSARIES, CATEGORIES,
+                              DEFAULT_CLASSIFIER_PRECISION,
+                              DEFAULT_CLASSIFIER_RECALL,
+                              HARMFUL_CATEGORIES, RunConfig)
 from socio_sim.evidence import targets_metadata_complete
-from socio_sim.llm_bootstrap import ensure_model, ensure_server, server_up
+from socio_sim.llm_bootstrap import (DEFAULT_HOST, ensure_model,
+                                     ensure_server, server_up)
 from socio_sim.pipeline import run_and_analyze
 from socio_sim.presets import PRESETS
 from socio_sim.security import LOOPBACK_HOSTS, validate_llm_url
@@ -105,23 +111,34 @@ def _host_allowed(headers, server=None) -> bool:
     # client bypass the DNS-rebinding guard entirely.
     return bool(host) and host in allowed
 
-HARMFUL_CATS = ("hate", "harassment", "fraud", "misinfo", "adult",
-                "illegal_goods", "self_harm")
+HARMFUL_CATS = HARMFUL_CATEGORIES  # single source: socio_sim.config
 
 #: Scenario-assumption defaults (A-01/A-02/A-03): illustrative synthetic
 #: operating points, NOT measured classifier benchmarks, DSA/industry
 #: statistics, or advertising benchmarks -- they merely resemble such
 #: figures. Each has a per-default provenance entry in
 #: socio_sim/data/scenario_assumptions.json (see SOURCE_LEDGER.md).
-DEFAULT_CLASSIFIER_PRECISION = 0.90
-DEFAULT_CLASSIFIER_RECALL = 0.85
-DEFAULT_EU_OPTOUT_RATE = 0.20
-DEFAULT_HUMAN_REVIEW_ACCURACY = 0.92
-DEFAULT_APPEAL_GRANT_FP_RATE = 0.70
+#: Values are DERIVED from their canonical definitions (config.py /
+#: the Campaign dataclass) rather than hand-copied, so they cannot drift.
+_RUNCONFIG_DEFAULTS = RunConfig()
+DEFAULT_EU_OPTOUT_RATE = _RUNCONFIG_DEFAULTS.eu_optout_rate
+DEFAULT_HUMAN_REVIEW_ACCURACY = _RUNCONFIG_DEFAULTS.human_review_accuracy
+DEFAULT_APPEAL_GRANT_FP_RATE = _RUNCONFIG_DEFAULTS.appeal_grant_fp_rate
+
+_CAMPAIGN_FIELD_DEFAULTS = {f.name: f.default for f in dc_fields(Campaign)}
 CAMPAIGN_ECON_DEFAULTS = {
-    "bid": 2.0, "budget": 100.0, "base_ctr": 0.012, "base_cvr": 0.05,
-    "conversion_value": 1.0, "ltv_multiplier": 3.0,
-    "attribution_window_ticks": 168,
+    # Web campaign-editor pre-fills (registry entry
+    # assumption.web.campaign_editor_defaults): bid and base_ctr mirror the
+    # brand-general demo campaign; base_ctr 0.012 is deliberately distinct
+    # from the Campaign dataclass fallback 0.01
+    # (assumption.campaign.base_ctr) -- a blank editor field means "use the
+    # demo-like example", not "use the engine fallback".
+    "bid": 2.0, "budget": 100.0, "base_ctr": 0.012,
+    # The rest are the Campaign dataclass fallbacks (single source).
+    "base_cvr": _CAMPAIGN_FIELD_DEFAULTS["base_cvr"],
+    "conversion_value": _CAMPAIGN_FIELD_DEFAULTS["conversion_value"],
+    "ltv_multiplier": _CAMPAIGN_FIELD_DEFAULTS["ltv_multiplier"],
+    "attribution_window_ticks": _CAMPAIGN_FIELD_DEFAULTS["attribution_window_ticks"],
 }
 
 _JOBS: dict = {}
@@ -135,7 +152,7 @@ def _job_set(job: dict, **fields) -> None:
     polling endpoint with 'dictionary changed size during iteration'."""
     with _LOCK:
         job.update(fields)
-_LLM_HOST = "127.0.0.1:11434"
+_LLM_HOST = DEFAULT_HOST  # single source: socio_sim.llm_bootstrap
 _STORE = RunStore()  # persistent run history (out/sociosim.db)
 
 
@@ -485,7 +502,6 @@ def _campaigns_fn(body: dict):
     clean = _normalize_campaign_specs(body)
     if not clean:
         return None
-    from socio_sim.ads.campaigns import Campaign
     # economics_provenance is payload metadata (A-03), not a Campaign field.
     return lambda cfg: [
         Campaign(**{k: v for k, v in c.items() if k != "economics_provenance"})

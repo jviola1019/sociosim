@@ -20,7 +20,8 @@ from socio_sim.ads.auction import AdSystem
 from socio_sim.ads.campaigns import Campaign, campaign_to_spec
 from socio_sim.agents.personas import Personas
 from socio_sim.agents.state import AgentState
-from socio_sim.config import RunConfig, SYNTHETIC_TEMPLATE_CLASSIFIER
+from socio_sim.config import (HARMFUL_CATEGORIES as _HARMFUL_CATEGORY_TUPLE,
+                              RunConfig, SYNTHETIC_TEMPLATE_CLASSIFIER)
 from socio_sim.content.claude_adapter import ClaudeAdapter
 from socio_sim.content.classify import NoisyClassifier
 from socio_sim.content.generate import TemplateGenerator
@@ -37,8 +38,9 @@ from socio_sim.policy.engine import PolicyEngine
 # so they are documented, sensitivity-testable, and calibratable. Defaults there
 # reproduce the prior hardcoded values exactly (determinism guard locks this).
 
-HARMFUL_CATEGORIES = {"hate", "harassment", "fraud", "misinfo", "adult",
-                      "illegal_goods", "self_harm"}
+# Single source: socio_sim.config.HARMFUL_CATEGORIES (set view for fast
+# membership tests in the hot loop).
+HARMFUL_CATEGORIES = frozenset(_HARMFUL_CATEGORY_TUPLE)
 
 #: Content modes that call an external LLM (logged as llm_call events).
 LLM_CONTENT_MODES = {"claude", "ollama", "openai_compatible"}

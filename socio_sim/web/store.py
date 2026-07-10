@@ -133,5 +133,12 @@ class RunStore:
 
 
 def _infer_profile(cfg: dict) -> str:
+    # Scale numbers derive from the RunConfig factories (A-05: same
+    # single-source rule as web/app._profile_scales -- the previous
+    # hand-copied {200,1000,10000} map could silently drift).
+    from socio_sim.config import RunConfig
     n = cfg.get("n_agents")
-    return {200: "test", 1000: "quick", 10000: "standard"}.get(n, "custom")
+    for name in ("test", "quick", "standard"):
+        if n == getattr(RunConfig, name)().n_agents:
+            return name
+    return "custom"

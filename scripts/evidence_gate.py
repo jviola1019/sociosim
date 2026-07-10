@@ -61,7 +61,8 @@ def main() -> int:
                         f"sha256 mismatch (registry={expected_sha[:12]}... "
                         f"actual={actual_sha[:12]}...)"
                     )
-    for report in ("BENCHMARK_REPORT.md", "BACKTEST_REPORT.md", "VALIDATION_REPORT.md"):
+    for report in ("BENCHMARK_REPORT.md", "BACKTEST_REPORT.md",
+                   "VALIDATION_REPORT.md", "CALIBRATION_REPORT.md"):
         p = ROOT / report
         if p.exists():
             text = p.read_text(encoding="utf-8", errors="replace")

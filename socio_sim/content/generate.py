@@ -43,6 +43,10 @@ _CATEGORY_SIGNAL = {
 #: Probability a creator properly labels AI-generated content (CN compliance knob).
 CN_CREATOR_LABEL_COMPLIANCE = 0.9
 
+#: CN explicit-label prefix stamped on AI-generated content -- single source
+#: shared with both LLM adapters (previously three hand-copied literals).
+CN_LABEL_PREFIX = "[AI-generated content] "
+
 WATERMARK_PROVIDER = "SocioSimGen-01"
 
 
@@ -104,7 +108,7 @@ class TemplateGenerator:
                     "provider": WATERMARK_PROVIDER,
                     "content_ref": f"ref-{self._counter + 1}",
                 }
-                text = "[AI-generated content] " + text
+                text = CN_LABEL_PREFIX + text
 
         if self.inject_signal and cats:
             extra = [_CATEGORY_SIGNAL[c][int(rng.integers(0, len(_CATEGORY_SIGNAL[c])))]
