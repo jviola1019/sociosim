@@ -15,11 +15,13 @@ on_degradation — never silently.
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
-import urllib.error
-import urllib.request
+import socket
+import ssl
 from pathlib import Path
 from typing import Callable
+from urllib.parse import urlparse
 
 from socio_sim.content import llm_cache
 from socio_sim.security import validate_llm_url
@@ -49,20 +51,34 @@ _PROMPT_TEMPLATE = (
 _CN_LABEL_PREFIX = CN_LABEL_PREFIX
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    """Refuse all HTTP redirects on LLM transport (audit E-02).
+class _PinnedHTTPConnection(http.client.HTTPConnection):
+    """TCP-connects to a pre-validated IP while keeping the original
+    hostname for the Host header (E-05): between validate_llm_url() and the
+    connect there is no second DNS lookup left to rebind."""
 
-    A validated loopback/allowed server could otherwise 302 the adapter to
-    an internal URL that never passed validate_llm_url.
-    """
+    def __init__(self, host, port, pinned_ip, timeout):
+        super().__init__(host, port, timeout=timeout)
+        self._pinned_ip = pinned_ip
 
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        raise urllib.error.HTTPError(
-            req.full_url, code,
-            f"redirect to {newurl!r} refused by SSRF guard", headers, fp)
+    def connect(self):
+        self.sock = socket.create_connection(
+            (self._pinned_ip, self.port), self.timeout)
 
 
-_NO_REDIRECT_OPENER = urllib.request.build_opener(_NoRedirect)
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPS variant of _PinnedHTTPConnection: dials the pinned IP but
+    keeps TLS SNI + certificate hostname verification on the ORIGINAL
+    hostname, so pinning does not weaken certificate checks."""
+
+    def __init__(self, host, port, pinned_ip, timeout):
+        super().__init__(host, port, timeout=timeout,
+                         context=ssl.create_default_context())
+        self._pinned_ip = pinned_ip
+
+    def connect(self):
+        sock = socket.create_connection(
+            (self._pinned_ip, self.port), self.timeout)
+        self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
 
 
 class LLMAdapter:
@@ -170,11 +186,12 @@ class LLMAdapter:
     def _http_transport(self, prompt: str) -> str:
         """POST the prompt to the configured local LLM server.
 
-        SSRF hardening (E-02): the base URL is re-resolved and re-validated
-        on every call and redirects are refused (_NoRedirect). A narrow
-        TOCTOU window remains because urlopen performs its own DNS lookup
-        after ours; eliminating it entirely would require connecting to the
-        pinned, validated IP directly with an explicit Host header.
+        SSRF hardening (E-02 + E-05): the allow-list check runs on every
+        call and returns the exact IP it checked; the TCP connection is
+        made to THAT pinned IP (original hostname kept for the Host header
+        and TLS SNI/certificate verification), so no second DNS lookup
+        exists to rebind. Redirects are never followed: any 3xx response
+        is a hard error.
         """
         if self.backend == "ollama":
             payload = {
@@ -197,13 +214,27 @@ class LLMAdapter:
             if self.api_key:
                 headers["Authorization"] = f"Bearer {self.api_key}"
 
-        req = urllib.request.Request(url, data=json.dumps(payload).encode(),
-                                     headers=headers)
-        # E-02: re-validate resolved IPs at call time (DNS-rebind window)
-        # and refuse redirects via _NO_REDIRECT_OPENER.
-        validate_llm_url(self.base_url)
-        with _NO_REDIRECT_OPENER.open(req, timeout=self.timeout) as resp:  # nosec B310
+        pinned_ip = validate_llm_url(self.base_url)
+        if pinned_ip is None:  # unreachable: base_url always has a default
+            raise ValueError("llm_base_url is empty")
+        p = urlparse(url)
+        port = p.port or (443 if p.scheme == "https" else 80)
+        path = p.path + (f"?{p.query}" if p.query else "")
+        conn_cls = (_PinnedHTTPSConnection if p.scheme == "https"
+                    else _PinnedHTTPConnection)
+        conn = conn_cls(p.hostname, port, pinned_ip, self.timeout)
+        try:
+            conn.request("POST", path, body=json.dumps(payload).encode(),
+                         headers=headers)
+            resp = conn.getresponse()
+            if 300 <= resp.status < 400:
+                raise ValueError(
+                    f"redirect (HTTP {resp.status}) refused by SSRF guard")
+            if resp.status != 200:
+                raise ValueError(f"LLM server returned HTTP {resp.status}")
             body = json.loads(resp.read().decode("utf-8"))
+        finally:
+            conn.close()
         if self.backend == "ollama":
             return body["response"]
         return body["choices"][0]["message"]["content"]

@@ -25,7 +25,7 @@ cited inline below; this repo bundles no copies of those documents).
 | 3 | **Host allow-list on every route** plus Origin/Referer allow-list on mutations (loopback by default; foreign Host/Origin → 403) | CSRF & **DNS-rebinding** (loopback is reachable from a browser page) | `_host_allowed`, `Handler._origin_ok` |
 | 4 | **Security headers** on every response: CSP (`default-src 'self'`, `frame-ancestors 'none'`, `base-uri 'none'`, `object-src 'none'`), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` | XSS blast-radius, MIME sniffing, clickjacking (CWE-79/1021) | `Handler._security_headers` |
 | 5 | **JSON body-size limit** (2 MB), valid non-negative `Content-Length`, and `Content-Type: application/json` required | Oversized-body DoS, malformed-body hangs/crashes, type confusion (ASVS V5) | `Handler.do_POST` |
-| 6 | **SSRF allow-list** on `llm_base_url`: http(s) only; loopback by default; private/RFC1918 hosts require explicit `SOCIOSIM_LLM_ALLOWED_HOSTS`; block link-local incl. cloud-metadata `169.254.169.254`, multicast, reserved. The URL allow-list check runs at config time AND **again on every transport call (re-resolving DNS)**, with HTTP redirects refused outright (`_NoRedirect`). Known residual: `urlopen` performs its own DNS lookup after ours, leaving a narrow DNS-rebind TOCTOU window (see `KNOWN_LIMITATIONS.md`) | SSRF to internal/metadata services (A10 / CWE-918) | `_validate_llm_url`, `LLMAdapter._http_transport` |
+| 6 | **SSRF allow-list with IP pinning** on `llm_base_url`: http(s) only; loopback by default; private/RFC1918 hosts require explicit `SOCIOSIM_LLM_ALLOWED_HOSTS`; block link-local incl. cloud-metadata `169.254.169.254`, multicast, reserved. The allow-list check runs on every transport call and returns the exact IP it checked; the TCP connection is made to **that pinned IP** (original hostname kept for the Host header and TLS SNI/certificate checks), so no second DNS lookup exists for a rebinding server to exploit. Any 3xx response is a hard error, never followed | SSRF to internal/metadata services incl. DNS-rebind TOCTOU (A10 / CWE-918) | `validate_llm_url`, `_PinnedHTTP(S)Connection` |
 | 7 | **Path jail** on `/static/` (canonicalize + contain to dir) | Path traversal / symlink escape (CWE-22) | `safe_static_path` |
 | 8 | No client input reflected into response headers | CRLF/header injection (stdlib caveat, bpo-32084) | response builders |
 
@@ -70,7 +70,10 @@ networks** (the server prints this warning at startup).
   images carry alt text; results region is `aria-live` + `role=status`; keyboard
   `:focus-visible` indicator on all interactive elements; history is a modal
   dialog with Escape/focus trapping; reduced-motion fallbacks; light-theme
-  secondary text meets contrast targets. Browser-verified.
+  secondary text meets contrast targets. Browser-verified, and CI runs an
+  automated axe-core gate (`tests/test_a11y_axe.py`) failing on any
+  serious/critical WCAG 2.0/2.1 A+AA violation on the initial and rendered
+  views (an automated-scan result, not a WCAG-AA conformance claim).
 
 ## Reporting
 This is research software (not production). For issues, open a GitHub issue;

@@ -380,6 +380,22 @@ def test_g01_evidence_gate_flags_missing_alt_template(tmp_path, capsys):
     assert "accessibility_alt_template" in out
 
 
+def test_e05_validate_llm_url_returns_pinned_ip(monkeypatch):
+    """E-05: the guard returns the exact IP it validated so the transport
+    can connect to it directly (no second DNS lookup to rebind)."""
+    from socio_sim.security import validate_llm_url
+    # IP-literal loopback pins itself.
+    assert validate_llm_url("http://127.0.0.1:11434") == "127.0.0.1"
+    # Empty URL still means "use backend default".
+    assert validate_llm_url("") is None
+    # Allow-listed private host pins the address that was checked.
+    monkeypatch.setenv("SOCIOSIM_LLM_ALLOWED_HOSTS", "llmbox")
+    monkeypatch.setattr(
+        "socio_sim.security.socket.getaddrinfo",
+        lambda *a, **k: [(2, 1, 6, "", ("10.1.2.3", 8080))])
+    assert validate_llm_url("http://llmbox:8080") == "10.1.2.3"
+
+
 def test_c03_evidence_gate_scans_reports_with_full_claim_vocabulary(tmp_path, capsys):
     """C-03: a regenerated report saying 'fully validated' must fail the
     gate -- the stale-claim check now reuses the claim scanner's risky-term

@@ -459,6 +459,71 @@ def test_cache_hash_stable_and_changes(tmp_path):
     assert adapter2.cache_hash() != h1
 
 
+def test_e05_transport_connects_to_pinned_ip_not_rebound_dns(tmp_path, monkeypatch):
+    """E-05: the transport must TCP-connect to the exact IP the SSRF guard
+    validated, not re-resolve DNS afterwards -- a fast-flux server that
+    passes validation then rebinds to 169.254.169.254 must never be dialed
+    at the rebound address."""
+    import socket as _socket
+    gen, _ = setup()
+    adapter = LLMAdapter(base=gen, cache_path=tmp_path / "cache.json",
+                         backend="ollama",
+                         base_url="http://pinned.example:11434")
+    monkeypatch.setenv("SOCIOSIM_LLM_ALLOWED_HOSTS", "pinned.example")
+
+    calls = {"n": 0}
+
+    def rebinding_getaddrinfo(*a, **k):
+        calls["n"] += 1
+        ip = "10.0.0.5" if calls["n"] == 1 else "169.254.169.254"
+        return [(2, 1, 6, "", (ip, 11434))]
+
+    monkeypatch.setattr("socio_sim.security.socket.getaddrinfo",
+                        rebinding_getaddrinfo)
+
+    dialed = []
+
+    def capturing_create_connection(address, *a, **k):
+        dialed.append(address)
+        raise ConnectionRefusedError("test stops before real I/O")
+
+    monkeypatch.setattr(_socket, "create_connection",
+                        capturing_create_connection)
+
+    with pytest.raises(ConnectionRefusedError):
+        adapter._http_transport("hi")
+    assert dialed == [("10.0.0.5", 11434)], (
+        "must dial the validated pinned IP, never a re-resolved address")
+
+
+def test_e05_redirect_response_is_refused_not_followed(tmp_path):
+    """E-05/E-02: a 3xx from the (validated) LLM server must be an error --
+    never followed to a Location the SSRF guard did not approve."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    class Redirector(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.send_response(302)
+            self.send_header("Location", "http://169.254.169.254/latest/")
+            self.end_headers()
+
+        def log_message(self, *a):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Redirector)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        gen, _ = setup()
+        adapter = LLMAdapter(
+            base=gen, cache_path=tmp_path / "cache.json", backend="ollama",
+            base_url=f"http://127.0.0.1:{server.server_address[1]}")
+        with pytest.raises(ValueError, match="redirect"):
+            adapter._http_transport("hi")
+    finally:
+        server.shutdown()
+
+
 def test_e02_transport_revalidates_dns_and_blocks_rebind(tmp_path, monkeypatch):
     gen, _ = setup()
     adapter = LLMAdapter(base=gen, cache_path=tmp_path / "cache.json",
