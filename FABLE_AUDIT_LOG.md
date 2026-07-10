@@ -89,8 +89,12 @@ session with test-first fixes and full-gate verification per commit.
 
 Outcome for `docs/audits/fable_audit_20260703_0159.md` (20 findings):
 **18 fixed** across commits `0985a9b`, `ae3ad4a`, `9c5c994`, `394b994`,
-`ae70ce0`, `b76de4f`, `5e87bc5`; **2 deferred with rationale** (E-05
-DNS-pinning redesign; G-02 axe-core CI gate). Suite grew 328 -> 358 tests;
+`ae70ce0`, `b76de4f`, `5e87bc5`; 2 initially deferred with rationale (E-05
+DNS-pinning redesign; G-02 axe-core CI gate) — **both closed the next day
+(2026-07-10)**, making it **20/20**: E-05 via pinned-IP connections
+(`_PinnedHTTP(S)Connection`, urllib removed from the transport) and G-02
+via an axe-core CI gate whose first run caught and fixed 5 real
+light-theme contrast defects. See `AUDIT_LOG.md` session table. Suite grew 328 -> 358 tests;
 every commit was preceded by a full green `pytest` + ruff +
 claim_scan/evidence_gate/secret_scan run, quoted in the commit message.
 An independent code-reviewer agent pass over the six fix commits found no

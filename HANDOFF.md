@@ -70,12 +70,17 @@ cleartext-token warnings, H-03 .json content type, D-01 holdout>0 with
 ads, A-05 factory-derived profile scales, G-01 alt-template gate, B-01/
 B-02/C-03 claim-scanner upgrades, A-01..A-03 scenario-assumption
 constants + per-field campaign `economics_provenance`, H-01(0159)
-`web_path` backslash fix. E-05 (DNS pinning) and G-02 (axe-core CI)
-deferred with rationale. Suite 328 -> 358; every commit preceded by full
-green gates. Independent code-review agent + branch security review both
-clean. **NOT yet pushed to origin (19 commits ahead)** — push + `gh run
-watch` CI verification is the next step per policy. R7-ASSETART remains
-the one large unstarted item from the original brief.
+`web_path` backslash fix. E-05 (DNS pinning) and G-02 (axe-core CI) were
+deferred with rationale, then **closed on 2026-07-10 (20/20)**: E-05 by
+pinning the validated IP (`validate_llm_url` returns it;
+`_PinnedHTTP(S)Connection` dials it with the hostname kept for Host/SNI;
+urllib removed from the transport; 3xx = hard error) and G-02 by an
+axe-core CI gate (`tests/test_a11y_axe.py`, axe-playwright-python in the
+e2e extra) that immediately caught 5 real light-theme contrast defects,
+fixed in style.css. Suite 328 -> 364 (e2e + a11y now run locally too —
+Chromium installed); every commit preceded by full green gates.
+Independent code-review agent + branch security review both clean.
+R7-ASSETART remains the one large unstarted item from the original brief.
 
 ## Session 2026-07-02: fixed CI red (R11) + a real second instance of the P0 (R2/R12)
 

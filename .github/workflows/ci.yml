@@ -28,6 +28,8 @@ jobs:
         run: pytest -q --cov=socio_sim --cov-report=term-missing --cov-fail-under=85
       - name: E2E browser smoke (Playwright)
         run: pytest -q tests/test_e2e_playwright.py
+      - name: Accessibility gate (axe-core, serious/critical = fail)
+        run: pytest -q tests/test_a11y_axe.py
       - name: Asset QA
         run: python scripts/asset_qa.py
       - name: Security scans

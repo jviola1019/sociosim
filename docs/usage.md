@@ -91,8 +91,9 @@ python scripts/evidence_gate.py
 python scripts/claim_scan.py
 python scripts/secret_scan.py
 python scripts/asset_qa.py
-python -m playwright install --with-deps chromium   # once, before the e2e run
+python -m playwright install --with-deps chromium   # once, before the browser runs
 python -m pytest -q tests/test_e2e_playwright.py
+python -m pytest -q tests/test_a11y_axe.py          # axe-core accessibility gate
 ```
 
 CI additionally runs `scripts/license_inventory.py`, `bandit`, `pip-audit`,

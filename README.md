@@ -101,8 +101,9 @@ python scripts/asset_qa.py
 ```bash
 python -m ruff check socio_sim tests run.py
 python -m pytest -q --cov=socio_sim --cov-report=term-missing --cov-fail-under=85
-python -m playwright install --with-deps chromium   # once, before the e2e run
+python -m playwright install --with-deps chromium   # once, before the browser runs
 python -m pytest -q tests/test_e2e_playwright.py
+python -m pytest -q tests/test_a11y_axe.py          # axe-core accessibility gate
 python scripts/evidence_gate.py
 python scripts/claim_scan.py
 python scripts/secret_scan.py
