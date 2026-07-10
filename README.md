@@ -52,7 +52,7 @@ residual limitations: `KNOWN_LIMITATIONS.md`.
   (`socio_sim.evidence.targets_metadata_complete`).
 - Replicate intervals are labeled "95%" only at 20+ replicates.
 - A web run with ads enabled requires `holdout_fraction > 0` (HTTP 400
-  otherwise) — lift/significance output needs a control group.
+  otherwise) — lift/p-value output needs a control group.
 - Campaign-editor economics echo per-field `economics_provenance`
   (`user_supplied` vs `scenario_assumption_default`), and `/api/meta`
   labels its defaults `scenario_assumption`.

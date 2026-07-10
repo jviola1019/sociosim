@@ -110,6 +110,10 @@ RISKY_TERMS = [
     r"\bachiev(?:es|ed)\b",
     r"\boutperform(?:s|ed)?\b",
     r"\baccura(?:cy|te)\b",
+    # The ads pipeline exports lift_significant* fields (identifiers don't
+    # match \b...\b across underscores); unhedged "statistically
+    # significant" PROSE on a claim surface must not pass.
+    r"\bsignifican(?:t|tly|ce)\b",
 ]
 
 # Phrases naming this project's own honesty-grading vocabulary or describing

@@ -29,6 +29,17 @@ cited inline below; this repo bundles no copies of those documents).
 | 7 | **Path jail** on `/static/` (canonicalize + contain to dir) | Path traversal / symlink escape (CWE-22) | `safe_static_path` |
 | 8 | No client input reflected into response headers | CRLF/header injection (stdlib caveat, bpo-32084) | response builders |
 
+## LLM response-cache trust model (summary)
+
+Cached LLM responses are tamper-evident records: `record_hash` binds
+text + status + reason codes + guard version, and both adapters share one
+decision module (`socio_sim/content/llm_cache.py`). A `status: "blocked"`
+entry is never served as content; an `accepted` entry is served only while
+its stored guard version matches the current one, so tightening the
+semantic guard re-screens previously accepted text too. Legacy entries
+(pre-schema) are treated as cache misses and re-screened. Full rules in
+the module docstring.
+
 ## Threats → mitigations (STRIDE)
 - **Spoofing / Elevation (CSRF, DNS-rebinding):** access token + Origin/Host check + loopback bind (controls 1–3).
 - **Tampering / Info disclosure (XSS, traversal, MIME):** CSP + `nosniff` + output escaping in the JS + path jail (4, 7).
