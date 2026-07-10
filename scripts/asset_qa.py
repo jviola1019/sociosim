@@ -128,6 +128,24 @@ def main() -> int:
         for bid, hq in hashes[i + 1:]:
             if hamming_hex(hp, hq) <= 4:
                 errors.append(f"suspicious near duplicate: {aid} {bid}")
+    # R7: eight distinct art-directed visual families, each represented in
+    # every role (feed cover, ad creative, editorial).
+    fam_roles: dict = {}
+    for rec in records:
+        fam = str(rec.get("family") or "").strip()
+        if not fam:
+            errors.append(f"{rec['asset_id']}: missing family")
+            continue
+        fam_roles.setdefault(fam, set()).add(rec["role"])
+    if len(fam_roles) != 8:
+        errors.append(
+            f"expected 8 visual families, found {len(fam_roles)}: "
+            f"{sorted(fam_roles)}")
+    all_roles = {"feed_cover", "ad_creative", "editorial_system"}
+    for fam, roles in sorted(fam_roles.items()):
+        missing = all_roles - roles
+        if missing:
+            errors.append(f"family {fam!r} missing roles: {sorted(missing)}")
     orphans = sorted(p for p in ASSET_DIR.glob("*.png")
                      if p.name != "contact-sheet-v4.png" and p.resolve() not in seen_files)
     if orphans:

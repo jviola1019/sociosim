@@ -80,7 +80,17 @@ e2e extra) that immediately caught 5 real light-theme contrast defects,
 fixed in style.css. Suite 328 -> 364 (e2e + a11y now run locally too —
 Chromium installed); every commit preceded by full green gates.
 Independent code-review agent + branch security review both clean.
-R7-ASSETART remains the one large unstarted item from the original brief.
+
+**R7-ASSETART CLOSED (2026-07-10):** the generator was rewritten around 8
+named art-directed composition systems (strata, orbits, lattice, currents,
+terrace, halftone, prisms, archipelago — palette + motif grammar each),
+96 assets total (48 feed / 32 ad / 16 editorial; 12 per family spanning
+every role), registry schema v2 with per-asset `family` and
+family-specific alt text, and asset_qa now enforces the 8-families×3-roles
+contract. Every family was visually inspected; a broken prisms
+inside-triangle test (rendering bare gradients — the exact retired
+pattern) was caught and fixed. Nothing from the original brief remains
+unstarted.
 
 ## Session 2026-07-02: fixed CI red (R11) + a real second instance of the P0 (R2/R12)
 

@@ -368,7 +368,7 @@ def test_bundled_v4_assets_exist_and_are_unignored():
     assert (v4 / "registry.json").is_file()
     assert len(list(v4.glob("feed-cover-v4-*.png"))) == 48
     assert len(list(v4.glob("ad-creative-v4-*.png"))) == 32
-    assert len(list(v4.glob("editorial-v4-*.png"))) == 12
+    assert len(list(v4.glob("editorial-v4-*.png"))) == 16
     gitignore = (root / ".gitignore").read_text(encoding="utf-8")
     assert "!socio_sim/web/static/assets/v4/*.png" in gitignore
 
