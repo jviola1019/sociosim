@@ -58,6 +58,61 @@ def _serious_or_critical(results):
             if v.get("impact") in ("serious", "critical")]
 
 
+def test_dark_theme_scan_and_keyboard_interactions():
+    """Beyond the automated scan: (1) the dark control-room theme passes
+    the same serious/critical axe gate as the default light theme; (2)
+    manual-style keyboard checks -- Tab moves focus off <body>, the history
+    drawer opens from the keyboard, receives focus, closes on Escape, and
+    returns focus to its opener (WCAG 2.1.1 / 2.4.3 behaviors)."""
+    port = _free_port()
+    server = ThreadingHTTPServer(("127.0.0.1", port), app.Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                context = browser.new_context(bypass_csp=True)
+                page = context.new_page()
+                page.emulate_media(reduced_motion="reduce")
+                page.goto(f"http://127.0.0.1:{port}")
+                page.wait_for_function(
+                    "document.querySelectorAll('#preset option').length > 0")
+
+                # Keyboard: Tab moves focus off <body> (something is
+                # focusable and focus is not lost).
+                page.keyboard.press("Tab")
+                assert page.evaluate(
+                    "document.activeElement !== document.body") is True
+
+                # History drawer: open from the keyboard, focus lands
+                # inside, Escape closes and returns focus to the opener.
+                page.evaluate("document.querySelector('#histBtn').focus()")
+                page.keyboard.press("Enter")
+                page.wait_for_timeout(120)
+                assert page.evaluate(
+                    "document.querySelector('#histDrawer')"
+                    ".contains(document.activeElement)") is True
+                page.keyboard.press("Escape")
+                page.wait_for_timeout(120)
+                assert page.evaluate(
+                    "document.activeElement === "
+                    "document.querySelector('#histBtn')") is True
+
+                # Dark theme: same serious/critical gate as the light theme.
+                page.click("#themeBtn")
+                page.wait_for_function(
+                    "document.body.dataset.theme === 'dark'")
+                dark = Axe().run(page, options=_AXE_OPTIONS)
+                bad = _serious_or_critical(dark)
+                assert not bad, (
+                    "serious/critical axe violations on the dark theme:\n"
+                    + dark.generate_report())
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+
+
 def test_dashboard_has_no_serious_axe_violations():
     port = _free_port()
     server = ThreadingHTTPServer(("127.0.0.1", port), app.Handler)
