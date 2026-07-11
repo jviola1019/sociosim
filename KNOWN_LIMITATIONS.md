@@ -49,6 +49,11 @@ This file tracks the evidence-first operating limits after the v4 remediation.
   rebinding server to exploit; redirects are refused outright (audit
   finding E-05, closed). The remaining trust boundary is the resolver at
   the moment of the check itself.
+- Ad conversions whose latency crosses the end of the run are dropped while
+  organic conversions have zero latency, so impressions in the final few
+  ticks lose credit only in the exposed arm: lift is biased toward zero
+  near the horizon (conservative, never inflating). Standard campaign-end
+  censoring; audit finding F5.
 - CI runs an automated axe-core scan (`tests/test_a11y_axe.py`) that fails
   on any serious/critical violation of the WCAG 2.0/2.1 A+AA machine-
   checkable rules, on both the initial and rendered dashboard views (audit

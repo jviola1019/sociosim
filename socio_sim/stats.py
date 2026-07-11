@@ -69,7 +69,12 @@ def min_detectable_effect(n1: int, n2: int, baseline_rate: float,
     from scipy import stats as _ss
     if n1 <= 0 or n2 <= 0:
         return float("nan")
-    p = min(max(baseline_rate, 1e-6), 1 - 1e-6)
+    if not (baseline_rate == baseline_rate) or baseline_rate <= 0:
+        # Audit F2: a zero/unknown baseline rate carries no variance
+        # information -- the old 1e-6 clamp reported a near-zero MDE
+        # (maximal claimed power) exactly when the run was uninformative.
+        return float("nan")
+    p = min(baseline_rate, 1 - 1e-6)
     za = _ss.norm.ppf(1 - alpha / 2)
     zb = _ss.norm.ppf(power)
     return float((za + zb) * np.sqrt(p * (1 - p) * (1 / n1 + 1 / n2)))

@@ -62,11 +62,16 @@ def apply_fdr(measures, alpha: float = 0.05):
         qvals = np.empty(n, dtype=float)
         qvals[order] = q_ranked
         for j, i in enumerate(idxs):
+            # Audit F3: the screen is one-directional -- a significantly
+            # NEGATIVE observed lift must not be announced screen-positive.
+            # Missing lift (bare-p unit-test dicts) defaults to pass-through.
+            positive = measures[i].get("lift", 1.0) > 0
+            flag = bool(rejected[j] and positive)
             measures[i]["lift_qvalue_bh"] = float(qvals[j])
-            measures[i]["lift_screen_positive_bh_fdr"] = rejected[j]
-            measures[i]["lift_screen_positive"] = rejected[j]
-            measures[i]["lift_significant_bh_fdr"] = rejected[j]
-            measures[i]["lift_significant"] = rejected[j]
+            measures[i]["lift_screen_positive_bh_fdr"] = flag
+            measures[i]["lift_screen_positive"] = flag
+            measures[i]["lift_significant_bh_fdr"] = flag
+            measures[i]["lift_significant"] = flag
     return measures
 
 #: Beta prior ≈ 1% CTR with effective sample size 200 (benchmark-aligned).
@@ -165,18 +170,22 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
     n_exposed, n_holdout = len(exposed), len(holdout)
     x_exposed = len(exposed & converted)
     x_holdout = len(holdout & converted)
-    exposed_rate = (x_exposed / n_exposed) if n_exposed else 0.0
-    holdout_rate = (x_holdout / n_holdout) if n_holdout else 0.0
-    lift = exposed_rate - holdout_rate
+    # Audit F1: an empty arm means NO information about that arm's rate --
+    # NaN, never 0.0, or a never-serving campaign (empty exposed arm) would
+    # report lift = -holdout_rate, a spurious negative point estimate.
+    exposed_rate = (x_exposed / n_exposed) if n_exposed else float("nan")
+    holdout_rate = (x_holdout / n_holdout) if n_holdout else float("nan")
+    lift = exposed_rate - holdout_rate  # NaN if either arm is empty
     oracle_diag = _oracle_covariate_adjusted_simulation_diagnostic(
         ads, exposed, holdout, converted)
     lift_pvalue = two_proportion_p(x_exposed, n_exposed, x_holdout, n_holdout)
 
     # Marketing economics. SYNTHETIC: depend on conversion_value / ltv_multiplier
     # assumptions, and iROAS/CAC on the (now valid) incremental lift. Not real $.
-    # Frequency dose-response (ITT): conversion rate by impression count for
-    # exposed agents. Baseline is frequency-independent, so a rising curve
-    # reflects the ad dose. Buckets 1, 2, 3, 4+.
+    # Frequency dose-response (post-treatment DIAGNOSTIC, not ITT: bucketing
+    # by realized impression count conditions on delivery, enriching high-
+    # frequency buckets with high-activity agents): conversion rate by
+    # impression count for exposed agents. Buckets 1, 2, 3, 4+.
     impr_by_agent: dict = {}
     for e in auctions:
         impr_by_agent[e["actor_id"]] = impr_by_agent.get(e["actor_id"], 0) + 1
@@ -191,7 +200,7 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
                       "conv_rate": (d[0] / d[1]) if d[1] else 0.0}
                      for b, d in sorted(dose.items())]
 
-    incr_conv = max(lift, 0.0) * n_exposed
+    incr_conv = (max(lift, 0.0) * n_exposed) if lift == lift else float("nan")
     roas = (revenue / spend) if spend else float("nan")
     iroas = (incr_conv * campaign.conversion_value / spend) if spend else float("nan")
     cac = (spend / incr_conv) if incr_conv > 0 else float("nan")
@@ -233,10 +242,12 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
         "lift_pvalue": lift_pvalue,
         "lift_pvalue_raw": lift_pvalue,
         "lift_qvalue_bh": float("nan"),
-        "lift_screen_positive": bool(lift_pvalue < 0.05) if lift_pvalue == lift_pvalue
-        else False,
-        "lift_significant": bool(lift_pvalue < 0.05) if lift_pvalue == lift_pvalue
-        else False,  # legacy compatibility alias
+        # Audit F3: one-directional screen -- requires a POSITIVE observed
+        # lift as well as p < alpha (NaN lift fails the > 0 comparison).
+        "lift_screen_positive": bool(lift_pvalue < 0.05 and lift > 0)
+        if lift_pvalue == lift_pvalue else False,
+        "lift_significant": bool(lift_pvalue < 0.05 and lift > 0)
+        if lift_pvalue == lift_pvalue else False,  # legacy compatibility alias
         "lift_screen_positive_bh_fdr": False,
         "lift_significant_bh_fdr": False,
         "exposed_rate": exposed_rate,
@@ -266,6 +277,13 @@ def measure_campaign(log: EventLog, campaign: Campaign, ads,
             "ltv_multiplier": campaign.ltv_multiplier,
             "attribution_window_ticks": window,
         },
+        # Audit F4: which metrics honor the attribution window and which
+        # are unwindowed run totals -- previously ambiguous because
+        # economic_inputs lists the window next to unwindowed ROAS.
+        "windowing_note": (
+            "conversions/revenue/cvr/roas/roi are unwindowed run totals; "
+            "lift/attributed_*/incr_*/iroas/cac honor "
+            "attribution_window_ticks"),
         "budget_configured": budget_configured,
         "budget_remaining": budget_remaining,
         "budget_exhausted": budget_remaining <= 1e-9 or spend >= budget_configured - 1e-9,

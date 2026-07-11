@@ -126,6 +126,54 @@ the six fix commits found zero >=80-confidence issues and confirmed the
 determinism and blocked-cache invariants; security review of the branch diff
 returned an empty report (all deltas tighten posture).
 
+## Session 2026-07-10/11: deferred items closed — cohort-timeline causal audit + backend rename + release hardening
+
+**Cohort-timeline causal/uncertainty audit (deferred item, previously
+"never examined either way") — now EXAMINED.** An independent read-only
+audit of the ad-measurement pipeline verified **14 properties correct with
+file:line evidence**: pure-hash arm assignment (no mid-run drift), zero
+holdout impression-leakage paths, no conversion-before-impression,
+per-impression attribution-window enforcement, arm-symmetric
+exposure-independent organic channel, no treatment→cohort feedback (budget
+exhaustion and frequency caps stop both arms' cohort entry symmetrically),
+honest ITT estimand, per-user dedup/cross-campaign isolation, correct
+Newcombe CI / two-sided pooled-z / BH-FDR over the per-run campaign
+family / NaN fail-safes, pre-treatment covariate for the oracle
+diagnostic, consistent lift-path denominators, and effective
+re-randomization across MC replicates. Findings, all fixed test-first:
+
+| ID | Sev | Issue | Fix | Status |
+|----|-----|-------|-----|--------|
+| CT-F1 | P2 | Never-serving campaign (e.g. sub-reserve bid, reachable via the web campaign editor) reported lift = −holdout_rate — a spurious NEGATIVE point estimate | Empty arm ⇒ rate NaN ⇒ lift NaN (never 0.0-defaulted); web editor rejects bid/budget below RESERVE_PRICE | **DONE** |
+| CT-F2 | P3 | MDE clamped a zero baseline rate to 1e-6, reporting near-zero MDE (maximal claimed power) exactly when the run was uninformative | baseline ≤ 0 or NaN ⇒ MDE NaN | **DONE** |
+| CT-F3 | P3 | Screen-positive was direction-blind: a significantly negative observed lift would be announced screen-positive | All screen/legacy flags now require lift > 0 (raw and BH paths) | **DONE** |
+| CT-F4 | P3 | economic_inputs listed attribution_window_ticks next to UNwindowed roas/revenue/cvr totals | Explicit `windowing_note` payload field states which metrics honor the window | **DONE** |
+| CT-F5 | P3 | End-of-horizon censoring is arm-asymmetric (exposed only) — conservative, biases lift toward zero | Disclosed in KNOWN_LIMITATIONS.md (by design; never inflates) | **DONE** (disclosed) |
+| CT-F6 | P3 | dose_response comment mislabeled the post-treatment frequency diagnostic "(ITT)" | Comment corrected: post-treatment diagnostic, conditions on delivery | **DONE** |
+
+Of the audit's 13 named test gaps, the four highest-value are now covered:
+engine-level holdout-leakage over a full simulation, attribution-window
+boundary exactness (W in, W+1 out), the never-serving/empty-arm output
+contract, and the negative-lift screen direction. Remaining gaps (e.g. a
+statistical arm-composition-neutrality stress test under cap/budget
+pressure, prob_diff_positive reference values) are recorded as open
+test-debt, not defects — the underlying properties were verified correct
+by inspection.
+
+**Backend rename (deferred since R6/R9) — DONE.** `calibration_implausibility`
+→ `aggregate_fit_implausibility`; `posterior_calibrated_mc` →
+`abc_posterior_propagated_mc`; `study["calibration"]` →
+`study["aggregate_fit"]`; CALIBRATION_REPORT.md → AGGREGATE_FIT_NOTE.md
+(old name kept in evidence_gate's scan tuple as a recreation guard);
+tests/test_calibration.py → tests/test_aggregate_fit_profile.py (now also
+pins RunConfig.calibrated as a behaviourally-identical migration alias);
+"calibration knob/targets" comments reworded. KEPT deliberately:
+`validation/calibrate.py` module name (ABC/history-matching is the
+methodology's real name) and `expected_calibration_error`/
+`calibration_slope` (standard classifier-calibration metric names measured
+on a real benchmark). The claim-scan dict-subscript exemption note in
+HANDOFF is closed by this rename.
+
 ## Determinism baselines (locked pre-refactor)
 - test/EU: `a8a8b243e5958c1620d5e4ed0e9bee55c866c78d4459993c57eeca3bf848bc36`
 - test/US: `f7473dc24c1ff189045e807f7f1e8798ed2416a5bf43020ca8f2344edbd27190`
