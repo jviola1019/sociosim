@@ -131,9 +131,6 @@ class LLMAdapter:
     def cache_hash(self) -> str | None:
         return llm_cache.file_hash(self.cache_path)
 
-    def _save_cache(self):
-        llm_cache.save(self.cache_path, self._cache)
-
     def _apply_text(self, item: ContentItem, text: str) -> None:
         # Preserve the CN explicit label when replacing surface text.
         item.text = (_CN_LABEL_PREFIX + text) if item.explicit_label else text
@@ -175,10 +172,13 @@ class LLMAdapter:
             reasons = check_generated_text(text, item)
             if reasons:
                 self.usage["blocked"] += 1
-                self._cache[key] = llm_cache.make_entry(
-                    text, "blocked", reasons,
-                    guard_version=llm_cache.BLOCKED_GUARD_VERSION)
-                self._save_cache()
+                # Concurrency-safe upsert; first writer wins per key.
+                self._cache = llm_cache.update(
+                    self.cache_path, key,
+                    llm_cache.make_entry(
+                        text, "blocked", reasons,
+                        guard_version=llm_cache.BLOCKED_GUARD_VERSION),
+                    on_error=self.on_degradation)
                 # E-04: the transport call SUCCEEDED (only the content was
                 # rejected) -- reset the consecutive-failure streak so a
                 # live backend isn't disabled by interleaved guard blocks.
@@ -186,8 +186,10 @@ class LLMAdapter:
                 self.on_degradation(
                     f"semantic_mismatch:{','.join(reasons)}; template text used")
                 return item
-            self._cache[key] = llm_cache.make_entry(text, "accepted", [])
-            self._save_cache()
+            self._cache = llm_cache.update(
+                self.cache_path, key,
+                llm_cache.make_entry(text, "accepted", []),
+                on_error=self.on_degradation)
             self._fail_streak = 0
         except Exception as exc:
             self._fail_streak += 1
@@ -200,7 +202,13 @@ class LLMAdapter:
                     f"{self.backend} unreachable after {self._fail_streak} "
                     f"attempts; using template text for the rest of this run")
             return item
-        self._apply_text(item, text)
+        # Adopt the WINNING entry: under first-writer-wins another process
+        # may have screened this prompt first (even to a blocked result).
+        final = llm_cache.resolve(self._cache.get(key))
+        if final.hit and final.text is not None:
+            self._apply_text(item, final.text)
+        elif final.degradation:
+            self.on_degradation(final.degradation)
         return item
 
     # -- transports ----------------------------------------------------------

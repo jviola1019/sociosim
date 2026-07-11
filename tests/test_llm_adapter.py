@@ -548,6 +548,10 @@ def test_e05_redirect_response_is_refused_not_followed(tmp_path):
 
     class Redirector(BaseHTTPRequestHandler):
         def do_POST(self):
+            # Drain the request body first: responding while unread bytes
+            # sit in the socket makes Windows abort the connection before
+            # the client can read the 302.
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
             self.send_response(302)
             self.send_header("Location", "http://169.254.169.254/latest/")
             self.end_headers()

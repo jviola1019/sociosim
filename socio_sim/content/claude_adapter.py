@@ -118,16 +118,27 @@ class ClaudeAdapter:
             reasons = check_generated_text(text, item)
             if reasons:
                 self.usage["blocked"] += 1
-                self._cache[key] = llm_cache.make_entry(
-                    text, "blocked", reasons,
-                    guard_version=llm_cache.BLOCKED_GUARD_VERSION)
-                llm_cache.save(self.cache_path, self._cache)
+                # Concurrency-safe upsert; first writer wins per key.
+                self._cache = llm_cache.update(
+                    self.cache_path, key,
+                    llm_cache.make_entry(
+                        text, "blocked", reasons,
+                        guard_version=llm_cache.BLOCKED_GUARD_VERSION),
+                    on_error=self.on_degradation)
                 self.on_degradation(
                     f"semantic_mismatch:{','.join(reasons)}; template text used")
                 return item
-            self._cache[key] = llm_cache.make_entry(text, "accepted", [])
-            llm_cache.save(self.cache_path, self._cache)
-            self._apply_text(item, text)
+            self._cache = llm_cache.update(
+                self.cache_path, key,
+                llm_cache.make_entry(text, "accepted", []),
+                on_error=self.on_degradation)
+            # Adopt the WINNING entry (another process may have screened
+            # this prompt first, even to a blocked result).
+            final = llm_cache.resolve(self._cache.get(key))
+            if final.hit and final.text is not None:
+                self._apply_text(item, final.text)
+            elif final.degradation:
+                self.on_degradation(final.degradation)
             return item
         except Exception as exc:  # degrade loudly, keep the run going
             self.usage["failures"] += 1
