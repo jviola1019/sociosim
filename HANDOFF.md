@@ -158,27 +158,26 @@ what makes two assets "distinct" enough) before generating files, so QA
 isn't checking 96 assets against vague criteria after the fact. Given its
 size, this was not started this session; it's the natural next full segment.
 
-**Smaller deferred items, not yet sized/scheduled:**
+**Smaller deferred items — ALL CLOSED 2026-07-10/11** (see `AUDIT_LOG.md`
+"Session 2026-07-10/11" for full evidence):
 
-1. Full rename of backend `implausibility`/`calibration_implausibility`
-   identifiers (function names, dataclass fields, report sections) — ~15+
-   call sites across `pipeline.py`, `validation/calibrate.py`,
-   `validation/study.py`, `validation/backtest.py`, and their tests. The
-   user-facing surface (tab label, UI text) is already fixed (R9); this is
-   the deeper, riskier rename of Python identifiers and
-   `CALIBRATION_REPORT.md`'s naming, deliberately left alone to avoid
-   rushing a wide-blast-radius refactor. `run.py:219`'s
-   `study['calibration']['implausibility']` dict-key access is explicitly
-   claim-scan-exempted pending this rename, not silently ignored — see
-   `scripts/claim_scan.py`'s dict-subscript skip.
-2. Real source URLs/DOIs/retrieval dates for the 7×3 benchmark-target
-   citations in `socio_sim/data/benchmarks/*.json` (each target already has
-   a one-line citation but not the full required metadata schema — source
-   URL, version, retrieved_at, license, population, geography, date range,
-   methodology, applicability limits). Needs an explicit WebSearch-backed
-   research pass to avoid fabricating URLs from memory, not a code change.
-3. Causal/uncertainty cohort-timeline audit and full accessibility
-   (axe-core) audit are still unverified this program (never claimed done,
-   never examined either way — genuinely unknown state, not a known gap).
-4. Docker base-image digest pin / non-root user verification (listed in the
-   original task brief's security section) not re-checked this session.
+1. Backend `calibration` identifier rename — DONE (`f0d218a`):
+   `aggregate_fit_implausibility`, `abc_posterior_propagated_mc`,
+   `study["aggregate_fit"]`, `AGGREGATE_FIT_NOTE.md`,
+   `tests/test_aggregate_fit_profile.py`. Methodology names
+   (`validation/calibrate.py`, `expected_calibration_error`) deliberately
+   kept — they name real techniques/metrics, not claims.
+2. Benchmark citation research pass — DONE (`062419c`), web-verified
+   identifiers only (5 papers), unnamed range claims explicitly marked
+   `unverified_range_claim`; targets remain kind=unsupported.
+3. Cohort-timeline causal audit — DONE (`66714cc`): 14 properties verified
+   correct, CT-F1..F6 fixed test-first. Accessibility: automated axe gate
+   covers light+dark themes + keyboard drawer behaviors; manual scope
+   documented in SECURITY.md (no WCAG-AA conformance claim).
+4. Docker digest pin + non-root — re-verified 2026-07-11 directly from the
+   Dockerfile (sha256-pinned python:3.11-slim; `appuser` nologin; SBOM
+   guidance present).
+5. P5 LLM token/cost accounting — DONE (`594b062`) within its determinism
+   constraint (adapter-side counters; RunResult.llm_usage; never hashed).
+6. Stale DEFERRED rows Q-PERF and S3 re-verified against current code and
+   closed in the issue ledger.

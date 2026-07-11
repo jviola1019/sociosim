@@ -353,6 +353,10 @@ def test_campaign_specs_reject_non_deliverable_or_malformed_rows():
     bad_specs = [
         {"bid": 0, "budget": 100},
         {"bid": 1, "budget": 0},
+        # Audit F1: below the auction reserve (0.005) a campaign can never
+        # serve -- it must be rejected, not measured with an empty arm.
+        {"bid": 0.001, "budget": 100},
+        {"bid": 1, "budget": 0.001},
         {"bid": 1, "budget": 100, "base_ctr": 1.5},
         {"bid": 1, "budget": 100, "segment": "unknown"},
     ]

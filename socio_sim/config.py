@@ -145,7 +145,7 @@ class RunConfig:
     # Behaviour parameters (extracted, documented, sensitivity-testable knobs)
     behavior: BehaviorParams = field(default_factory=BehaviorParams)
 
-    # Calibration benchmark target set (bundled published aggregates)
+    # Aggregate-fit benchmark target set (bundled legacy aggregates)
     benchmark: str = "default"
 
     # Output

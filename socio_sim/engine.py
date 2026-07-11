@@ -70,6 +70,11 @@ class RunResult:
     graph_stats: dict
     config: RunConfig
     ads: AdSystem
+    #: LLM transport usage diagnostics (calls/latency/char+token counts) from
+    #: the content adapter, or None in template mode. OUTSIDE the hashed
+    #: event stream by design: latency is wall-clock and must never affect
+    #: determinism or replay.
+    llm_usage: dict | None = None
 
 
 class Simulation:
@@ -343,7 +348,8 @@ class Simulation:
 
         return RunResult(log=self.log, manifest=manifest, personas=self.personas,
                          campaigns=self.campaigns, graph_stats=self.graph_stats,
-                         config=cfg, ads=self.ads)
+                         config=cfg, ads=self.ads,
+                         llm_usage=getattr(self.generator, "usage", None))
 
     # ------------------------------------------------------------------
     def _do_posting(self, active: np.ndarray, tick: int):

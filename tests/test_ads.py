@@ -354,3 +354,103 @@ def test_apply_fdr_reports_bh_qvalues_across_campaign_family():
     assert [round(m["lift_qvalue_bh"], 4) for m in measures] == [0.03, 0.045, 0.2]
     assert [m["lift_significant_bh_fdr"] for m in measures] == [True, True, False]
     assert [m["lift_significant"] for m in measures] == [True, True, False]
+
+
+# --- Cohort-timeline causal audit (2026-07-10) remediation -----------------
+
+def test_f1_never_serving_campaign_reports_nan_lift_not_negative():
+    """Audit F1 (P2): a campaign that never logs an opportunity (bid below
+    the auction reserve) has an EMPTY exposed arm. Its lift must be NaN --
+    not `-holdout_rate`, a spurious negative point estimate rendered in the
+    ads table -- and no screen/power field may claim information."""
+    camp = [Campaign(id="dead", advertiser="D", bid=0.001, budget=0.5,
+                     base_ctr=0.02, base_cvr=0.1)]
+    ads, log, personas, _ = setup(campaigns=camp, holdout_fraction=0.2)
+    personas.base_conversion[:] = 0.2      # organic conversions keep flowing
+    _run_baseline(ads, personas, n=100, opportunities=2)
+    for t in range(24):
+        ads.run_auction(adult_id(personas), t)   # below reserve: never serves
+    m = measure_campaign(log, camp[0], ads, n_agents=100)
+    assert m["impressions"] == 0
+    assert m["lift"] != m["lift"], "empty exposed arm must yield NaN lift"
+    assert m["lift_screen_positive"] is False
+    assert m["lift_significant"] is False
+    assert m["mde"] != m["mde"]
+
+
+def test_f2_mde_is_nan_when_baseline_rate_is_uninformative():
+    """Audit F2 (P3): a zero baseline rate carries zero information; the
+    old 1e-6 clamp reported a near-zero MDE (maximal claimed power) exactly
+    when the run was maximally uninformative."""
+    from socio_sim.stats import min_detectable_effect
+    degenerate = min_detectable_effect(500, 500, 0.0)
+    assert degenerate != degenerate  # NaN
+    informative = min_detectable_effect(500, 500, 0.1)
+    assert informative == informative and informative > 0
+
+
+def test_f3_screen_positive_requires_positive_lift():
+    """Audit F3 (P3): a significantly NEGATIVE observed lift must never be
+    announced as screen-positive -- the screen is one-directional (ads can
+    only add conversions by construction)."""
+    camp = Campaign(id="neg", advertiser="N", bid=5.0, budget=10_000)
+    ads, log, personas, _ = setup(campaigns=[camp], holdout_fraction=0.5)
+    # Pathological hand-built cohort: conversions land ONLY in the holdout
+    # arm, so the two-sided p-value is tiny while the lift is negative.
+    for aid in range(80):
+        hold = aid >= 40
+        log.append(1, "ad_opportunity", aid, None, {
+            "campaign_id": "neg", "holdout": hold, "eligibility_tick": 1,
+            "randomized_assignment_tick": 1, "observation_start_tick": 1,
+            "observation_end_tick": 47})
+        if hold and aid < 70:
+            log.append(5, "organic_conversion", aid, None,
+                       {"campaign_id": "neg"})
+    m = measure_campaign(log, camp, ads, n_agents=100)
+    assert m["lift"] < 0
+    assert m["lift_pvalue"] < 0.05
+    assert m["lift_screen_positive"] is False
+    assert m["lift_significant"] is False
+    apply_fdr([m])
+    assert m["lift_screen_positive_bh_fdr"] is False
+    assert m["lift_significant_bh_fdr"] is False
+
+
+def test_attribution_window_boundary_is_exact():
+    """A conversion exactly W ticks after its impression is credited; one
+    tick later it is not (previously only monotonicity was tested)."""
+    camp = Campaign(id="win", advertiser="W", bid=5.0, budget=10_000,
+                    attribution_window_ticks=10)
+    ads, log, personas, _ = setup(campaigns=[camp], holdout_fraction=0.0)
+    for aid, conv_tick in ((1, 12), (2, 13)):      # impressions at tick 2
+        log.append(2, "ad_opportunity", aid, None, {
+            "campaign_id": "win", "holdout": False, "eligibility_tick": 2,
+            "randomized_assignment_tick": 2, "observation_start_tick": 2,
+            "observation_end_tick": 47})
+        log.append(conv_tick, "ad_conversion", aid, None,
+                   {"campaign_id": "win", "impression_tick": 2, "value": 1.0})
+    m = measure_campaign(log, camp, ads, n_agents=100)
+    assert m["attributed_ad_conversions"] == 1     # tick 12 in, tick 13 out
+
+
+def test_engine_run_never_serves_a_holdout_agent():
+    """Engine-level leakage test (audit gap #2): across a full simulation,
+    no ad impression is ever delivered to an agent the pure-hash assignment
+    places in that campaign's holdout."""
+    from socio_sim.engine import Simulation
+    cfg = RunConfig.test(jurisdictions=("US",), holdout_fraction=0.3)
+    result = Simulation(cfg).run()
+    priced = [e for e in result.log.by_kind("ad_auction") if "price" in e["data"]]
+    assert priced, "run produced no impressions; leakage test is vacuous"
+    checked = 0
+    for e in priced:
+        cid = e["data"]["campaign_id"]
+        campaign = next(c for c in result.ads.campaigns if c.id == cid)
+        fraction = campaign.holdout_fraction or cfg.holdout_fraction
+        import hashlib as _h
+        digest = _h.blake2s(f"{cid}|{e['actor_id']}|{cfg.root_seed}".encode(),
+                            digest_size=8).digest()
+        assert int.from_bytes(digest, "big") / 2**64 >= fraction, (
+            f"holdout agent {e['actor_id']} was served campaign {cid}")
+        checked += 1
+    assert checked == len(priced)

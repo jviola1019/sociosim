@@ -3,7 +3,8 @@
 A localhost research console: configure a run by concept (scale, network,
 content, classifier, policy, moderation, feed, ads, adversaries), the server
 runs the real simulation engine in a background thread, then returns the same
-analytics, calibration, replay verification and chart series the CLI produces.
+analytics, aggregate-fit diagnostics, replay verification and chart series
+the CLI produces.
 Binds to 127.0.0.1 only; single-user research tool. When a run requests the
 local-LLM content mode, the server bootstraps Ollama on demand.
 """
@@ -30,6 +31,7 @@ from socio_sim import (NO_REAL_PERSON_DATA_NOTICE, NOT_LEGAL_ADVICE_NOTICE,
                        RESEARCH_USE_NOTICE, __version__)
 from socio_sim.analytics.lens import run_lens
 from socio_sim.analytics.metrics import cascade_sizes, cascade_tree
+from socio_sim.ads.auction import RESERVE_PRICE
 from socio_sim.ads.campaigns import Campaign
 from socio_sim.config import (ADVERSARIES, CATEGORIES,
                               DEFAULT_CLASSIFIER_PRECISION,
@@ -462,10 +464,17 @@ def _normalize_campaign_specs(body: dict) -> list[dict]:
                     else "scenario_assumption_default")
                 for f in CAMPAIGN_ECON_DEFAULTS
             }
-            if bid <= 0:
-                raise ValueError(f"campaigns[{idx}].bid: must be positive")
-            if budget <= 0:
-                raise ValueError(f"campaigns[{idx}].budget: must be positive")
+            # Audit F1: a bid or budget below the auction reserve can never
+            # win an impression -- the campaign would report an empty
+            # exposed arm instead of measurements. Reject it up front.
+            if bid < RESERVE_PRICE:
+                raise ValueError(
+                    f"campaigns[{idx}].bid: must be at least the auction "
+                    f"reserve price ({RESERVE_PRICE})")
+            if budget < RESERVE_PRICE:
+                raise ValueError(
+                    f"campaigns[{idx}].budget: must be at least the auction "
+                    f"reserve price ({RESERVE_PRICE})")
             if not 0.0 <= base_ctr <= 1.0:
                 raise ValueError(f"campaigns[{idx}].base_ctr: must be in [0, 1]")
             if not 0.0 <= base_cvr <= 1.0:
@@ -676,6 +685,9 @@ def _run_job(job_id: str, body: dict):
             "n_events": len(result.log.events),
             "content_mode": cfg.content_mode,
             "n_llm_calls": len(llm_calls),
+            # Transport-side usage diagnostics (calls/latency/tokens);
+            # deliberately outside the hashed event stream.
+            "llm_usage": result.llm_usage,
             "n_degradations": len(result.log.by_kind("degradation")),
             "sample_post": (llm_calls[0]["data"]["text_preview"]
                             if llm_calls else None),

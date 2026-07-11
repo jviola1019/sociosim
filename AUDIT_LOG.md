@@ -18,14 +18,14 @@ Status: OPEN / IN-PROGRESS / DONE (with commit) / DEFERRED (-> HANDOFF.md).
 | Q-CI | P1 | analytics/report.py | "every aggregate has a 95% CI" false; precision/recall/appeal bare | Wilson intervals + relabel docs | CI presence per rate | **DONE** (P1c) |
 | Q-PACK | P1 | policy/engine.py:26-29; packs/*.yaml | Schema lacks source_citation/legal_uncertainty/transparency_field/user_rights/human_review_required; no statute refs; EU 24h overstated | Extend schema; add citations; correct deadline framing; transparency exporter | pack-schema; transparency coverage | **DONE** (P3) |
 | Q-PARAM | P1 | engine.py:35-44,312-317 | ~15 undocumented magic constants drive all outputs; never sensitivity-tested | Extract cited BehaviorParams; sensitivity sweep | determinism regression; sensitivity-rank | **DONE** (P1d+P4) |
-| Q-PERF | P1 | engine.py:267-349; graph/metrics.py:23 | Per-agent Python loops + exact clustering -> standard profile impractical | Index recent posts by author; approx clustering n>2k; benchmark | perf budget | DEFERRED (determinism risk; see HANDOFF) |
+| Q-PERF | P1 | engine.py:267-349; graph/metrics.py:23 | Per-agent Python loops + exact clustering -> standard profile impractical | Index recent posts by author; approx clustering n>2k; benchmark | perf budget | **DONE (row was stale; verified 2026-07-11)** — hot loop got the per-tick author index + O(k) pool sampling in a later sprint (CHANGELOG, replay-verified hash regen); `graph/metrics.py:13` `CLUSTERING_EXACT_MAX = 5000` switches to the NetworkX approximation above it; replicate-level parallelism exists via `run_replicates(workers=...)` |
 | Q-TRAV | P1 | web/app.py:355-356 | Static-file path traversal (no containment) | resolve()+is_relative_to() | traversal returns 404 | **DONE** (P5a) |
 | Q-CLAUDE | P2 | content/claude_adapter.py:54-91 | Prompt hardcodes TOPICS[0]/casual; cache key ignores topic/tick | Key by model/full prompt/topic/stance/tick; build prompt from generated item | cache-key uniqueness | **DONE** |
 | Q-KINDS | P2 | logs/events.py:16-33 | policy_gap/follow/unfollow declared, never emitted; graph static (no churn) | Removed dead kinds + corrected spec (churn deferred) | dead-kinds-removed | **DONE** (P5b) |
 | Q-REVIEW | P2 | moderation/workflow.py:106-157 | Reviewer ground-truth heuristic + uncited appeal magic | Document/expose params | reviewer convergence | OPEN |
 | S1 | P2 | web/static/app.js:79-84 | Presets are additive, not reset -> stale values persist across preset switches | Reset to defaults then apply overrides | preset-applies-clean-state | **DONE** (P6) |
 | S2 | P2 | web/app.py:100-101 | SBM block_sizes hardcoded [500,500], ignores n_agents | Derive blocks from n_agents | sbm-respects-n | **DONE** (P5b) |
-| S3 | P1* | engine.py:50-62 (UI) | No campaign-level marketing controls in UI (budget/bid/targeting/variants) | Add campaign editor feeding campaigns | campaign-editor roundtrip | DEFERRED (P6 full UI) |
+| S3 | P1* | engine.py:50-62 (UI) | No campaign-level marketing controls in UI (budget/bid/targeting/variants) | Add campaign editor feeding campaigns | campaign-editor roundtrip | **DONE (row was stale; verified 2026-07-11)** — the campaign editor shipped in P6/S9: web `#addCampaign` rows → `_normalize_campaign_specs` (bid/budget/segment/market/economics, per-field provenance, reserve-price validation) → `_campaigns_fn` → engine campaigns; exercised end-to-end by test_e2e_playwright + test_campaigns |
 | S4 | P2 | UI | No n_replicates control (blocked on Q-MC) | Expose in Research mode | live-research-http | **DONE** (P6) |
 | S5 | P3 | index.html:56; config.py:160 | tick_hours UI allows non-divisors of 24 -> validation error | Constrain to divisor select | n/a | **DONE** (P6) |
 | S6 | P3 | engine.py:96; web | Classifier global-only; political base rate not exposed; homophily attr hardcoded | Optional per-category; expose political rate | n/a | OPEN |
@@ -125,6 +125,54 @@ evidence_gate / secret_scan all pass; independent code-review agent pass on
 the six fix commits found zero >=80-confidence issues and confirmed the
 determinism and blocked-cache invariants; security review of the branch diff
 returned an empty report (all deltas tighten posture).
+
+## Session 2026-07-10/11: deferred items closed — cohort-timeline causal audit + backend rename + release hardening
+
+**Cohort-timeline causal/uncertainty audit (deferred item, previously
+"never examined either way") — now EXAMINED.** An independent read-only
+audit of the ad-measurement pipeline verified **14 properties correct with
+file:line evidence**: pure-hash arm assignment (no mid-run drift), zero
+holdout impression-leakage paths, no conversion-before-impression,
+per-impression attribution-window enforcement, arm-symmetric
+exposure-independent organic channel, no treatment→cohort feedback (budget
+exhaustion and frequency caps stop both arms' cohort entry symmetrically),
+honest ITT estimand, per-user dedup/cross-campaign isolation, correct
+Newcombe CI / two-sided pooled-z / BH-FDR over the per-run campaign
+family / NaN fail-safes, pre-treatment covariate for the oracle
+diagnostic, consistent lift-path denominators, and effective
+re-randomization across MC replicates. Findings, all fixed test-first:
+
+| ID | Sev | Issue | Fix | Status |
+|----|-----|-------|-----|--------|
+| CT-F1 | P2 | Never-serving campaign (e.g. sub-reserve bid, reachable via the web campaign editor) reported lift = −holdout_rate — a spurious NEGATIVE point estimate | Empty arm ⇒ rate NaN ⇒ lift NaN (never 0.0-defaulted); web editor rejects bid/budget below RESERVE_PRICE | **DONE** |
+| CT-F2 | P3 | MDE clamped a zero baseline rate to 1e-6, reporting near-zero MDE (maximal claimed power) exactly when the run was uninformative | baseline ≤ 0 or NaN ⇒ MDE NaN | **DONE** |
+| CT-F3 | P3 | Screen-positive was direction-blind: a significantly negative observed lift would be announced screen-positive | All screen/legacy flags now require lift > 0 (raw and BH paths) | **DONE** |
+| CT-F4 | P3 | economic_inputs listed attribution_window_ticks next to UNwindowed roas/revenue/cvr totals | Explicit `windowing_note` payload field states which metrics honor the window | **DONE** |
+| CT-F5 | P3 | End-of-horizon censoring is arm-asymmetric (exposed only) — conservative, biases lift toward zero | Disclosed in KNOWN_LIMITATIONS.md (by design; never inflates) | **DONE** (disclosed) |
+| CT-F6 | P3 | dose_response comment mislabeled the post-treatment frequency diagnostic "(ITT)" | Comment corrected: post-treatment diagnostic, conditions on delivery | **DONE** |
+
+Of the audit's 13 named test gaps, the four highest-value are now covered:
+engine-level holdout-leakage over a full simulation, attribution-window
+boundary exactness (W in, W+1 out), the never-serving/empty-arm output
+contract, and the negative-lift screen direction. Remaining gaps (e.g. a
+statistical arm-composition-neutrality stress test under cap/budget
+pressure, prob_diff_positive reference values) are recorded as open
+test-debt, not defects — the underlying properties were verified correct
+by inspection.
+
+**Backend rename (deferred since R6/R9) — DONE.** `calibration_implausibility`
+→ `aggregate_fit_implausibility`; `posterior_calibrated_mc` →
+`abc_posterior_propagated_mc`; `study["calibration"]` →
+`study["aggregate_fit"]`; CALIBRATION_REPORT.md → AGGREGATE_FIT_NOTE.md
+(old name kept in evidence_gate's scan tuple as a recreation guard);
+tests/test_calibration.py → tests/test_aggregate_fit_profile.py (now also
+pins RunConfig.calibrated as a behaviourally-identical migration alias);
+"calibration knob/targets" comments reworded. KEPT deliberately:
+`validation/calibrate.py` module name (ABC/history-matching is the
+methodology's real name) and `expected_calibration_error`/
+`calibration_slope` (standard classifier-calibration metric names measured
+on a real benchmark). The claim-scan dict-subscript exemption note in
+HANDOFF is closed by this rename.
 
 ## Determinism baselines (locked pre-refactor)
 - test/EU: `a8a8b243e5958c1620d5e4ed0e9bee55c866c78d4459993c57eeca3bf848bc36`

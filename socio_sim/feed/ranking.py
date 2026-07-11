@@ -18,7 +18,7 @@ from socio_sim.config import RunConfig
 from socio_sim.content.items import ContentItem
 from socio_sim.logs.events import EventLog
 
-#: Personalized-score weights (calibration knobs).
+#: Personalized-score weights (scenario tuning knobs).
 WEIGHTS = {
     "recency": 0.30,
     "affinity": 0.25,

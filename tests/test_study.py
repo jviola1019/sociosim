@@ -1,11 +1,11 @@
-"""P4: sensitivity of headline outputs to BehaviorParams + calibration check."""
+"""P4: sensitivity of headline outputs to BehaviorParams + aggregate-fit check."""
 
 import numpy as np
 
 from socio_sim.config import RunConfig
-from socio_sim.validation.study import (behavior_sensitivity,
-                                        calibration_implausibility,
-                                        posterior_calibrated_mc,
+from socio_sim.validation.study import (abc_posterior_propagated_mc,
+                                        aggregate_fit_implausibility,
+                                        behavior_sensitivity,
                                         posts_per_agent,
                                         render_validation_report,
                                         run_validation_study)
@@ -26,8 +26,8 @@ def test_behavior_sensitivity_ranks_posting_param_first():
     assert s["indices"]["p_post_given_active"] > s["indices"]["p_flag_scale"]
 
 
-def test_calibration_implausibility_is_finite_with_observed():
-    c = calibration_implausibility(RunConfig.test(jurisdictions=("EU",)))
+def test_aggregate_fit_implausibility_is_finite_with_observed():
+    c = aggregate_fit_implausibility(RunConfig.test(jurisdictions=("EU",)))
     assert np.isfinite(c["implausibility"])
     assert "clustering" in c["observed"]
     assert "degree_tail_exponent" in c["observed"]
@@ -42,8 +42,8 @@ def test_validation_report_renders_sections():
     assert "Implausibility" in md
 
 
-def test_calibration_includes_diurnal_ks_distributional_check():
-    c = calibration_implausibility(RunConfig.test(jurisdictions=("EU",)))
+def test_aggregate_fit_includes_diurnal_ks_distributional_check():
+    c = aggregate_fit_implausibility(RunConfig.test(jurisdictions=("EU",)))
     assert "diurnal_ks" in c
     assert 0.0 <= c["diurnal_ks"] <= 1.0
 
@@ -101,8 +101,8 @@ def test_saltelli_study_runs_on_engine():
             >= r["ST"]["p_flag_scale"] - 0.2)
 
 
-def test_posterior_calibrated_mc_propagates_parameter_uncertainty():
-    pm = posterior_calibrated_mc(profile="test", n_samples=16, seed=4)
+def test_abc_posterior_propagated_mc_propagates_parameter_uncertainty():
+    pm = abc_posterior_propagated_mc(profile="test", n_samples=16, seed=4)
     assert pm["n_accepted"] >= 1
     assert "posterior" in pm and "p_post_given_active" in pm["posterior"]
     lo, hi = pm["output_ci"]

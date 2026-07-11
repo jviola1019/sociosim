@@ -123,6 +123,15 @@ def run_sim(cfg: RunConfig, n_replicates: int = 1, workers: int = 1, media: int 
         degr = result.log.by_kind("degradation")
         print(f"LLM backend: {cfg.content_mode} | llm_call events: {len(calls)} "
               f"| degradation (fallback) events: {len(degr)}")
+        u = result.llm_usage
+        if u:
+            print(f"  transport usage: {u['calls']} calls "
+                  f"({u['cache_hits']} cache hits, {u['blocked']} blocked, "
+                  f"{u['failures']} failed) | {u['latency_s']:.1f}s total "
+                  f"latency | tokens in/out "
+                  f"{u['prompt_eval_tokens']}/{u['response_eval_tokens']} "
+                  "(0 = backend reported none; diagnostics only, outside "
+                  "the hashed event stream)")
         if calls:
             print(f"  sample generated post: "
                   f"{calls[0]['data']['text_preview']!r}")
@@ -241,7 +250,7 @@ def main():
         (ROOT / "VALIDATION_REPORT.md").write_text(
             render_validation_report(study), encoding="utf-8")
         print(f"Wrote VALIDATION_REPORT.md  (implausibility I = "
-              f"{study['calibration']['implausibility']:.2f}, cutoff 3.0)")
+              f"{study['aggregate_fit']['implausibility']:.2f}, cutoff 3.0)")
         return 0
 
     if args.backtest:

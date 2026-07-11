@@ -42,9 +42,9 @@ def test_benchmark_selection_flows_through_pipeline():
 
 
 def test_validation_study_uses_selected_benchmark():
-    from socio_sim.validation.study import calibration_implausibility
-    c = calibration_implausibility(RunConfig.test(jurisdictions=("EU",),
-                                                  benchmark="facebook_like"))
+    from socio_sim.validation.study import aggregate_fit_implausibility
+    c = aggregate_fit_implausibility(RunConfig.test(jurisdictions=("EU",),
+                                                    benchmark="facebook_like"))
     assert set(c["targets"]) == set(load_targets("facebook_like"))
     assert c["implausibility_components"]
     assert c["implausibility_dominant_metric"] in c["targets"]

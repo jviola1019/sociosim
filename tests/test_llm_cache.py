@@ -5,6 +5,8 @@ These exercise `resolve()` directly against synthetic cache entries so the
 contract is pinned independent of either adapter's own generation logic.
 """
 
+import pytest
+
 from socio_sim.content import llm_cache
 
 
@@ -179,6 +181,66 @@ def test_save_then_load_round_trips(tmp_path):
     entry = llm_cache.make_entry("hi", "accepted", [])
     llm_cache.save(path, {"k": entry})
     assert llm_cache.load(path) == {"k": entry}
+
+
+def test_save_is_atomic_a_failed_replace_leaves_old_cache_intact(tmp_path, monkeypatch):
+    """Atomic persistence: save() must write a temp file and os.replace()
+    it over the target, so a crash mid-save can never leave a truncated/
+    corrupt cache -- the previous complete cache survives."""
+    path = tmp_path / "cache.json"
+    original = {"k": llm_cache.make_entry("original", "accepted", [])}
+    llm_cache.save(path, original)
+
+    def exploding_replace(src, dst):
+        raise OSError("simulated crash between temp write and rename")
+
+    monkeypatch.setattr(llm_cache.os, "replace", exploding_replace)
+    with pytest.raises(OSError):
+        llm_cache.save(path, {"k": llm_cache.make_entry("new", "accepted", [])})
+    monkeypatch.undo()
+    # The original cache file is untouched and still fully valid JSON.
+    assert llm_cache.load(path) == original
+    # No stray temp files accumulate next to the cache.
+    leftovers = [p for p in tmp_path.iterdir() if p.name != "cache.json"]
+    assert leftovers == [], leftovers
+
+
+def test_concurrent_saves_never_produce_invalid_json(tmp_path):
+    """Two racing writers may lose one update (last rename wins) but must
+    never interleave bytes: the file is always one writer's complete JSON."""
+    import threading
+    path = tmp_path / "cache.json"
+    payloads = [
+        {f"k{i}": llm_cache.make_entry(f"text {i} " * 200, "accepted", [])}
+        for i in range(2)
+    ]
+
+    def writer(payload):
+        for _ in range(30):
+            llm_cache.save(path, payload)
+
+    threads = [threading.Thread(target=writer, args=(p,)) for p in payloads]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    loaded = llm_cache.load(path)
+    assert loaded in payloads  # complete content from exactly one writer
+
+
+def test_blocked_and_accepted_entries_survive_reload_with_same_meaning(tmp_path):
+    path = tmp_path / "cache.json"
+    cache = {
+        "b": llm_cache.make_entry("bad text", "blocked", ["pii_like_output"],
+                                  guard_version=llm_cache.BLOCKED_GUARD_VERSION),
+        "a": llm_cache.make_entry("good text", "accepted", []),
+    }
+    llm_cache.save(path, cache)
+    reloaded = llm_cache.load(path)
+    blocked = llm_cache.resolve(reloaded["b"])
+    assert blocked.hit is True and blocked.text is None
+    accepted = llm_cache.resolve(reloaded["a"])
+    assert accepted.hit is True and accepted.text == "good text"
 
 
 def test_file_hash_none_when_missing_and_stable_when_present(tmp_path):

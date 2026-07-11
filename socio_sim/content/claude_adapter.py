@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import time
 from pathlib import Path
 from typing import Callable
 
@@ -41,6 +42,12 @@ class ClaudeAdapter:
         self.MODEL = model or MODEL
         self.on_degradation = on_degradation
         self._cache: dict = llm_cache.load(self.cache_path, on_error=self.on_degradation)
+        # Usage accounting: diagnostics only, surfaced via RunResult.llm_usage;
+        # never enters the hashed event stream (latency is wall-clock).
+        self.usage = {"calls": 0, "cache_hits": 0, "blocked": 0,
+                      "failures": 0, "latency_s": 0.0,
+                      "prompt_chars": 0, "response_chars": 0,
+                      "prompt_eval_tokens": 0, "response_eval_tokens": 0}
         self._client = None
         if self.api_key:
             try:
@@ -79,6 +86,7 @@ class ClaudeAdapter:
         if lookup.degradation:
             self.on_degradation(lookup.degradation)
         if lookup.hit:
+            self.usage["cache_hits"] += 1
             if lookup.text is not None:
                 self._apply_text(item, lookup.text)
             return item  # blocked or tamper-free accepted hit; never re-call
@@ -88,16 +96,28 @@ class ClaudeAdapter:
             return item
         try:
             prompt = self._prompt(author_id, personas, item.topic, tick, item.stance)
+            started = time.perf_counter()
             resp = self._client.messages.create(
                 model=self.MODEL, max_tokens=80,
                 messages=[{"role": "user", "content": prompt}],
             )
+            self.usage["calls"] += 1
+            self.usage["latency_s"] += time.perf_counter() - started
+            self.usage["prompt_chars"] += len(prompt)
+            api_usage = getattr(resp, "usage", None)
+            if api_usage is not None:
+                self.usage["prompt_eval_tokens"] += int(
+                    getattr(api_usage, "input_tokens", 0) or 0)
+                self.usage["response_eval_tokens"] += int(
+                    getattr(api_usage, "output_tokens", 0) or 0)
             text = (resp.content[0].text or "").strip()
             if not text:
                 raise ValueError("empty LLM response")
             text = " ".join(text.split())[:280]
+            self.usage["response_chars"] += len(text)
             reasons = check_generated_text(text, item)
             if reasons:
+                self.usage["blocked"] += 1
                 self._cache[key] = llm_cache.make_entry(
                     text, "blocked", reasons,
                     guard_version=llm_cache.BLOCKED_GUARD_VERSION)
@@ -110,5 +130,6 @@ class ClaudeAdapter:
             self._apply_text(item, text)
             return item
         except Exception as exc:  # degrade loudly, keep the run going
+            self.usage["failures"] += 1
             self.on_degradation(f"LLM call failed: {exc!r}; template text used")
             return item

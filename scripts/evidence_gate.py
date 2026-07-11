@@ -61,8 +61,11 @@ def main() -> int:
                         f"sha256 mismatch (registry={expected_sha[:12]}... "
                         f"actual={actual_sha[:12]}...)"
                     )
+    # AGGREGATE_FIT_NOTE.md is the renamed CALIBRATION_REPORT.md; the old
+    # name stays in the tuple as a guard against the file being recreated.
     for report in ("BENCHMARK_REPORT.md", "BACKTEST_REPORT.md",
-                   "VALIDATION_REPORT.md", "CALIBRATION_REPORT.md"):
+                   "VALIDATION_REPORT.md", "AGGREGATE_FIT_NOTE.md",
+                   "CALIBRATION_REPORT.md"):
         p = ROOT / report
         if p.exists():
             text = p.read_text(encoding="utf-8", errors="replace")

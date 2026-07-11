@@ -29,6 +29,7 @@
   --sh-1: 0 1px 2px rgba(0,0,0,.04), 0 1px 1px rgba(0,0,0,.03);
   --sh-2: 0 4px 14px -4px rgba(0,0,0,.08), 0 2px 6px -2px rgba(0,0,0,.05);
   --sh-3: 0 24px 60px -24px rgba(0,0,0,.18), 0 8px 24px -12px rgba(0,0,0,.1);
+  --nav-glass: rgba(251,251,253,.72);
 }
 
 /* Dark control-room theme — overrides the neutral tokens; accents unchanged. */
@@ -38,9 +39,12 @@ body[data-theme="dark"] {
   --surface-2: #1b2230;
   --ink:       #e6e8ee;
   --ink-2:     #b3b9c6;
-  --ink-3:     #7c8493;
+  --ink-3:     #8a92a1;  /* WCAG 1.4.3: #7c8493 was 4.23:1 on --surface-2 */
   --line:      #222a39;
   --line-2:    #2d3748;
+  /* The nav glass must darken with the theme: the hardcoded light glass
+     left light text on a light strip (1.6:1) in dark mode. */
+  --nav-glass: rgba(13,17,26,.72);
 }
 
 * { box-sizing: border-box; }
@@ -61,7 +65,7 @@ h1, h2, h3, h4 { font-family: var(--disp); font-weight: 600; letter-spacing: -.0
 .nav {
   position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 28px; background: rgba(251,251,253,.72);
+  padding: 14px 28px; background: var(--nav-glass);
   -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 1px solid var(--line);
 }

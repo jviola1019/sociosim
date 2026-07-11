@@ -319,6 +319,50 @@ def test_blocked_cache_invalidated_by_deliberate_guard_version_bump(tmp_path, mo
     assert item.text == "totally fine local news text"
 
 
+def test_usage_accounting_counts_calls_hits_blocked_and_failures(tmp_path):
+    """Deferred P5 item: transport usage diagnostics. Counters live on the
+    adapter only (RunResult.llm_usage) -- never in the hashed event stream."""
+    gen, personas = setup()
+    responses = iter(["nice text", "local news email me at a@b.com",
+                      ConnectionError("down")])
+
+    def scripted(prompt):
+        r = next(responses)
+        if isinstance(r, Exception):
+            raise r
+        return r
+
+    adapter = LLMAdapter(base=gen, cache_path=tmp_path / "c.json",
+                         backend="ollama", transport=scripted)
+    adapter.generate(1, personas, tick=24)    # accepted (1 call)
+    adapter.generate(1, personas, tick=24)    # cache hit (no call)
+    adapter.generate(1, personas, tick=48)    # blocked (1 call)
+    adapter.generate(1, personas, tick=72)    # transport failure (1 call attempt)
+    u = adapter.usage
+    assert u["calls"] == 2            # failures don't count as completed calls
+    assert u["cache_hits"] == 1
+    assert u["blocked"] == 1
+    assert u["failures"] == 1
+    assert u["latency_s"] >= 0.0
+    assert u["prompt_chars"] > 0 and u["response_chars"] > 0
+    # Injected fake transports report no token counts.
+    assert u["prompt_eval_tokens"] == 0 and u["response_eval_tokens"] == 0
+
+
+def test_usage_is_surfaced_on_run_result_and_absent_in_template_mode(tmp_path):
+    from socio_sim.engine import Simulation
+    cfg = RunConfig.test(n_agents=50, n_ticks=6, content_mode="ollama",
+                         llm_base_url="http://localhost:9",  # closed port
+                         llm_cache_path=str(tmp_path / "cache.json"),
+                         out_dir=str(tmp_path))
+    result = Simulation(cfg).run()
+    assert result.llm_usage is not None
+    assert result.llm_usage["failures"] >= 1     # server is down by design
+    template = Simulation(RunConfig.test(n_agents=50, n_ticks=6,
+                                         out_dir=str(tmp_path / "t"))).run()
+    assert template.llm_usage is None
+
+
 def test_e01_accepted_cache_invalidated_by_deliberate_guard_version_bump(
         tmp_path, monkeypatch):
     """E-01: bumping BLOCKED_GUARD_VERSION must re-screen previously

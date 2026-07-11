@@ -141,9 +141,10 @@ def saltelli_study(cfg: RunConfig, bounds: dict, n_base: int = 8,
     return res
 
 
-def calibration_implausibility(cfg: RunConfig) -> dict:
+def aggregate_fit_implausibility(cfg: RunConfig) -> dict:
     """Implausibility I = max standardized discrepancy of observed vs targets
-    (history-matching cutoff 3.0)."""
+    (history-matching cutoff 3.0). Named for what it is -- an aggregate-fit
+    diagnostic -- not a calibration claim (deferred R9 backend rename)."""
     result = Simulation(cfg).run()
     observed = compute_observed(result, summarize_run(result))
     targets = load_targets(cfg.benchmark)
@@ -159,9 +160,9 @@ def calibration_implausibility(cfg: RunConfig) -> dict:
             "diurnal_ks": discrete_ks(counts, DIURNAL_CURVE)}
 
 
-def posterior_calibrated_mc(profile: str = "test", n_samples: int = 24,
-                            seed: int = 42,
-                            metric: str = "posts_per_agent_day") -> dict:
+def abc_posterior_propagated_mc(profile: str = "test", n_samples: int = 24,
+                                seed: int = 42,
+                                metric: str = "posts_per_agent_day") -> dict:
     """Chain aggregate matching -> uncertainty: history-match BehaviorParams against a
     behaviour-controllable target, build an ABC posterior, then propagate that
     parameter posterior into an interval for `metric`. This is genuine
@@ -219,8 +220,8 @@ def run_validation_study(profile: str = "test", n_samples: int = 24,
         "saltelli": saltelli_study(
             cfg, default_behavior_bounds(),
             n_base=max(4, min(8, n_samples // 2)), output="n_posts", seed=seed),
-        "calibration": calibration_implausibility(cfg),
-        "posterior_mc": posterior_calibrated_mc(profile, n_samples, seed),
+        "aggregate_fit": aggregate_fit_implausibility(cfg),
+        "posterior_mc": abc_posterior_propagated_mc(profile, n_samples, seed),
     }
 
 
@@ -236,7 +237,7 @@ def _pm_line(pm: dict) -> str:
 
 
 def render_validation_report(study: dict) -> str:
-    s, c = study["sensitivity"], study["calibration"]
+    s, c = study["sensitivity"], study["aggregate_fit"]
     pm = study.get("posterior_mc") or {}
     ranked = sorted(s["indices"].items(), key=lambda kv: kv[1], reverse=True)
     lines = [
