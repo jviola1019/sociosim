@@ -44,6 +44,123 @@ def _post(base, path="/api/run", body=None, headers=None):
         return e.code, None
 
 
+def test_ssrf_ipv4_mapped_ipv6_is_normalized_before_classification(monkeypatch):
+    """URL normalization: ::ffff:a.b.c.d must be classified as the IPv4
+    address it actually reaches. Python reports
+    ::ffff:169.254.169.254 as is_link_local == False (caught only
+    incidentally by is_reserved), and ::ffff:127.0.0.1 as NOT loopback --
+    so an unnormalized guard both mis-reports metadata blocks and wrongly
+    rejects a legitimate mapped loopback."""
+    from socio_sim.security import normalize_ip, validate_llm_url
+    assert str(normalize_ip("::ffff:127.0.0.1")) == "127.0.0.1"
+    assert str(normalize_ip("::ffff:169.254.169.254")) == "169.254.169.254"
+    assert str(normalize_ip("::1")) == "::1"          # untouched
+
+    # Mapped loopback literal is allowed and pins the IPv4 form.
+    assert validate_llm_url("http://[::ffff:127.0.0.1]:11434") == "127.0.0.1"
+    # Mapped cloud-metadata resolves -> blocked, and now for the RIGHT reason.
+    monkeypatch.setattr(
+        "socio_sim.security.socket.getaddrinfo",
+        lambda *a, **k: [(23, 1, 6, "", ("::ffff:169.254.169.254", 80, 0, 0))])
+    with pytest.raises(ValueError, match="link-local"):
+        validate_llm_url("http://rebind.example:11434")
+    # Mapped RFC1918 still requires the allow-list.
+    monkeypatch.setattr(
+        "socio_sim.security.socket.getaddrinfo",
+        lambda *a, **k: [(23, 1, 6, "", ("::ffff:10.0.0.5", 80, 0, 0))])
+    with pytest.raises(ValueError, match="SOCIOSIM_LLM_ALLOWED_HOSTS"):
+        validate_llm_url("http://box.example:11434")
+    monkeypatch.setenv("SOCIOSIM_LLM_ALLOWED_HOSTS", "box.example")
+    assert validate_llm_url("http://box.example:11434") == "10.0.0.5"
+
+
+def test_oversized_body_rejected_before_reading_it():
+    """413 must be decided from Content-Length -- the server must never
+    allocate the oversized payload."""
+    srv, base = _boot()
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", srv.server_address[1])
+        conn.request("POST", "/api/run", body=b"{}", headers={
+            "Content-Type": "application/json",
+            "Content-Length": str(app.MAX_BODY_BYTES + 1),
+        })
+        assert conn.getresponse().status == 413
+        conn.close()
+    finally:
+        srv.shutdown()
+
+
+def test_malformed_json_returns_controlled_4xx():
+    srv, base = _boot()
+    try:
+        conn = http.client.HTTPConnection("127.0.0.1", srv.server_address[1])
+        conn.request("POST", "/api/run", body=b"{not json",
+                     headers={"Content-Type": "application/json"})
+        r = conn.getresponse()
+        assert r.status == 400
+        assert json.loads(r.read())["error"] == "invalid JSON"
+        conn.close()
+    finally:
+        srv.shutdown()
+
+
+def test_static_symlink_escape_is_contained(tmp_path):
+    """safe_static_path resolves symlinks: a link inside static/ pointing
+    outside the directory must not be servable."""
+    import os
+    from socio_sim.web.app import STATIC_DIR, safe_static_path
+    secret = tmp_path / "secret.txt"
+    secret.write_text("not for the browser", encoding="utf-8")
+    link = STATIC_DIR / "escape_link.txt"
+    try:
+        os.symlink(secret, link)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation not permitted on this host")
+    try:
+        assert safe_static_path("escape_link.txt") is None
+    finally:
+        link.unlink()
+
+
+def test_unknown_run_export_is_rejected():
+    srv, base = _boot()
+    try:
+        with pytest.raises(urllib.error.HTTPError) as exc:
+            urllib.request.urlopen(base + "/api/runs/deadbeef/export?fmt=report")
+        assert exc.value.code == 404
+    finally:
+        srv.shutdown()
+
+
+def test_job_ids_are_high_entropy_and_unique():
+    import uuid as _uuid
+    ids = {_uuid.uuid4().hex[:12] for _ in range(2000)}
+    assert len(ids) == 2000          # 48 bits of entropy, no collisions
+    assert all(len(i) == 12 for i in ids)
+
+
+def test_api_key_and_token_never_persisted_or_logged(monkeypatch, tmp_path):
+    """Secrets must not reach events, reports, the run DB, or the payload."""
+    from socio_sim.config import RunConfig
+    from socio_sim.pipeline import run_and_analyze
+    from socio_sim.web.store import RunStore
+    secret = "sk-ant-super-secret-key-value"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", secret)
+    monkeypatch.setenv("SOCIOSIM_ACCESS_TOKEN", "tok-secret-value")
+    cfg = RunConfig.test(n_agents=40, n_ticks=6, out_dir=str(tmp_path / "o"))
+    a = run_and_analyze(cfg, verify_replay=False)
+    blob = json.dumps(cfg.to_dict()) + a.report_md + json.dumps(
+        [e for e in a.result.log.events])
+    assert secret not in blob
+    assert "tok-secret-value" not in blob
+    store = RunStore(tmp_path / "s.db")
+    store.save("r1", {"summary": a.summary, "config": cfg.to_dict(),
+                      "manifest": a.result.manifest.__dict__,
+                      "report_md": a.report_md, "content_mode": "template",
+                      "replay": {"checked": False, "ok": None, "msg": ""}})
+    assert secret not in json.dumps(store.payload("r1"))
+
+
 def test_security_headers_on_every_response():
     srv, base = _boot()
     try:
