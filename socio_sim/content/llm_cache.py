@@ -41,6 +41,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import tempfile
 from pathlib import Path
 from typing import NamedTuple
 
@@ -180,8 +182,31 @@ def load(path: Path, on_error=None) -> dict:
 
 
 def save(path: Path, cache: dict) -> None:
+    """Atomically persist the cache.
+
+    Serialize to a temp file in the same directory, flush + fsync, then
+    os.replace() over the target: a crash, interruption, or racing writer
+    at any point leaves either the old complete file or the new complete
+    file on disk -- never a truncated or interleaved mix. (record_hash
+    detects accidental corruption after the fact; this layer prevents the
+    save path from being the thing that corrupts it.)"""
+    path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(cache, sort_keys=True), encoding="utf-8")
+    payload = json.dumps(cache, sort_keys=True)
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent,
+                                    prefix=path.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(payload)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp_name, path)
+    except BaseException:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
 
 
 def file_hash(path: Path) -> str | None:
