@@ -18,7 +18,7 @@ jobs:
       - name: Install Playwright browsers
         run: python -m playwright install --with-deps chromium
       - name: Lint (ruff)
-        run: ruff check socio_sim tests run.py
+        run: ruff check socio_sim tests run.py scripts examples
       - name: Evidence and claim gates
         run: |
           python scripts/evidence_gate.py
@@ -38,7 +38,20 @@ jobs:
           pip-audit --skip-editable
       - name: License inventory
         run: python scripts/license_inventory.py
-      - name: Build wheel + verify packaged data
+      - name: Build wheel + deep wheel QA
         run: |
           python -m build --wheel
-          python -c "import zipfile,glob; n=zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist(); assert any(x.endswith('evidence_registry.json') for x in n), 'evidence registry missing'; assert any(x.endswith('scenario_assumptions.json') for x in n), 'assumption manifest missing'; assert any(x.endswith('default_targets.json') for x in n), 'targets data missing'; assert sum(x.endswith('.yaml') for x in n)==4, 'policy packs missing'; assert sum(x.endswith('.png') and '/assets/v4/feed-cover-v4-' in x for x in n) == 48, 'feed v4 assets missing'; assert sum(x.endswith('.png') and '/assets/v4/ad-creative-v4-' in x for x in n) == 32, 'ad v4 assets missing'; assert not any('v3' in x for x in n), 'legacy v3 asset packaged'; print('wheel data OK')"
+          python scripts/wheel_qa.py
+      - name: Installed-wheel smoke (clean venv)
+        run: |
+          python -m venv /tmp/wheel_env
+          /tmp/wheel_env/bin/pip -q install dist/*.whl
+          /tmp/wheel_env/bin/python - <<'PY'
+          import tempfile
+          from socio_sim.config import RunConfig
+          from socio_sim.pipeline import run_and_analyze
+          cfg = RunConfig.test(n_agents=50, n_ticks=6, out_dir=tempfile.mkdtemp())
+          a = run_and_analyze(cfg, verify_replay=True)
+          assert a.summary and a.replay["ok"]
+          print("installed wheel smoke OK")
+          PY

@@ -113,7 +113,15 @@ python run.py --backtest
 ```
 
 `python -m build --wheel` requires the `build` package and should be run from an
-environment where the package is installed.
+environment where the package is installed. `python scripts/wheel_qa.py`
+then deep-verifies the wheel (packaged data parses, every registered asset
+present with matching SHA-256, one PNG per role fully decoded), and CI
+additionally installs the wheel into a clean venv and runs a
+replay-verified simulation from it.
+
+On POSIX/CI, `make verify` runs the whole suite in CI order (see
+`Makefile`; on Windows run the same commands directly). Release/rollback/
+retention notes: `docs/RELEASE.md`. Optional env vars: `.env.example`.
 
 ## Use Boundaries
 
