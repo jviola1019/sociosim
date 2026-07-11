@@ -1,18 +1,20 @@
-"""Calibration regression: the history-matched profile stays below the
-history-matching cutoff and explains any out-of-band component."""
+"""Aggregate-fit regression: the history-matched profile stays below the
+history-matching cutoff and explains any out-of-band component. This is an
+aggregate-fit diagnostic on synthetic targets, not a calibration claim."""
 
 from socio_sim.config import RunConfig
 from socio_sim.pipeline import run_and_analyze
 
 
-def test_calibrated_profile_is_within_tolerance_and_replays():
-    a = run_and_analyze(RunConfig.calibrated(jurisdictions=("EU",)),
-                        verify_replay=True)
+def test_aggregate_matched_profile_is_within_tolerance_and_replays():
+    a = run_and_analyze(
+        RunConfig.aggregate_matched_prototype(jurisdictions=("EU",)),
+        verify_replay=True)
     assert a.implausibility < 3.0, a.implausibility
     assert a.implausibility_dominant_metric == "ad_ctr"
     assert a.replay["ok"]
     # Hard budget caps can starve the ad-click component in this single run;
-    # all non-ad calibration observables remain within one tolerance band.
+    # all non-ad observables remain within one tolerance band.
     for name, spec in a.targets.items():
         o = a.observed.get(name)
         if o is not None and o == o:
@@ -23,12 +25,21 @@ def test_calibrated_profile_is_within_tolerance_and_replays():
             assert z <= 1.0001, (name, o, spec, z)
 
 
-def test_calibrated_beats_uncalibrated_baseline():
-    cal = run_and_analyze(RunConfig.calibrated(jurisdictions=("EU",)),
-                          verify_replay=False).implausibility
+def test_aggregate_matched_profile_beats_unmatched_baseline():
+    matched = run_and_analyze(
+        RunConfig.aggregate_matched_prototype(jurisdictions=("EU",)),
+        verify_replay=False).implausibility
     base = run_and_analyze(RunConfig.quick(jurisdictions=("EU",)),
                            verify_replay=False).implausibility
-    assert cal < base                                       # calibration helped
+    assert matched < base  # history matching reduced target distance
+
+
+def test_legacy_calibrated_factory_still_aliases_the_matched_profile():
+    # RunConfig.calibrated is kept only as a migration alias; it must stay
+    # behaviourally identical to aggregate_matched_prototype.
+    legacy = RunConfig.calibrated(jurisdictions=("EU",))
+    honest = RunConfig.aggregate_matched_prototype(jurisdictions=("EU",))
+    assert legacy.config_hash() == honest.config_hash()
 
 
 def test_plc_graph_has_higher_clustering_than_ba():

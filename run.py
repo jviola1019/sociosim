@@ -241,7 +241,7 @@ def main():
         (ROOT / "VALIDATION_REPORT.md").write_text(
             render_validation_report(study), encoding="utf-8")
         print(f"Wrote VALIDATION_REPORT.md  (implausibility I = "
-              f"{study['calibration']['implausibility']:.2f}, cutoff 3.0)")
+              f"{study['aggregate_fit']['implausibility']:.2f}, cutoff 3.0)")
         return 0
 
     if args.backtest:

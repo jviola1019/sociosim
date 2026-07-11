@@ -16,7 +16,7 @@ def make_graph(kind: str, n: int, rng: np.random.Generator, **params) -> nx.Grap
         return nx.barabasi_albert_graph(n, params.get("m", 5), seed=seed)
     if kind == "plc":
         # Holme-Kim: BA-style power-law degree PLUS tunable clustering via the
-        # triad-formation probability p (calibration knob for clustering).
+        # triad-formation probability p (tuning knob for clustering).
         return nx.powerlaw_cluster_graph(
             n, params.get("m", 5), params.get("p", 0.3), seed=seed)
     if kind == "ws":

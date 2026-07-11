@@ -1,5 +1,8 @@
 # Aggregate-Fit Diagnostic Note
 
+(Renamed from `CALIBRATION_REPORT.md`: the filename itself implied a
+calibration artifact that does not exist.)
+
 This file supersedes the former aggregate-matching note. The "calibrated
 profile" name is no longer used -- it was not a calibration claim, and the
 profile is now called `aggregate_matched_prototype`.

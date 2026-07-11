@@ -1,7 +1,7 @@
 """Synthetic agent personas, stored columnar for vectorized ticks (Spec §3.3).
 
 Personas are entirely synthetic — never derived from real individuals.
-Distribution choices are documented inline; all are calibration knobs.
+Distribution choices are documented inline; all are scenario tuning knobs.
 """
 
 from __future__ import annotations

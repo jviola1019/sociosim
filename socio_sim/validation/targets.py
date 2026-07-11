@@ -1,5 +1,7 @@
-"""Calibration targets (Spec §3.9): named aggregate benchmarks + observation
-extraction from runs. KS distances are available for distributional targets."""
+"""Aggregate-fit targets (Spec §3.9): named legacy aggregate benchmarks +
+observation extraction from runs. KS distances are available for
+distributional targets. These drive aggregate-fit DIAGNOSTICS, not
+calibration claims (their evidence metadata is incomplete)."""
 
 from __future__ import annotations
 

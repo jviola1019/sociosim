@@ -53,7 +53,9 @@ def test_python_import_line_not_flagged():
 
 
 def test_dict_subscript_identifier_not_flagged():
-    text = "print(f\"I = {study['calibration']['implausibility']:.2f}\")"
+    # The dict-subscript skip is a generic mechanism; 'calibration' here is
+    # a deliberately risky-looking KEY proving identifiers aren't prose.
+    text = "print(f\"I = {legacy['calibration']['implausibility']:.2f}\")"
     errs = claim_scan._context_aware_errors("run.py", text)
     assert errs == []
 
