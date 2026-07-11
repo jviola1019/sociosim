@@ -685,6 +685,9 @@ def _run_job(job_id: str, body: dict):
             "n_events": len(result.log.events),
             "content_mode": cfg.content_mode,
             "n_llm_calls": len(llm_calls),
+            # Transport-side usage diagnostics (calls/latency/tokens);
+            # deliberately outside the hashed event stream.
+            "llm_usage": result.llm_usage,
             "n_degradations": len(result.log.by_kind("degradation")),
             "sample_post": (llm_calls[0]["data"]["text_preview"]
                             if llm_calls else None),

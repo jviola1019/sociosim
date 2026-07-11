@@ -187,7 +187,6 @@ def test_save_is_atomic_a_failed_replace_leaves_old_cache_intact(tmp_path, monke
     """Atomic persistence: save() must write a temp file and os.replace()
     it over the target, so a crash mid-save can never leave a truncated/
     corrupt cache -- the previous complete cache survives."""
-    import os as _os
     path = tmp_path / "cache.json"
     original = {"k": llm_cache.make_entry("original", "accepted", [])}
     llm_cache.save(path, original)

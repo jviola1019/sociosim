@@ -19,6 +19,7 @@ import http.client
 import json
 import socket
 import ssl
+import time
 from pathlib import Path
 from typing import Callable
 from urllib.parse import urlparse
@@ -106,6 +107,14 @@ class LLMAdapter:
         self._fail_streak = 0
         self._give_up_after = 3
         self._disabled = False
+        # Usage accounting (deferred P5 item). Diagnostics ONLY: lives on
+        # the adapter, surfaced via RunResult.llm_usage, and never enters
+        # the hashed event stream (latency is wall-clock).
+        self.usage = {"calls": 0, "cache_hits": 0, "blocked": 0,
+                      "failures": 0, "latency_s": 0.0,
+                      "prompt_chars": 0, "response_chars": 0,
+                      "prompt_eval_tokens": 0, "response_eval_tokens": 0}
+        self._last_token_counts: tuple | None = None
 
     # -- prompt & cache ----------------------------------------------------
     def _prompt(self, author_id: int, personas, topic: int, tick: int) -> str:
@@ -139,6 +148,7 @@ class LLMAdapter:
         if lookup.degradation:
             self.on_degradation(lookup.degradation)
         if lookup.hit:
+            self.usage["cache_hits"] += 1
             if lookup.text is not None:
                 self._apply_text(item, lookup.text)
             return item  # blocked or tamper-free accepted hit; never re-call
@@ -149,12 +159,22 @@ class LLMAdapter:
                 f"template text used")
             return item
         try:
+            self._last_token_counts = None
+            started = time.perf_counter()
             text = (self.transport(prompt) or "").strip()
+            self.usage["calls"] += 1
+            self.usage["latency_s"] += time.perf_counter() - started
+            self.usage["prompt_chars"] += len(prompt)
+            self.usage["response_chars"] += len(text)
+            if self._last_token_counts is not None:
+                self.usage["prompt_eval_tokens"] += self._last_token_counts[0]
+                self.usage["response_eval_tokens"] += self._last_token_counts[1]
             if not text:
                 raise ValueError("empty LLM response")
             text = " ".join(text.split())[:280]
             reasons = check_generated_text(text, item)
             if reasons:
+                self.usage["blocked"] += 1
                 self._cache[key] = llm_cache.make_entry(
                     text, "blocked", reasons,
                     guard_version=llm_cache.BLOCKED_GUARD_VERSION)
@@ -171,6 +191,7 @@ class LLMAdapter:
             self._fail_streak = 0
         except Exception as exc:
             self._fail_streak += 1
+            self.usage["failures"] += 1
             self.on_degradation(
                 f"{self.backend} call failed: {exc!r}; template text used")
             if self._fail_streak >= self._give_up_after:
@@ -236,5 +257,12 @@ class LLMAdapter:
         finally:
             conn.close()
         if self.backend == "ollama":
+            if "prompt_eval_count" in body or "eval_count" in body:
+                self._last_token_counts = (int(body.get("prompt_eval_count", 0)),
+                                           int(body.get("eval_count", 0)))
             return body["response"]
+        usage = body.get("usage") or {}
+        if usage:
+            self._last_token_counts = (int(usage.get("prompt_tokens", 0)),
+                                       int(usage.get("completion_tokens", 0)))
         return body["choices"][0]["message"]["content"]
