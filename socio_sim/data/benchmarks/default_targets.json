@@ -1,47 +1,82 @@
 {
-  "description": "Built-in legacy aggregate targets: aggregate published statistics only (no individual-level data). Each target carries a tolerance used by aggregate-fit diagnostics (implausibility I = |obs - value| / tolerance).",
+  "description": "Built-in legacy aggregate targets: aggregate published statistics only (no individual-level data). Each target carries a tolerance used by aggregate-fit diagnostics (implausibility I = |obs - value| / tolerance). Citation research pass 2026-07-11: named-paper identifiers were verified against arXiv/dblp/official pages (see per-target source_status); numeric values were NOT independently re-verified, and the full metadata schema (population, date range, source hash, tolerance rationale) remains incomplete, so every target stays kind=unsupported and comparison gates stay closed.",
   "targets": {
     "degree_tail_exponent": {
       "value": 2.5,
       "tolerance": 0.5,
       "source": "Scale-free social networks: power-law exponent typically 2-3 (Barabasi & Albert 1999 and successors)",
-      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy",
+      "source_doi": "10.1126/science.286.5439.509",
+      "source_url": "https://arxiv.org/abs/cond-mat/9910332",
+      "source_status": "citation_identifier_verified",
+      "verification_note": "Barabasi & Albert 1999 (Science 286:509) identifier verified via arXiv cond-mat/9910332 on the retrieval date; the abstract confirms scale-free power-law connectivity but states no numeric exponent -- the 2-3 range is a literature convention, not re-verified here.",
+      "retrieved_at": "2026-07-11"
     },
     "clustering": {
       "value": 0.2,
       "tolerance": 0.1,
       "source": "Online social networks: average clustering commonly 0.1-0.3 (e.g., Mislove et al. 2007 measurements)",
-      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy",
+      "source_doi": "10.1145/1298306.1298311",
+      "source_url": "https://dblp.org/rec/conf/imc/MisloveMGDB07.html",
+      "source_status": "citation_identifier_verified",
+      "verification_note": "Mislove et al. 2007 (IMC'07 pp.29-42) verified via dblp on the retrieval date; the 0.1-0.3 clustering range attributed to its measurements was not re-verified against the paper body.",
+      "retrieved_at": "2026-07-11"
     },
     "diurnal_peak_hour": {
       "value": 17,
       "tolerance": 2,
       "source": "Circadian posting studies: activity peaks ~16-18h local time",
-      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy",
+      "source_doi": null,
+      "source_url": null,
+      "source_status": "unverified_range_claim",
+      "verification_note": "No named, verifiable publication behind this range claim; kept only as an unsupported legacy diagnostic anchor.",
+      "retrieved_at": "2026-07-11"
     },
     "diurnal_trough_hour": {
       "value": 5,
       "tolerance": 2,
       "source": "Circadian posting studies: troughs ~04-06h local time",
-      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy",
+      "source_doi": null,
+      "source_url": null,
+      "source_status": "unverified_range_claim",
+      "verification_note": "No named, verifiable publication behind this range claim; kept only as an unsupported legacy diagnostic anchor.",
+      "retrieved_at": "2026-07-11"
     },
     "posts_per_agent_day": {
       "value": 0.5,
       "tolerance": 0.35,
       "source": "Median platform posting rates: most users post < 1x/day; heavy tail above",
-      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy",
+      "source_doi": null,
+      "source_url": null,
+      "source_status": "unverified_range_claim",
+      "verification_note": "No named, verifiable publication behind this range claim; kept only as an unsupported legacy diagnostic anchor.",
+      "retrieved_at": "2026-07-11"
     },
     "ad_ctr": {
       "value": 0.01,
       "tolerance": 0.008,
       "source": "Industry display/social ad click-through rates ~0.5-2%",
-      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy",
+      "source_doi": null,
+      "source_url": null,
+      "source_status": "unverified_range_claim",
+      "verification_note": "No named, verifiable publication behind this range claim; kept only as an unsupported legacy diagnostic anchor.",
+      "retrieved_at": "2026-07-11"
     },
     "appeal_grant_rate": {
       "value": 0.25,
       "tolerance": 0.15,
       "source": "Platform transparency reports: appeal reinstatement rates ~10-40%",
-      "evidence_id": "ev.unsupported.aggregate_targets_legacy"
+      "evidence_id": "ev.unsupported.aggregate_targets_legacy",
+      "source_doi": null,
+      "source_url": null,
+      "source_status": "unverified_range_claim",
+      "verification_note": "No named, verifiable publication behind this range claim; kept only as an unsupported legacy diagnostic anchor.",
+      "retrieved_at": "2026-07-11"
     }
   }
 }
