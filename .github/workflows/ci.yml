@@ -4,6 +4,8 @@ on:
   push:
     branches: ["**"]
   pull_request:
+  # Manual re-run against any ref, e.g. to prove an exact release SHA.
+  workflow_dispatch:
 
 jobs:
   test:

@@ -68,6 +68,103 @@ def bootstrap_ollama(model: str, host: str):
 # --------------------------------------------------------------------------
 # Simulation run
 # --------------------------------------------------------------------------
+def _human_bytes(n: int) -> str:
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return f"{n:.0f}{unit}" if unit == "B" else f"{n / 1:.0f}{unit}"
+        n /= 1024
+    return f"{n:.0f}GB"
+
+
+def _lifecycle_command(args) -> int | None:
+    """Local data-lifecycle subcommands (Phase 6). Returns an exit code when
+    one of them ran, or None to continue with a normal simulation."""
+    from socio_sim import ops
+    from socio_sim.web.store import DEFAULT_DB
+
+    out_root = Path("out")
+
+    if args.verify_export:
+        problems = ops.verify_export(Path(args.verify_export))
+        if problems:
+            print(f"INTEGRITY FAILED for {args.verify_export}:")
+            print("\n".join(f"  - {p}" for p in problems))
+            return 1
+        print(f"integrity OK: {args.verify_export} matches its integrity.json")
+        return 0
+
+    if args.export_all:
+        res = ops.export_all(out_root, Path(args.export_all))
+        print(f"exported {len(res['exported'])} run(s) to {res['dest']} "
+              "(each with a sha256 integrity.json; re-check with "
+              "--verify-export)")
+        return 0
+
+    if args.vacuum_db:
+        res = ops.vacuum_db(DEFAULT_DB)
+        if not res["vacuumed"]:
+            print(f"nothing to vacuum ({res['reason']})")
+        else:
+            print(f"vacuumed {DEFAULT_DB}: "
+                  f"{res['bytes_before']} -> {res['bytes_after']} bytes")
+        return 0
+
+    if args.status:
+        runs = ops.scan_runs(out_root)
+        disk = ops.disk_status(out_root)
+        db = ops.db_health(DEFAULT_DB)
+        total = sum(r.bytes for r in runs)
+        print(f"Local runs: {len(runs)} in {out_root}/ "
+              f"({total / 1e6:.1f} MB total)")
+        for r in runs[:10]:
+            print(f"  {r.path.name:32s} {r.age_days:6.1f}d  "
+                  f"{r.bytes / 1e6:7.2f} MB")
+        if len(runs) > 10:
+            print(f"  ... and {len(runs) - 10} more")
+        print(f"Disk: {disk['free_bytes'] / 1e9:.1f} GB free"
+              + ("  *** LOW DISK ***" if disk["low_disk"] else ""))
+        print(f"Run-history DB: present={db['present']} ok={db['ok']} "
+              f"({db['bytes'] / 1e6:.2f} MB) — {db['detail']}")
+        print("Retention is opt-in: nothing is deleted unless you run "
+              "--cleanup --keep-last N / --max-age-days N --yes")
+        return 0
+
+    if args.cleanup:
+        if args.keep_last is None and args.max_age_days is None:
+            print("--cleanup needs a policy: --keep-last N and/or "
+                  "--max-age-days N (refusing to guess)")
+            return 2
+        runs = ops.scan_runs(out_root)
+        doomed = ops.select_for_deletion(runs, keep_last=args.keep_last,
+                                         max_age_days=args.max_age_days)
+        if not doomed:
+            print("retention policy matches nothing; no runs to delete")
+            return 0
+        freed = sum(r.bytes for r in doomed)
+        print(f"{'DELETING' if args.yes else 'DRY RUN — would delete'} "
+              f"{len(doomed)} run(s), freeing {freed / 1e6:.1f} MB:")
+        for r in doomed:
+            print(f"  {r.path}  ({r.age_days:.1f}d, {r.bytes / 1e6:.2f} MB)")
+        if not args.yes:
+            print("\nNothing was deleted. Re-run with --yes to confirm.")
+            return 0
+        import shutil as _shutil
+        for r in doomed:
+            _shutil.rmtree(r.path)
+        # Deleting directories alone would leave the history DB pointing at
+        # runs that can no longer be opened (and VACUUM would reclaim
+        # nothing, since the rows remain).
+        orphans = ops.prune_orphan_history(DEFAULT_DB, out_root)
+        vac = ops.vacuum_db(DEFAULT_DB)
+        print(f"deleted {len(doomed)} run(s); pruned {orphans['pruned']} "
+              "orphaned history row(s)"
+              + (f"; database {vac['bytes_before']} -> {vac['bytes_after']} "
+                 "bytes" if vac.get("vacuumed") else ""))
+        return 0
+
+    return None
+
+
 def _print_diagnostics(a, n_replicates: int) -> None:
     """Aggregate-fit + Monte Carlo diagnostics with the same honesty gates
     the web layer applies (audit C-01/C-02/A-04): no observed-vs-target
@@ -236,9 +333,37 @@ def main():
                    help="synthesize deterministic PNG previews for the first N posts into "
                         "<out>/media/ (deterministic, offline procedural)")
     p.add_argument("--out", default="out/run", help="output directory")
+    # -- local data lifecycle (Phase 6). Opt-in; never deletes by default.
+    p.add_argument("--status", action="store_true",
+                   help="show local run inventory, disk space, and run-history "
+                        "database health, then exit")
+    p.add_argument("--cleanup", action="store_true",
+                   help="apply the retention policy to out/ (DRY RUN unless "
+                        "--yes is also given); needs --keep-last and/or "
+                        "--max-age-days")
+    p.add_argument("--keep-last", type=int,
+                   help="retention: keep the N most recent runs")
+    p.add_argument("--max-age-days", type=float,
+                   help="retention: delete runs older than N days")
+    p.add_argument("--yes", action="store_true",
+                   help="confirm a --cleanup deletion (without it, cleanup is "
+                        "a dry run and deletes nothing)")
+    p.add_argument("--vacuum-db", action="store_true",
+                   help="VACUUM the run-history database (reclaims space after "
+                        "deletions), then exit")
+    p.add_argument("--export-all", metavar="DEST",
+                   help="copy every run in out/ to DEST with a per-run sha256 "
+                        "integrity manifest, then exit")
+    p.add_argument("--verify-export", metavar="DIR",
+                   help="re-check an exported run directory against its "
+                        "integrity.json, then exit")
     args = p.parse_args()
 
     print(f"NOTE: {RESEARCH_USE_NOTICE}\n")
+
+    lifecycle = _lifecycle_command(args)
+    if lifecycle is not None:
+        return lifecycle
 
     if args.validate:
         from socio_sim.validation.study import (render_validation_report,

@@ -158,6 +158,30 @@ _LLM_HOST = DEFAULT_HOST  # single source: socio_sim.llm_bootstrap
 _STORE = RunStore()  # persistent run history (out/sociosim.db)
 
 
+def _commit_sha() -> str | None:
+    """Commit SHA of the running tree, or None when unknown (installed
+    wheel, no git). Never guessed -- an honest None beats a wrong SHA."""
+    global _COMMIT_SHA
+    if _COMMIT_SHA is _UNSET:
+        _COMMIT_SHA = None
+        try:
+            import subprocess
+            root = Path(__file__).resolve().parents[2]
+            if (root / ".git").exists():
+                out = subprocess.run(  # nosec B603,B607 - fixed argv, no shell
+                    ["git", "rev-parse", "HEAD"], cwd=root, capture_output=True,
+                    text=True, timeout=5, check=False)
+                if out.returncode == 0:
+                    _COMMIT_SHA = out.stdout.strip() or None
+        except Exception:
+            _COMMIT_SHA = None
+    return _COMMIT_SHA
+
+
+_UNSET = object()
+_COMMIT_SHA: object = _UNSET
+
+
 def _asset_web_path(rec) -> str | None:
     """Registry file_path -> web path. Normalizes separators BEFORE the
     split (H-01): a registry.json regenerated with Windows backslash paths
@@ -806,9 +830,25 @@ class Handler(BaseHTTPRequestHandler):
             return
         if route in ("/", "/index.html"):
             self._send_file(STATIC_DIR / "index.html")
+        elif route == "/api/health":
+            # Liveness: the process is up and serving. Deliberately cheap
+            # and dependency-free.
+            self._send_json({"status": "ok", "version": __version__,
+                             "commit": _commit_sha()})
+        elif route == "/api/ready":
+            # Readiness: can this instance actually accept a run? Reports
+            # disk headroom and run-history DB integrity honestly; a
+            # low-disk or corrupt-DB instance is NOT ready.
+            from socio_sim import ops
+            disk = ops.disk_status(Path("out"))
+            db = ops.db_health(_STORE.path)
+            ready = (not disk["low_disk"]) and db["ok"]
+            self._send_json({"ready": ready, "disk": disk, "database": db},
+                            200 if ready else 503)
         elif route == "/api/meta":
             self._send_json({
                 "version": __version__,
+                "commit": _commit_sha(),
                 "notice": RESEARCH_USE_NOTICE,
                 "token": (getattr(self.server, "access_token", None)
                           if getattr(self.server, "expose_token", True) else None),

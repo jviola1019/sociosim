@@ -36,18 +36,38 @@ Releases are plain git tags + wheels; no migrations, no external state.
   a local cache of run payloads, not a source of truth (every run's
   authoritative record is its `out/<run>/events.jsonl` + `manifest.json`).
 
+## Branch protection
+
+Requiring the `test` check on `main` needs GitHub Pro on private repos
+(the API returns 403 "Upgrade to GitHub Pro" — attempted 2026-07-11).
+Until the repo is public or upgraded, the enforced substitute is this
+release gate: **never tag or announce a release whose exact SHA lacks a
+completed successful run** (`gh run list --commit <sha>` +
+`gh api .../commits/<sha>/check-runs`). CI also has `workflow_dispatch`
+so any ref can be re-proven manually.
+
+## Corrupted run-history database (recovery)
+
+`python run.py --status` reports DB health (`PRAGMA integrity_check`).
+If it reports corruption: stop the console, move `out/sociosim.db` aside,
+and restart — the schema is recreated empty. The DB is a local cache;
+every run's authoritative record is its `out/<run>/events.jsonl` +
+`manifest.json`, and determinism means any run is reproducible from
+config + seed. To salvage rows first: `sqlite3 out/sociosim.db ".recover" |
+sqlite3 recovered.db`.
+
 ## Local data retention & cleanup
 
 - Every run writes `out/<name>/` (events.jsonl, manifest.json, report.md)
   and the web console appends to `out/sociosim.db`. Nothing leaves the
   machine.
-- There is NO automatic retention policy: `out/` grows until you delete
-  it. Safe cleanup: remove `out/` entirely (regenerable; determinism means
-  any run can be reproduced from its config + seed) or delete individual
-  run folders / History entries in the UI.
-- Backup/export limitation: exports are per-run markdown/JSON from the
-  UI/CLI; there is no bulk backup tool. Copy `out/` wholesale if you need
-  an archive.
+- Retention is OPT-IN via the CLI: `python run.py --status` (inventory,
+  disk headroom, DB health), `--cleanup --keep-last N / --max-age-days D`
+  (dry run by default; `--yes` to delete — this also prunes orphaned
+  history rows and vacuums the DB), `--vacuum-db`.
+- Bulk backup: `python run.py --export-all DEST` copies every run with a
+  per-run sha256 `integrity.json`; `--verify-export DIR` re-checks an
+  archived copy. Exports are plain directories, no archive format.
 
 ## Secrets
 
