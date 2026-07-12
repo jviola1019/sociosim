@@ -10,7 +10,32 @@
       "source_url": "https://arxiv.org/abs/1111.4503",
       "source_status": "citation_identifier_verified",
       "verification_note": "Ugander et al. 2011 verified via arXiv:1111.4503 on the retrieval date; the abstract confirms 'surprisingly dense' neighborhood clustering but states no numeric coefficient -- the ~0.6 figure is from the paper body, not re-verified here.",
-      "retrieved_at": "2026-07-11"
+      "retrieved_at": "2026-07-11",
+      "source_title": "The Anatomy of the Facebook Social Graph",
+      "license_access": "open_preprint_arxiv",
+      "source_version": null,
+      "population": null,
+      "geography": null,
+      "time_window": null,
+      "methodology": null,
+      "statistic_location": null,
+      "transformation": null,
+      "source_hash": null,
+      "units": "average local clustering coefficient [0,1]",
+      "tolerance_rationale": "scenario_threshold_not_derived: no statistical derivation exists for this tolerance; it is a scenario knob, not a confidence bound",
+      "applicability_limits": "aggregate-fit diagnostics only; the numeric value is unverified against any source (null fields above are 'not established', not 'not applicable')",
+      "valid_uses": [
+        "input to the aggregate-fit implausibility diagnostic",
+        "synthetic scenario anchoring under stated assumptions"
+      ],
+      "invalid_uses": [
+        "pass/fail or closeness seals",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "decision guidance"
+      ],
+      "verification_status": "identifier_verified_value_unverified"
     },
     "diurnal_peak_hour": {
       "value": 20,
@@ -21,7 +46,32 @@
       "source_url": null,
       "source_status": "unverified_range_claim",
       "verification_note": "No named, verifiable publication behind this range claim; kept only as an unsupported legacy diagnostic anchor.",
-      "retrieved_at": "2026-07-11"
+      "retrieved_at": "2026-07-11",
+      "source_title": null,
+      "license_access": null,
+      "source_version": null,
+      "population": null,
+      "geography": null,
+      "time_window": null,
+      "methodology": null,
+      "statistic_location": null,
+      "transformation": null,
+      "source_hash": null,
+      "units": "hour of day [0,23]",
+      "tolerance_rationale": "scenario_threshold_not_derived: no statistical derivation exists for this tolerance; it is a scenario knob, not a confidence bound",
+      "applicability_limits": "aggregate-fit diagnostics only; the numeric value is unverified against any source (null fields above are 'not established', not 'not applicable')",
+      "valid_uses": [
+        "input to the aggregate-fit implausibility diagnostic",
+        "synthetic scenario anchoring under stated assumptions"
+      ],
+      "invalid_uses": [
+        "pass/fail or closeness seals",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "decision guidance"
+      ],
+      "verification_status": "unverified"
     },
     "diurnal_trough_hour": {
       "value": 4,
@@ -32,7 +82,32 @@
       "source_url": null,
       "source_status": "unverified_range_claim",
       "verification_note": "No named, verifiable publication behind this range claim; kept only as an unsupported legacy diagnostic anchor.",
-      "retrieved_at": "2026-07-11"
+      "retrieved_at": "2026-07-11",
+      "source_title": null,
+      "license_access": null,
+      "source_version": null,
+      "population": null,
+      "geography": null,
+      "time_window": null,
+      "methodology": null,
+      "statistic_location": null,
+      "transformation": null,
+      "source_hash": null,
+      "units": "hour of day [0,23]",
+      "tolerance_rationale": "scenario_threshold_not_derived: no statistical derivation exists for this tolerance; it is a scenario knob, not a confidence bound",
+      "applicability_limits": "aggregate-fit diagnostics only; the numeric value is unverified against any source (null fields above are 'not established', not 'not applicable')",
+      "valid_uses": [
+        "input to the aggregate-fit implausibility diagnostic",
+        "synthetic scenario anchoring under stated assumptions"
+      ],
+      "invalid_uses": [
+        "pass/fail or closeness seals",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "decision guidance"
+      ],
+      "verification_status": "unverified"
     },
     "posts_per_agent_day": {
       "value": 0.5,
@@ -43,7 +118,32 @@
       "source_url": null,
       "source_status": "unverified_range_claim",
       "verification_note": "No named, verifiable publication behind this range claim; kept only as an unsupported legacy diagnostic anchor.",
-      "retrieved_at": "2026-07-11"
+      "retrieved_at": "2026-07-11",
+      "source_title": null,
+      "license_access": null,
+      "source_version": null,
+      "population": null,
+      "geography": null,
+      "time_window": null,
+      "methodology": null,
+      "statistic_location": null,
+      "transformation": null,
+      "source_hash": null,
+      "units": "posts per agent per day",
+      "tolerance_rationale": "scenario_threshold_not_derived: no statistical derivation exists for this tolerance; it is a scenario knob, not a confidence bound",
+      "applicability_limits": "aggregate-fit diagnostics only; the numeric value is unverified against any source (null fields above are 'not established', not 'not applicable')",
+      "valid_uses": [
+        "input to the aggregate-fit implausibility diagnostic",
+        "synthetic scenario anchoring under stated assumptions"
+      ],
+      "invalid_uses": [
+        "pass/fail or closeness seals",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "decision guidance"
+      ],
+      "verification_status": "unverified"
     },
     "ad_ctr": {
       "value": 0.011,
@@ -54,7 +154,32 @@
       "source_url": null,
       "source_status": "unverified_range_claim",
       "verification_note": "No named, verifiable publication behind this range claim; kept only as an unsupported legacy diagnostic anchor.",
-      "retrieved_at": "2026-07-11"
+      "retrieved_at": "2026-07-11",
+      "source_title": null,
+      "license_access": null,
+      "source_version": null,
+      "population": null,
+      "geography": null,
+      "time_window": null,
+      "methodology": null,
+      "statistic_location": null,
+      "transformation": null,
+      "source_hash": null,
+      "units": "clicks per priced impression [0,1]",
+      "tolerance_rationale": "scenario_threshold_not_derived: no statistical derivation exists for this tolerance; it is a scenario knob, not a confidence bound",
+      "applicability_limits": "aggregate-fit diagnostics only; the numeric value is unverified against any source (null fields above are 'not established', not 'not applicable')",
+      "valid_uses": [
+        "input to the aggregate-fit implausibility diagnostic",
+        "synthetic scenario anchoring under stated assumptions"
+      ],
+      "invalid_uses": [
+        "pass/fail or closeness seals",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "decision guidance"
+      ],
+      "verification_status": "unverified"
     },
     "appeal_grant_rate": {
       "value": 0.2,
@@ -65,7 +190,32 @@
       "source_url": null,
       "source_status": "unverified_range_claim",
       "verification_note": "No named, verifiable publication behind this range claim; kept only as an unsupported legacy diagnostic anchor.",
-      "retrieved_at": "2026-07-11"
+      "retrieved_at": "2026-07-11",
+      "source_title": null,
+      "license_access": null,
+      "source_version": null,
+      "population": null,
+      "geography": null,
+      "time_window": null,
+      "methodology": null,
+      "statistic_location": null,
+      "transformation": null,
+      "source_hash": null,
+      "units": "granted appeals per filed appeal [0,1]",
+      "tolerance_rationale": "scenario_threshold_not_derived: no statistical derivation exists for this tolerance; it is a scenario knob, not a confidence bound",
+      "applicability_limits": "aggregate-fit diagnostics only; the numeric value is unverified against any source (null fields above are 'not established', not 'not applicable')",
+      "valid_uses": [
+        "input to the aggregate-fit implausibility diagnostic",
+        "synthetic scenario anchoring under stated assumptions"
+      ],
+      "invalid_uses": [
+        "pass/fail or closeness seals",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "decision guidance"
+      ],
+      "verification_status": "unverified"
     }
   }
 }

@@ -20,6 +20,34 @@ def test_targets_load_with_tolerances():
         assert "source" in spec
 
 
+def test_every_target_carries_the_full_metadata_schema_and_stays_gated():
+    """P3: each benchmark target carries the complete metadata schema with
+    machine-readable incompleteness (explicit nulls), scenario-threshold
+    tolerance labeling, and a verification_status that is never 'verified'
+    -- so the decision-facing comparison gate must remain closed."""
+    from socio_sim.evidence import targets_metadata_complete
+    required = {"value", "tolerance", "source", "evidence_id", "source_doi",
+                "source_url", "source_status", "retrieved_at", "source_title",
+                "source_version", "license_access", "population", "geography",
+                "time_window", "methodology", "statistic_location", "units",
+                "transformation", "source_hash", "tolerance_rationale",
+                "applicability_limits", "valid_uses", "invalid_uses",
+                "verification_status"}
+    for benchmark in ("default", "twitter_like", "facebook_like"):
+        targets = load_targets(benchmark)
+        assert targets, benchmark
+        for name, spec in targets.items():
+            missing = required - set(spec)
+            assert not missing, (benchmark, name, missing)
+            assert spec["verification_status"] in (
+                "unverified", "identifier_verified_value_unverified"), (
+                benchmark, name)
+            assert "scenario_threshold" in spec["tolerance_rationale"]
+            assert "pass/fail or closeness seals" in spec["invalid_uses"]
+        assert targets_metadata_complete(targets) is False, (
+            f"{benchmark}: gate must stay closed while values are unverified")
+
+
 def test_bundled_empirical_benchmark_sets():
     from socio_sim.validation.targets import available_benchmarks
     avail = available_benchmarks()
