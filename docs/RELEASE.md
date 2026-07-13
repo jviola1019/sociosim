@@ -22,7 +22,18 @@ health endpoint (single-user stdlib server by design).
    `verify_replay=True`.
 4. CI green **for the exact SHA being released** (`gh run watch <run-id>
    --exit-status`), not just a PR head.
-5. Tag: `git tag -a vX.Y.Z -m "..." && git push --tags`.
+5. Tag: `git tag -a vX.Y.Z -m "..." && git push --tags`. The
+   **Release workflow** (`.github/workflows/release.yml`) then re-runs the
+   entire gate suite *against the tagged SHA* and only then publishes the
+   wheel, `SHA256SUMS`, an SPDX SBOM, `provenance.json` (commit, workflow
+   run, gate list, scope), and release notes generated from the reviewed
+   commits since the previous tag. A green PR-head run is never accepted
+   as proof of a release commit; `workflow_dispatch` can also verify any
+   arbitrary SHA.
+
+Rollback verification: after checking out a previous tag, run
+`make verify` (which now ends with `installed-wheel-smoke`) — the release
+is only considered rolled back once that passes on the older SHA.
 
 ## Rollback
 
