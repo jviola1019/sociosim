@@ -28,7 +28,8 @@ from socio_sim.web import app  # noqa: E402
 #: rules are reported but do not fail the build.
 _AXE_OPTIONS = {
     "runOnly": {"type": "tag",
-                "values": ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]},
+                "values": ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa",
+                           "wcag22a", "wcag22aa"]},
     "resultTypes": ["violations"],
 }
 
@@ -120,6 +121,26 @@ def test_skip_link_charts_summaries_and_narrow_viewport():
                 labels = page.eval_on_selector_all(
                     "#charts [role=img]", "els => els.map(e => e.getAttribute('aria-label'))")
                 assert all(lbl and _re.search(r"\d", lbl) for lbl in labels), labels
+
+                # WCAG 2.2 SC 2.5.8 Target Size (Minimum), 24x24 CSS px.
+                # Measure the EFFECTIVE pointer target: a checkbox inside a
+                # <label> is activated by clicking the label, so the label's
+                # box is the target, not the 13x13 input.
+                undersized = page.evaluate("""() => {
+                  const sel = 'button, a[href], select, input[type=checkbox], input[type=radio]';
+                  const box = e => {
+                    const lbl = e.closest('label');
+                    const t = (lbl && (e.type === 'checkbox' || e.type === 'radio')) ? lbl : e;
+                    const r = t.getBoundingClientRect();
+                    return {id: e.id || e.className || e.tagName,
+                            w: Math.round(r.width), h: Math.round(r.height)};
+                  };
+                  return [...document.querySelectorAll(sel)]
+                    .filter(e => e.offsetParent !== null)
+                    .map(box)
+                    .filter(o => (o.w < 24 || o.h < 24) && o.w > 0);
+                }""")
+                assert undersized == [], undersized
 
                 # 320 CSS px: no horizontal page scroll (tables may scroll
                 # inside their own container, the document may not).

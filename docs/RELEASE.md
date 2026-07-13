@@ -49,13 +49,32 @@ Releases are plain git tags + wheels; no migrations, no external state.
 
 ## Branch protection
 
-Requiring the `test` check on `main` needs GitHub Pro on private repos
-(the API returns 403 "Upgrade to GitHub Pro" — attempted 2026-07-11).
-Until the repo is public or upgraded, the enforced substitute is this
-release gate: **never tag or announce a release whose exact SHA lacks a
-completed successful run** (`gh run list --commit <sha>` +
-`gh api .../commits/<sha>/check-runs`). CI also has `workflow_dispatch`
-so any ref can be re-proven manually.
+**Blocked by the repository plan, not by choice.** Both mechanisms were
+attempted and both return `403 Upgrade to GitHub Pro or make this
+repository public`:
+
+- classic protection — `PUT /repos/:owner/:repo/branches/main/protection`
+  (attempted 2026-07-11);
+- repository rulesets — `POST /repos/:owner/:repo/rulesets` (attempted
+  2026-07-13).
+
+To enable it, make the repo public **or** upgrade to GitHub Pro, then run:
+
+```bash
+gh api -X POST repos/<owner>/<repo>/rulesets --input - <<'JSON'
+{"name":"main-ci-required","target":"branch","enforcement":"active",
+ "conditions":{"ref_name":{"include":["~DEFAULT_BRANCH"],"exclude":[]}},
+ "rules":[{"type":"required_status_checks","parameters":{
+   "strict_required_status_checks_policy":true,
+   "required_status_checks":[{"context":"test"}]}},
+  {"type":"deletion"},{"type":"non_fast_forward"}]}
+JSON
+```
+
+Until then the enforced substitute is this release gate: **never tag or
+announce a release whose exact SHA lacks a completed successful run**
+(`gh run list --commit <sha>` + `gh api .../commits/<sha>/check-runs`).
+CI has `workflow_dispatch` so any ref can be re-proven manually.
 
 ## Corrupted run-history database (recovery)
 
