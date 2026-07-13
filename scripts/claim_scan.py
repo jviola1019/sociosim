@@ -155,8 +155,22 @@ TRAILING = 40  # characters after a match to scan for an exempt phrase
 
 
 def tracked_files() -> list[Path]:
-    out = subprocess.check_output(["git", "ls-files"], cwd=ROOT, text=True)
-    return [ROOT / line for line in out.splitlines()]
+    """Every file git knows about, INCLUDING newly added ones that are only
+    staged.
+
+    `git ls-files` alone lists the index, which does contain staged adds --
+    but a brand-new file that has not been `git add`-ed yet is invisible to
+    this scan while still being about to land in a commit. That gap let an
+    unhedged claim in a new doc pass a local gate run and fail in CI. The
+    `--others --exclude-standard` pass closes it by also scanning untracked,
+    non-ignored files, so the local gate sees exactly what CI will.
+    """
+    listed = subprocess.check_output(
+        ["git", "ls-files"], cwd=ROOT, text=True).splitlines()
+    untracked = subprocess.check_output(
+        ["git", "ls-files", "--others", "--exclude-standard"],
+        cwd=ROOT, text=True).splitlines()
+    return [ROOT / line for line in dict.fromkeys(listed + untracked)]
 
 
 def _stale_phrase_errors(rel: str, text: str) -> list[str]:

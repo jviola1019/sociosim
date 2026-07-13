@@ -41,7 +41,7 @@ Measured 2026-07-13: **0 violations, light and dark.**
 | 1.4.12 Text spacing / 1.4.13 Hover-focus content | pass (axe) | — |
 | 2.1.1 Keyboard / 2.1.2 No trap | pass | Scripted: Tab moves focus off `<body>`; the history drawer opens from the keyboard, traps focus, and returns it. |
 | 2.4.1 Bypass blocks | pass | Skip link is the first tab stop, visible on focus, and moves focus into the focusable `#output` region (asserted). |
-| 2.4.3 Focus order / 2.4.7 Focus visible | pass | Scripted: focus returns to the drawer's opener on Escape; `:focus-visible` outline verified under **real** keyboard focus (an earlier version of this check queried `getComputedStyle(..., ':focus-visible')`, which silently returns `''` — it was vacuous and was fixed). |
+| 2.4.3 Focus order / 2.4.7 Focus visible | pass | Scripted: focus returns to the drawer's opener on Escape; the `:focus-visible` outline is asserted under **real** keyboard focus (an earlier version of this check queried `getComputedStyle(..., ':focus-visible')`, which silently returns `''` — it was vacuous and was fixed). |
 | 2.4.11 Focus not obscured (min) — **2.2** | pass (axe) | — |
 | 2.5.8 Target size (minimum) — **2.2** | pass | Scripted: every interactive control's **effective** pointer target ≥ 24×24 CSS px. Checkboxes render 13×13 but are wrapped in `<label>`, so the label is the activation target; the test measures the label, not the input. |
 | 3.2.6 Consistent help / 3.3.7 Redundant entry — **2.2** | pass (axe) | — |
