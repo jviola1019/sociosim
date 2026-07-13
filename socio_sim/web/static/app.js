@@ -575,11 +575,35 @@ let _charts = null;
 function renderCharts(ch) {
   _charts = ch; const host = $("#charts"); host.innerHTML = "";
   const hours = [...Array(24)].map((_, i) => (i % 6 === 0 ? i : ""));
-  const cc = (title, sub, node) => { const d = document.createElement("div"); d.className = "chart"; d.innerHTML = `<div class="ct">${title}</div><div class="cs">${sub}</div>`; node.setAttribute("role", "img"); node.setAttribute("aria-label", `${title} — ${sub}`); d.appendChild(node); return d; };
-  host.appendChild(cc("Diurnal Posting", "posts by hour of day", areaChart(ch.diurnal, { color: "#30c0b4", xlabels: hours })));
-  host.appendChild(cc("Degree Distribution", "agents by follower count", barChart(ch.degree_hist.map(d => [Math.round(d[0]), d[1]]), { color: "#0a84ff", labelEvery: 4 })));
-  host.appendChild(cc("Activity Timeline", "posts (teal) vs moderation actions (blue)", dualLine(ch.timeline_posts, ch.timeline_removed)));
-  host.appendChild(cc("Cascade Sizes", "share-tree size distribution", barChart(ch.cascade, { color: "#ff9500", labelEvery: Math.max(1, Math.ceil(ch.cascade.length / 8)) })));
+  // WCAG 1.1.1: a chart's text alternative must carry the DATA, not just
+  // repeat its title. summary() describes range/peak/total from the series.
+  const cc = (title, sub, node, summary) => {
+    const d = document.createElement("div"); d.className = "chart";
+    d.innerHTML = `<div class="ct">${title}</div><div class="cs">${sub}</div>`;
+    const text = `${title} — ${sub}. ${summary || "no data in this run"}`;
+    node.setAttribute("role", "img");
+    node.setAttribute("aria-label", text);
+    d.appendChild(node);
+    const p = document.createElement("p");
+    p.className = "sr-only chart-summary";
+    p.textContent = text;                       // same data, for SR users
+    d.appendChild(p);
+    return d;
+  };
+  const nums = (series, i = 1) => (series || []).map(p => Array.isArray(p) ? +p[i] : +p).filter(Number.isFinite);
+  const peakAt = (series, i = 1) => { const v = nums(series, i); if (!v.length) return null; const m = Math.max(...v); return { max: m, at: v.indexOf(m), total: v.reduce((a, b) => a + b, 0) }; };
+  const dSum = peakAt(ch.diurnal);
+  const gSum = peakAt(ch.degree_hist);
+  const tSum = peakAt(ch.timeline_posts);
+  const cSum = peakAt(ch.cascade);
+  host.appendChild(cc("Diurnal Posting", "posts by hour of day", areaChart(ch.diurnal, { color: "#30c0b4", xlabels: hours }),
+    dSum && `${fmt(dSum.total, 0)} posts across 24 hours; busiest hour ${dSum.at}:00 with ${fmt(dSum.max, 0)} posts.`));
+  host.appendChild(cc("Degree Distribution", "agents by follower count", barChart(ch.degree_hist.map(d => [Math.round(d[0]), d[1]]), { color: "#0a84ff", labelEvery: 4 }),
+    gSum && `${ch.degree_hist.length} follower-count buckets; the most common bucket holds ${fmt(gSum.max, 0)} agents.`));
+  host.appendChild(cc("Activity Timeline", "posts (teal) vs moderation actions (blue)", dualLine(ch.timeline_posts, ch.timeline_removed),
+    tSum && `${fmt(tSum.total, 0)} posts over ${(ch.timeline_posts || []).length} ticks, peaking at ${fmt(tSum.max, 0)} in one tick; ${fmt(nums(ch.timeline_removed).reduce((a, b) => a + b, 0), 0)} moderation actions.`));
+  host.appendChild(cc("Cascade Sizes", "share-tree size distribution", barChart(ch.cascade, { color: "#ff9500", labelEvery: Math.max(1, Math.ceil(ch.cascade.length / 8)) }),
+    cSum && `${ch.cascade.length} cascade-size buckets; the largest bucket holds ${fmt(cSum.max, 0)} cascades.`));
   requestAnimationFrame(() => activateDraw(host));
 }
 function redrawCharts() { if (_charts) renderCharts(_charts); }

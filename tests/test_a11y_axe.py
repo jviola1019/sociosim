@@ -58,6 +58,83 @@ def _serious_or_critical(results):
             if v.get("impact") in ("serious", "critical")]
 
 
+def test_skip_link_charts_summaries_and_narrow_viewport():
+    """Manual-style checks automated scanning cannot make: a working skip
+    link (WCAG 2.4.1), chart text alternatives that carry the DATA rather
+    than repeat the title (1.1.1), no horizontal scrolling at 320 CSS px
+    (1.4.10), and a visible focus ring at 200% zoom (1.4.4 / 2.4.7)."""
+    port = _free_port()
+    server = ThreadingHTTPServer(("127.0.0.1", port), app.Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                context = browser.new_context(bypass_csp=True)
+                page = context.new_page()
+                page.emulate_media(reduced_motion="reduce")
+                page.goto(f"http://127.0.0.1:{port}")
+                page.wait_for_function(
+                    "document.querySelectorAll('#preset option').length > 0")
+
+                # Skip link: first Tab stop, hidden until focused, and it
+                # actually moves focus into the results region.
+                page.keyboard.press("Tab")
+                skip = page.locator(".skip-link")
+                assert page.evaluate(
+                    "document.activeElement.classList.contains('skip-link')")
+                assert skip.is_visible()
+                page.keyboard.press("Enter")
+                assert page.evaluate("location.hash") == "#output"
+                # The target is focusable (tabindex=-1), so focus really moves.
+                assert page.evaluate(
+                    "document.activeElement.id === 'output' || "
+                    "document.querySelector('#output')"
+                    ".contains(document.activeElement)")
+
+                # Focus ring stays visible at 200% zoom. :focus-visible cannot
+                # be queried via getComputedStyle, so drive REAL keyboard focus
+                # (which triggers it in Chromium) and read the rendered outline.
+                page.evaluate("document.body.style.zoom = '200%'")
+                page.keyboard.press("Tab")
+                ring = page.evaluate(
+                    "() => { const s = getComputedStyle(document.activeElement);"
+                    " return {w: s.outlineWidth, style: s.outlineStyle,"
+                    " tag: document.activeElement.tagName}; }")
+                assert ring["w"] not in ("", "0px") and ring["style"] != "none", ring
+                page.evaluate("document.body.style.zoom = ''")
+
+                # Charts: run once, then assert every chart's text
+                # alternative carries data (numbers), not just its title.
+                n_events = page.evaluate(_RUN_AND_RENDER)
+                assert n_events > 0
+                page.evaluate(
+                    "document.querySelector('#outTabs button[data-otab=charts]')"
+                    ".click()")
+                summaries = page.eval_on_selector_all(
+                    "#charts .chart-summary", "els => els.map(e => e.textContent)")
+                assert len(summaries) >= 4, summaries
+                import re as _re
+                for s in summaries:
+                    assert _re.search(r"\d", s), s   # contains real data
+                labels = page.eval_on_selector_all(
+                    "#charts [role=img]", "els => els.map(e => e.getAttribute('aria-label'))")
+                assert all(lbl and _re.search(r"\d", lbl) for lbl in labels), labels
+
+                # 320 CSS px: no horizontal page scroll (tables may scroll
+                # inside their own container, the document may not).
+                page.set_viewport_size({"width": 320, "height": 800})
+                page.wait_for_timeout(120)
+                overflow = page.evaluate(
+                    "document.documentElement.scrollWidth - "
+                    "document.documentElement.clientWidth")
+                assert overflow <= 1, overflow
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+
+
 def test_dark_theme_scan_and_keyboard_interactions():
     """Beyond the automated scan: (1) the dark control-room theme passes
     the same serious/critical axe gate as the default light theme; (2)
