@@ -26,6 +26,7 @@ jobs:
           python scripts/evidence_gate.py
           python scripts/claim_scan.py
           python scripts/secret_scan.py
+          python scripts/numeric_provenance_scan.py
       - name: Tests (pytest + coverage gate)
         run: pytest -q --cov=socio_sim --cov-report=term-missing --cov-fail-under=85
       - name: E2E browser smoke (Playwright)

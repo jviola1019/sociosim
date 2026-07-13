@@ -11,6 +11,7 @@ gates:
 	$(PY) scripts/evidence_gate.py
 	$(PY) scripts/claim_scan.py
 	$(PY) scripts/secret_scan.py
+	$(PY) scripts/numeric_provenance_scan.py
 
 test:
 	$(PY) -m pytest -q --cov=socio_sim --cov-report=term-missing --cov-fail-under=85

@@ -1,0 +1,687 @@
+{
+  "examples/policy_stress_demo.py::argparse.--replicates": {
+    "classification": "scenario_assumption",
+    "value": "5",
+    "justification": "synthetic scenario default (argparse.--replicates); editable and surfaced with the run configuration"
+  },
+  "run.py::argparse.--media": {
+    "classification": "scenario_assumption",
+    "value": "0",
+    "justification": "synthetic scenario default (argparse.--media); editable and surfaced with the run configuration"
+  },
+  "run.py::argparse.--port": {
+    "classification": "scenario_assumption",
+    "value": "8765",
+    "justification": "synthetic scenario default (argparse.--port); editable and surfaced with the run configuration"
+  },
+  "run.py::argparse.--replicates": {
+    "classification": "scenario_assumption",
+    "value": "1",
+    "justification": "synthetic scenario default (argparse.--replicates); editable and surfaced with the run configuration"
+  },
+  "run.py::argparse.--seed": {
+    "classification": "scenario_assumption",
+    "value": "42",
+    "justification": "synthetic scenario default (argparse.--seed); editable and surfaced with the run configuration"
+  },
+  "run.py::argparse.--sens-samples": {
+    "classification": "scenario_assumption",
+    "value": "24",
+    "justification": "synthetic scenario default (argparse.--sens-samples); editable and surfaced with the run configuration"
+  },
+  "run.py::argparse.--workers": {
+    "classification": "scenario_assumption",
+    "value": "1",
+    "justification": "synthetic scenario default (argparse.--workers); editable and surfaced with the run configuration"
+  },
+  "scripts/claim_scan.py::TRAILING": {
+    "classification": "technical_constant",
+    "value": "40",
+    "justification": "claim-scanner context-window size in characters; a text-scan implementation constant"
+  },
+  "scripts/claim_scan.py::WINDOW": {
+    "classification": "technical_constant",
+    "value": "60",
+    "justification": "claim-scanner context-window size in characters; a text-scan implementation constant"
+  },
+  "scripts/fetch_moderation_benchmarks.py::MAXLEN": {
+    "classification": "technical_constant",
+    "value": "400",
+    "justification": "benchmark-dataset fetch parameter (length cap / page size / per-class sample count) for the provenance fetch script"
+  },
+  "scripts/fetch_moderation_benchmarks.py::PAGE": {
+    "classification": "technical_constant",
+    "value": "100",
+    "justification": "benchmark-dataset fetch parameter (length cap / page size / per-class sample count) for the provenance fetch script"
+  },
+  "scripts/fetch_moderation_benchmarks.py::PER_CLASS": {
+    "classification": "technical_constant",
+    "value": "1500",
+    "justification": "benchmark-dataset fetch parameter (length cap / page size / per-class sample count) for the provenance fetch script"
+  },
+  "scripts/wheel_qa.py::EXPECTED_ROLE_COUNTS['ad-creative-v4-']": {
+    "classification": "technical_constant",
+    "value": "32",
+    "justification": "expected packaged v4 asset count per role; a wheel-QA structural invariant matching the generator, not a modelled quantity"
+  },
+  "scripts/wheel_qa.py::EXPECTED_ROLE_COUNTS['editorial-v4-']": {
+    "classification": "technical_constant",
+    "value": "16",
+    "justification": "expected packaged v4 asset count per role; a wheel-QA structural invariant matching the generator, not a modelled quantity"
+  },
+  "scripts/wheel_qa.py::EXPECTED_ROLE_COUNTS['feed-cover-v4-']": {
+    "classification": "technical_constant",
+    "value": "48",
+    "justification": "expected packaged v4 asset count per role; a wheel-QA structural invariant matching the generator, not a modelled quantity"
+  },
+  "socio_sim/ads/campaigns.py::Campaign._creative_counter": {
+    "classification": "scenario_assumption",
+    "value": "0",
+    "justification": "synthetic scenario default (Campaign._creative_counter); editable and surfaced with the run configuration"
+  },
+  "socio_sim/config.py::DEFAULT_CLASSIFIER_PRECISION": {
+    "classification": "scenario_assumption",
+    "value": "0.9",
+    "justification": "synthetic classifier operating-point default; illustrative, not a measured benchmark (see scenario_assumptions.json)"
+  },
+  "socio_sim/config.py::DEFAULT_CLASSIFIER_RECALL": {
+    "classification": "scenario_assumption",
+    "value": "0.85",
+    "justification": "synthetic classifier operating-point default; illustrative, not a measured benchmark (see scenario_assumptions.json)"
+  },
+  "socio_sim/config.py::RunConfig.churn_rate": {
+    "classification": "scenario_assumption",
+    "value": "0.0",
+    "justification": "synthetic scenario default (RunConfig.churn_rate); editable and surfaced with the run configuration"
+  },
+  "socio_sim/config.py::RunConfig.n_agents": {
+    "classification": "scenario_assumption",
+    "value": "10000",
+    "justification": "synthetic scenario default (RunConfig.n_agents); editable and surfaced with the run configuration"
+  },
+  "socio_sim/config.py::RunConfig.n_replicates": {
+    "classification": "scenario_assumption",
+    "value": "100",
+    "justification": "synthetic scenario default (RunConfig.n_replicates); editable and surfaced with the run configuration"
+  },
+  "socio_sim/config.py::RunConfig.n_ticks": {
+    "classification": "scenario_assumption",
+    "value": "28 * 24",
+    "justification": "synthetic scenario default (RunConfig.n_ticks); editable and surfaced with the run configuration"
+  },
+  "socio_sim/config.py::RunConfig.n_topics": {
+    "classification": "scenario_assumption",
+    "value": "8",
+    "justification": "synthetic scenario default (RunConfig.n_topics); editable and surfaced with the run configuration"
+  },
+  "socio_sim/config.py::RunConfig.replicate_id": {
+    "classification": "scenario_assumption",
+    "value": "0",
+    "justification": "synthetic scenario default (RunConfig.replicate_id); editable and surfaced with the run configuration"
+  },
+  "socio_sim/config.py::RunConfig.root_seed": {
+    "classification": "scenario_assumption",
+    "value": "42",
+    "justification": "synthetic scenario default (RunConfig.root_seed); editable and surfaced with the run configuration"
+  },
+  "socio_sim/config.py::RunConfig.tick_hours": {
+    "classification": "scenario_assumption",
+    "value": "1",
+    "justification": "synthetic scenario default (RunConfig.tick_hours); editable and surfaced with the run configuration"
+  },
+  "socio_sim/config.py::RunConfig.unfollow_rate": {
+    "classification": "scenario_assumption",
+    "value": "0.0",
+    "justification": "synthetic scenario default (RunConfig.unfollow_rate); editable and surfaced with the run configuration"
+  },
+  "socio_sim/content/generate.py::CN_CREATOR_LABEL_COMPLIANCE": {
+    "classification": "scenario_assumption",
+    "value": "0.9",
+    "justification": "synthetic CN AI-label creator-compliance rate; a scenario assumption, not a measured statistic"
+  },
+  "socio_sim/content/items.py::ContentItem.likes": {
+    "classification": "scenario_assumption",
+    "value": "0",
+    "justification": "synthetic scenario default (ContentItem.likes); editable and surfaced with the run configuration"
+  },
+  "socio_sim/content/items.py::ContentItem.shares": {
+    "classification": "scenario_assumption",
+    "value": "0",
+    "justification": "synthetic scenario default (ContentItem.shares); editable and surfaced with the run configuration"
+  },
+  "socio_sim/content/llm_cache.py::BLOCKED_GUARD_VERSION": {
+    "classification": "technical_constant",
+    "value": "1",
+    "justification": "LLM-cache guard-version counter; a schema/invalidation token, not a modelled quantity"
+  },
+  "socio_sim/feed/ranking.py::DOWNRANK_PENALTY": {
+    "classification": "scenario_assumption",
+    "value": "0.3",
+    "justification": "feed-ranking scenario tuning knob (synthetic; not fitted to any platform)"
+  },
+  "socio_sim/feed/ranking.py::RECENCY_HALF_LIFE_TICKS": {
+    "classification": "scenario_assumption",
+    "value": "12.0",
+    "justification": "feed-ranking scenario tuning knob (synthetic; not fitted to any platform)"
+  },
+  "socio_sim/feed/ranking.py::WEIGHTS['affinity']": {
+    "classification": "scenario_assumption",
+    "value": "0.25",
+    "justification": "feed-ranking scenario tuning knob (synthetic; not fitted to any platform)"
+  },
+  "socio_sim/feed/ranking.py::WEIGHTS['engagement']": {
+    "classification": "scenario_assumption",
+    "value": "0.3",
+    "justification": "feed-ranking scenario tuning knob (synthetic; not fitted to any platform)"
+  },
+  "socio_sim/feed/ranking.py::WEIGHTS['recency']": {
+    "classification": "scenario_assumption",
+    "value": "0.3",
+    "justification": "feed-ranking scenario tuning knob (synthetic; not fitted to any platform)"
+  },
+  "socio_sim/feed/ranking.py::WEIGHTS['trust']": {
+    "classification": "scenario_assumption",
+    "value": "0.15",
+    "justification": "feed-ranking scenario tuning knob (synthetic; not fitted to any platform)"
+  },
+  "socio_sim/graph/metrics.py::CLUSTERING_EXACT_MAX": {
+    "classification": "technical_constant",
+    "value": "5000",
+    "justification": "graph size above which clustering uses the NetworkX approximation instead of the exact O(n<k^2>) computation; a performance switch, documented inline"
+  },
+  "socio_sim/ops.py::LOW_DISK_WARN_BYTES": {
+    "classification": "technical_constant",
+    "value": "512 * 1024 * 1024",
+    "justification": "low-disk warning threshold for /api/ready and --status; an operational heuristic, not a modelled quantity"
+  },
+  "socio_sim/pipeline.py::REPLAY_AGENT_LIMIT": {
+    "classification": "technical_constant",
+    "value": "2000",
+    "justification": "agent count above which deterministic replay auto-verification is skipped by default for runtime; a performance switch"
+  },
+  "socio_sim/policy/engine.py::PolicyDecision.retention_months": {
+    "classification": "scenario_assumption",
+    "value": "0",
+    "justification": "synthetic scenario default (PolicyDecision.retention_months); editable and surfaced with the run configuration"
+  },
+  "socio_sim/policy/engine.py::SEVERE_FLOOR_SCORE": {
+    "classification": "scenario_assumption",
+    "value": "0.5",
+    "justification": "synthetic severity floor for severe-category policy handling; a scenario mechanics threshold"
+  },
+  "socio_sim/web/app.py::MAX_BODY_BYTES": {
+    "classification": "security_limit",
+    "value": "2 * 1024 * 1024",
+    "justification": "max accepted POST body (ASVS V5 DoS guard); documented in SECURITY.md control 5"
+  },
+  "socio_sim/web/static/app.js::attribution_window_ticks??": {
+    "classification": "scenario_assumption",
+    "value": "168",
+    "justification": "campaign-editor JS fallback mirroring CAMPAIGN_ECON_DEFAULTS (assumption.web.campaign_editor_defaults in the registry); per-field economics_provenance is emitted on the run payload"
+  },
+  "socio_sim/web/static/app.js::base_ctr??": {
+    "classification": "scenario_assumption",
+    "value": "0.012",
+    "justification": "campaign-editor JS fallback mirroring CAMPAIGN_ECON_DEFAULTS (assumption.web.campaign_editor_defaults in the registry); per-field economics_provenance is emitted on the run payload"
+  },
+  "socio_sim/web/static/app.js::base_cvr??": {
+    "classification": "scenario_assumption",
+    "value": "0.05",
+    "justification": "campaign-editor JS fallback mirroring CAMPAIGN_ECON_DEFAULTS (assumption.web.campaign_editor_defaults in the registry); per-field economics_provenance is emitted on the run payload"
+  },
+  "socio_sim/web/static/app.js::bid??": {
+    "classification": "scenario_assumption",
+    "value": "2",
+    "justification": "campaign-editor JS fallback mirroring CAMPAIGN_ECON_DEFAULTS (assumption.web.campaign_editor_defaults in the registry); per-field economics_provenance is emitted on the run payload"
+  },
+  "socio_sim/web/static/app.js::budget??": {
+    "classification": "scenario_assumption",
+    "value": "100",
+    "justification": "campaign-editor JS fallback mirroring CAMPAIGN_ECON_DEFAULTS (assumption.web.campaign_editor_defaults in the registry); per-field economics_provenance is emitted on the run payload"
+  },
+  "socio_sim/web/static/app.js::conversion_value??": {
+    "classification": "scenario_assumption",
+    "value": "1",
+    "justification": "campaign-editor JS fallback mirroring CAMPAIGN_ECON_DEFAULTS (assumption.web.campaign_editor_defaults in the registry); per-field economics_provenance is emitted on the run payload"
+  },
+  "socio_sim/web/static/app.js::ltv_multiplier??": {
+    "classification": "scenario_assumption",
+    "value": "3",
+    "justification": "campaign-editor JS fallback mirroring CAMPAIGN_ECON_DEFAULTS (assumption.web.campaign_editor_defaults in the registry); per-field economics_provenance is emitted on the run payload"
+  },
+  "socio_sim/web/static/index.html::input#ab_aud.value": {
+    "classification": "ui_formatting",
+    "value": "100000",
+    "justification": "marketing planning-calculator example input (client-side only); test_e2e asserts these never enter collect()/the run config, so they are illustrative UI values, not defaults"
+  },
+  "socio_sim/web/static/index.html::input#ab_base.value": {
+    "classification": "ui_formatting",
+    "value": "2.0",
+    "justification": "marketing planning-calculator example input (client-side only); test_e2e asserts these never enter collect()/the run config, so they are illustrative UI values, not defaults"
+  },
+  "socio_sim/web/static/index.html::input#ab_hold.value": {
+    "classification": "ui_formatting",
+    "value": "10",
+    "justification": "marketing planning-calculator example input (client-side only); test_e2e asserts these never enter collect()/the run config, so they are illustrative UI values, not defaults"
+  },
+  "socio_sim/web/static/index.html::input#ab_mde.value": {
+    "classification": "ui_formatting",
+    "value": "10",
+    "justification": "marketing planning-calculator example input (client-side only); test_e2e asserts these never enter collect()/the run config, so they are illustrative UI values, not defaults"
+  },
+  "socio_sim/web/static/index.html::input#ad_frequency_cap_per_day.min": {
+    "classification": "ui_formatting",
+    "value": "1",
+    "justification": "HTML widget min bound on the ad_frequency_cap_per_day control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#ad_frequency_cap_per_day.value": {
+    "classification": "scenario_assumption",
+    "value": "4",
+    "justification": "UI pre-fill mirroring the ad_frequency_cap_per_day scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#ad_slot_interval.min": {
+    "classification": "ui_formatting",
+    "value": "1",
+    "justification": "HTML widget min bound on the ad_slot_interval control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#ad_slot_interval.value": {
+    "classification": "scenario_assumption",
+    "value": "5",
+    "justification": "UI pre-fill mirroring the ad_slot_interval scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#appeal_grant_fp_rate.max": {
+    "classification": "ui_formatting",
+    "value": "1",
+    "justification": "HTML widget max bound on the appeal_grant_fp_rate control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#appeal_grant_fp_rate.min": {
+    "classification": "ui_formatting",
+    "value": "0",
+    "justification": "HTML widget min bound on the appeal_grant_fp_rate control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#appeal_grant_fp_rate.step": {
+    "classification": "ui_formatting",
+    "value": "0.05",
+    "justification": "HTML widget step bound on the appeal_grant_fp_rate control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#appeal_grant_fp_rate.value": {
+    "classification": "scenario_assumption",
+    "value": "0.70",
+    "justification": "UI pre-fill mirroring the appeal_grant_fp_rate scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#churn_rate.max": {
+    "classification": "ui_formatting",
+    "value": "0.1",
+    "justification": "HTML widget max bound on the churn_rate control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#churn_rate.min": {
+    "classification": "ui_formatting",
+    "value": "0",
+    "justification": "HTML widget min bound on the churn_rate control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#churn_rate.step": {
+    "classification": "ui_formatting",
+    "value": "0.002",
+    "justification": "HTML widget step bound on the churn_rate control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#churn_rate.value": {
+    "classification": "scenario_assumption",
+    "value": "0",
+    "justification": "UI pre-fill mirroring the churn_rate scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#classifier_precision.max": {
+    "classification": "ui_formatting",
+    "value": "0.99",
+    "justification": "HTML widget max bound on the classifier_precision control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#classifier_precision.min": {
+    "classification": "ui_formatting",
+    "value": "0.5",
+    "justification": "HTML widget min bound on the classifier_precision control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#classifier_precision.step": {
+    "classification": "ui_formatting",
+    "value": "0.01",
+    "justification": "HTML widget step bound on the classifier_precision control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#classifier_precision.value": {
+    "classification": "scenario_assumption",
+    "value": "0.90",
+    "justification": "UI pre-fill mirroring the classifier_precision scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#classifier_recall.max": {
+    "classification": "ui_formatting",
+    "value": "0.99",
+    "justification": "HTML widget max bound on the classifier_recall control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#classifier_recall.min": {
+    "classification": "ui_formatting",
+    "value": "0.5",
+    "justification": "HTML widget min bound on the classifier_recall control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#classifier_recall.step": {
+    "classification": "ui_formatting",
+    "value": "0.01",
+    "justification": "HTML widget step bound on the classifier_recall control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#classifier_recall.value": {
+    "classification": "scenario_assumption",
+    "value": "0.85",
+    "justification": "UI pre-fill mirroring the classifier_recall scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#cmpReplicates.max": {
+    "classification": "ui_formatting",
+    "value": "50",
+    "justification": "HTML widget max bound on the cmpReplicates control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#cmpReplicates.min": {
+    "classification": "ui_formatting",
+    "value": "2",
+    "justification": "HTML widget min bound on the cmpReplicates control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#cmpReplicates.value": {
+    "classification": "scenario_assumption",
+    "value": "5",
+    "justification": "UI pre-fill for the cmpReplicates run-scale/seed control; mirrors the RunConfig default (registry-tracked) as an editable starting point"
+  },
+  "socio_sim/web/static/index.html::input#ec_conv.value": {
+    "classification": "ui_formatting",
+    "value": "600",
+    "justification": "marketing planning-calculator example input (client-side only); test_e2e asserts these never enter collect()/the run config, so they are illustrative UI values, not defaults"
+  },
+  "socio_sim/web/static/index.html::input#ec_ltv.value": {
+    "classification": "ui_formatting",
+    "value": "120",
+    "justification": "marketing planning-calculator example input (client-side only); test_e2e asserts these never enter collect()/the run config, so they are illustrative UI values, not defaults"
+  },
+  "socio_sim/web/static/index.html::input#ec_rev.value": {
+    "classification": "ui_formatting",
+    "value": "30000",
+    "justification": "marketing planning-calculator example input (client-side only); test_e2e asserts these never enter collect()/the run config, so they are illustrative UI values, not defaults"
+  },
+  "socio_sim/web/static/index.html::input#ec_spend.value": {
+    "classification": "ui_formatting",
+    "value": "10000",
+    "justification": "marketing planning-calculator example input (client-side only); test_e2e asserts these never enter collect()/the run config, so they are illustrative UI values, not defaults"
+  },
+  "socio_sim/web/static/index.html::input#eu_optout_rate.max": {
+    "classification": "ui_formatting",
+    "value": "1",
+    "justification": "HTML widget max bound on the eu_optout_rate control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#eu_optout_rate.min": {
+    "classification": "ui_formatting",
+    "value": "0",
+    "justification": "HTML widget min bound on the eu_optout_rate control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#eu_optout_rate.step": {
+    "classification": "ui_formatting",
+    "value": "0.05",
+    "justification": "HTML widget step bound on the eu_optout_rate control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#eu_optout_rate.value": {
+    "classification": "scenario_assumption",
+    "value": "0.20",
+    "justification": "UI pre-fill mirroring the eu_optout_rate scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#exploration_epsilon.max": {
+    "classification": "ui_formatting",
+    "value": "1",
+    "justification": "HTML widget max bound on the exploration_epsilon control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#exploration_epsilon.min": {
+    "classification": "ui_formatting",
+    "value": "0",
+    "justification": "HTML widget min bound on the exploration_epsilon control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#exploration_epsilon.step": {
+    "classification": "ui_formatting",
+    "value": "0.05",
+    "justification": "HTML widget step bound on the exploration_epsilon control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#exploration_epsilon.value": {
+    "classification": "scenario_assumption",
+    "value": "0.10",
+    "justification": "UI pre-fill mirroring the exploration_epsilon scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#feed_size.min": {
+    "classification": "ui_formatting",
+    "value": "1",
+    "justification": "HTML widget min bound on the feed_size control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#feed_size.value": {
+    "classification": "scenario_assumption",
+    "value": "20",
+    "justification": "UI pre-fill mirroring the feed_size scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#follow_rate.max": {
+    "classification": "ui_formatting",
+    "value": "0.2",
+    "justification": "HTML widget max bound on the follow_rate control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#follow_rate.min": {
+    "classification": "ui_formatting",
+    "value": "0",
+    "justification": "HTML widget min bound on the follow_rate control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#follow_rate.step": {
+    "classification": "ui_formatting",
+    "value": "0.005",
+    "justification": "HTML widget step bound on the follow_rate control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#follow_rate.value": {
+    "classification": "scenario_assumption",
+    "value": "0",
+    "justification": "UI pre-fill mirroring the follow_rate scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#graph_k.min": {
+    "classification": "ui_formatting",
+    "value": "2",
+    "justification": "HTML widget min bound on the graph_k control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#graph_k.value": {
+    "classification": "scenario_assumption",
+    "value": "10",
+    "justification": "UI pre-fill mirroring the graph_k scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#graph_m.min": {
+    "classification": "ui_formatting",
+    "value": "1",
+    "justification": "HTML widget min bound on the graph_m control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#graph_m.value": {
+    "classification": "scenario_assumption",
+    "value": "5",
+    "justification": "UI pre-fill mirroring the graph_m scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#graph_p.max": {
+    "classification": "ui_formatting",
+    "value": "1",
+    "justification": "HTML widget max bound on the graph_p control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#graph_p.min": {
+    "classification": "ui_formatting",
+    "value": "0",
+    "justification": "HTML widget min bound on the graph_p control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#graph_p.step": {
+    "classification": "ui_formatting",
+    "value": "0.01",
+    "justification": "HTML widget step bound on the graph_p control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#graph_p.value": {
+    "classification": "scenario_assumption",
+    "value": "0.05",
+    "justification": "UI pre-fill mirroring the graph_p scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#graph_plc_p.max": {
+    "classification": "ui_formatting",
+    "value": "1",
+    "justification": "HTML widget max bound on the graph_plc_p control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#graph_plc_p.min": {
+    "classification": "ui_formatting",
+    "value": "0",
+    "justification": "HTML widget min bound on the graph_plc_p control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#graph_plc_p.step": {
+    "classification": "ui_formatting",
+    "value": "0.05",
+    "justification": "HTML widget step bound on the graph_plc_p control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#graph_plc_p.value": {
+    "classification": "scenario_assumption",
+    "value": "0.7",
+    "justification": "UI pre-fill mirroring the graph_plc_p scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#holdout_fraction.max": {
+    "classification": "ui_formatting",
+    "value": "0.9",
+    "justification": "HTML widget max bound on the holdout_fraction control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#holdout_fraction.min": {
+    "classification": "ui_formatting",
+    "value": "0",
+    "justification": "HTML widget min bound on the holdout_fraction control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#holdout_fraction.step": {
+    "classification": "ui_formatting",
+    "value": "0.05",
+    "justification": "HTML widget step bound on the holdout_fraction control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#holdout_fraction.value": {
+    "classification": "scenario_assumption",
+    "value": "0.10",
+    "justification": "UI pre-fill mirroring the holdout_fraction scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#homophily_rewire_fraction.max": {
+    "classification": "ui_formatting",
+    "value": "0.8",
+    "justification": "HTML widget max bound on the homophily_rewire_fraction control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#homophily_rewire_fraction.min": {
+    "classification": "ui_formatting",
+    "value": "0",
+    "justification": "HTML widget min bound on the homophily_rewire_fraction control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#homophily_rewire_fraction.step": {
+    "classification": "ui_formatting",
+    "value": "0.05",
+    "justification": "HTML widget step bound on the homophily_rewire_fraction control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#homophily_rewire_fraction.value": {
+    "classification": "scenario_assumption",
+    "value": "0.15",
+    "justification": "UI pre-fill mirroring the homophily_rewire_fraction scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#human_review_accuracy.max": {
+    "classification": "ui_formatting",
+    "value": "1",
+    "justification": "HTML widget max bound on the human_review_accuracy control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#human_review_accuracy.min": {
+    "classification": "ui_formatting",
+    "value": "0.5",
+    "justification": "HTML widget min bound on the human_review_accuracy control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#human_review_accuracy.step": {
+    "classification": "ui_formatting",
+    "value": "0.01",
+    "justification": "HTML widget step bound on the human_review_accuracy control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#human_review_accuracy.value": {
+    "classification": "scenario_assumption",
+    "value": "0.92",
+    "justification": "UI pre-fill mirroring the human_review_accuracy scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#human_review_delay_ticks.min": {
+    "classification": "ui_formatting",
+    "value": "0",
+    "justification": "HTML widget min bound on the human_review_delay_ticks control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#human_review_delay_ticks.value": {
+    "classification": "scenario_assumption",
+    "value": "6",
+    "justification": "UI pre-fill mirroring the human_review_delay_ticks scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#n_agents.min": {
+    "classification": "ui_formatting",
+    "value": "10",
+    "justification": "HTML widget min bound on the n_agents control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#n_replicates.max": {
+    "classification": "ui_formatting",
+    "value": "200",
+    "justification": "HTML widget max bound on the n_replicates control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#n_replicates.min": {
+    "classification": "ui_formatting",
+    "value": "1",
+    "justification": "HTML widget min bound on the n_replicates control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#n_replicates.value": {
+    "classification": "scenario_assumption",
+    "value": "1",
+    "justification": "UI pre-fill for the n_replicates run-scale/seed control; mirrors the RunConfig default (registry-tracked) as an editable starting point"
+  },
+  "socio_sim/web/static/index.html::input#n_ticks.min": {
+    "classification": "ui_formatting",
+    "value": "1",
+    "justification": "HTML widget min bound on the n_ticks control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#n_topics.max": {
+    "classification": "ui_formatting",
+    "value": "32",
+    "justification": "HTML widget max bound on the n_topics control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#n_topics.min": {
+    "classification": "ui_formatting",
+    "value": "1",
+    "justification": "HTML widget min bound on the n_topics control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#n_topics.value": {
+    "classification": "scenario_assumption",
+    "value": "8",
+    "justification": "UI pre-fill mirroring the n_topics scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#rf_eff.value": {
+    "classification": "ui_formatting",
+    "value": "3",
+    "justification": "marketing planning-calculator example input (client-side only); test_e2e asserts these never enter collect()/the run config, so they are illustrative UI values, not defaults"
+  },
+  "socio_sim/web/static/index.html::input#rf_impr.value": {
+    "classification": "ui_formatting",
+    "value": "500000",
+    "justification": "marketing planning-calculator example input (client-side only); test_e2e asserts these never enter collect()/the run config, so they are illustrative UI values, not defaults"
+  },
+  "socio_sim/web/static/index.html::input#rf_reach.value": {
+    "classification": "ui_formatting",
+    "value": "120000",
+    "justification": "marketing planning-calculator example input (client-side only); test_e2e asserts these never enter collect()/the run config, so they are illustrative UI values, not defaults"
+  },
+  "socio_sim/web/static/index.html::input#root_seed.value": {
+    "classification": "scenario_assumption",
+    "value": "42",
+    "justification": "UI pre-fill for the root_seed run-scale/seed control; mirrors the RunConfig default (registry-tracked) as an editable starting point"
+  },
+  "socio_sim/web/static/index.html::input#unfollow_rate.max": {
+    "classification": "ui_formatting",
+    "value": "0.2",
+    "justification": "HTML widget max bound on the unfollow_rate control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#unfollow_rate.min": {
+    "classification": "ui_formatting",
+    "value": "0",
+    "justification": "HTML widget min bound on the unfollow_rate control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#unfollow_rate.step": {
+    "classification": "ui_formatting",
+    "value": "0.005",
+    "justification": "HTML widget step bound on the unfollow_rate control; constrains the input range/step, not a decision-facing default value"
+  },
+  "socio_sim/web/static/index.html::input#unfollow_rate.value": {
+    "classification": "scenario_assumption",
+    "value": "0",
+    "justification": "UI pre-fill mirroring the unfollow_rate scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  }
+}
