@@ -78,6 +78,21 @@ class ClaudeAdapter:
     def _apply_text(self, item: ContentItem, text: str) -> None:
         item.text = (_CN_LABEL_PREFIX + text) if item.explicit_label else text
 
+    def _adopt(self, item: ContentItem, key: str,
+               announced: bool = False) -> ContentItem:
+        """Apply whatever entry actually WON this key under
+        first-writer-wins -- what is on disk is what the next run with this
+        config+seed replays, so this run must serve exactly that or the two
+        event streams diverge. A blocked winner yields text=None, so blocked
+        text is still never served as content. `announced` suppresses a
+        duplicate degradation when the caller already reported one."""
+        final = llm_cache.resolve(self._cache.get(key))
+        if final.hit and final.text is not None:
+            self._apply_text(item, final.text)
+        elif final.degradation and not announced:
+            self.on_degradation(final.degradation)
+        return item
+
     def generate(self, author_id: int, personas, tick: int) -> ContentItem:
         item = self.base.generate(author_id, personas, tick)
         key = self.prompt_key(author_id, personas, tick, item.topic, item.stance)
@@ -127,19 +142,12 @@ class ClaudeAdapter:
                     on_error=self.on_degradation)
                 self.on_degradation(
                     f"semantic_mismatch:{','.join(reasons)}; template text used")
-                return item
+                return self._adopt(item, key, announced=True)
             self._cache = llm_cache.update(
                 self.cache_path, key,
                 llm_cache.make_entry(text, "accepted", []),
                 on_error=self.on_degradation)
-            # Adopt the WINNING entry (another process may have screened
-            # this prompt first, even to a blocked result).
-            final = llm_cache.resolve(self._cache.get(key))
-            if final.hit and final.text is not None:
-                self._apply_text(item, final.text)
-            elif final.degradation:
-                self.on_degradation(final.degradation)
-            return item
+            return self._adopt(item, key)
         except Exception as exc:  # degrade loudly, keep the run going
             self.usage["failures"] += 1
             self.on_degradation(f"LLM call failed: {exc!r}; template text used")

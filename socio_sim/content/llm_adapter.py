@@ -185,7 +185,13 @@ class LLMAdapter:
                 self._fail_streak = 0
                 self.on_degradation(
                     f"semantic_mismatch:{','.join(reasons)}; template text used")
-                return item
+                # Adopt the winner here too (see _adopt): if a concurrent
+                # writer's ACCEPTED entry won this key, serving template
+                # text while the cache holds accepted text would make the
+                # next same-seed run diverge -- a determinism break. The
+                # semantic_mismatch degradation was just reported, so
+                # _adopt must not report a second one for the same call.
+                return self._adopt(item, key, announced=True)
             self._cache = llm_cache.update(
                 self.cache_path, key,
                 llm_cache.make_entry(text, "accepted", []),
@@ -202,12 +208,26 @@ class LLMAdapter:
                     f"{self.backend} unreachable after {self._fail_streak} "
                     f"attempts; using template text for the rest of this run")
             return item
-        # Adopt the WINNING entry: under first-writer-wins another process
-        # may have screened this prompt first (even to a blocked result).
+        return self._adopt(item, key)
+
+    def _adopt(self, item: ContentItem, key: str,
+               announced: bool = False) -> ContentItem:
+        """Apply whatever entry actually WON this key.
+
+        Under first-writer-wins another process may have screened the same
+        prompt first. Whatever is on disk is what the next run with this
+        config+seed will replay, so this run must serve exactly that -- or
+        the two runs' event streams diverge (determinism invariant). A
+        blocked winner yields text=None, so blocked text is still never
+        served as content.
+
+        `announced` suppresses a duplicate degradation when the caller has
+        already reported one for this same generate() call.
+        """
         final = llm_cache.resolve(self._cache.get(key))
         if final.hit and final.text is not None:
             self._apply_text(item, final.text)
-        elif final.degradation:
+        elif final.degradation and not announced:
             self.on_degradation(final.degradation)
         return item
 

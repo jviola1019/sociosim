@@ -14,6 +14,7 @@ import json
 import shutil
 import sqlite3
 import time
+from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -90,7 +91,9 @@ def integrity_manifest(run: RunDir) -> dict:
     checked later. Not a signature: it detects corruption, not forgery."""
     files = {}
     for f in sorted(run.path.rglob("*")):
-        if f.is_file():
+        # Skip symlinks for the same reason scan_runs does: never follow a
+        # link out of the run directory when hashing or copying it.
+        if f.is_file() and not f.is_symlink():
             files[str(f.relative_to(run.path)).replace("\\", "/")] = (
                 hashlib.sha256(f.read_bytes()).hexdigest())
     return {"run": run.path.name, "n_files": len(files),
@@ -107,7 +110,11 @@ def export_all(out_dir: Path, dest: Path) -> dict:
         target = dest / run.path.name
         if target.exists():
             shutil.rmtree(target)
-        shutil.copytree(run.path, target)
+        # ignore_dangling_symlinks + skip: never dereference a link out of
+        # the run directory (matches integrity_manifest and scan_runs).
+        shutil.copytree(run.path, target,
+                        ignore=lambda d, names: [
+                            n for n in names if (Path(d) / n).is_symlink()])
         (target / "integrity.json").write_text(
             json.dumps(integrity_manifest(run), indent=2, sort_keys=True),
             encoding="utf-8")
@@ -152,7 +159,10 @@ def db_health(db_path: Path) -> dict:
         return {"present": False, "ok": True, "bytes": 0,
                 "detail": "no run history database yet"}
     try:
-        with sqlite3.connect(db_path) as cx:
+        # closing(): sqlite3's context manager commits/rolls back but does
+        # NOT close the connection. /api/ready polls this endpoint, so the
+        # connection must be closed explicitly rather than left to refcount.
+        with closing(sqlite3.connect(db_path, timeout=10)) as cx:
             detail = cx.execute("PRAGMA integrity_check").fetchone()[0]
         return {"present": True, "ok": detail == "ok",
                 "bytes": db_path.stat().st_size, "detail": detail}
@@ -173,19 +183,29 @@ def prune_orphan_history(db_path: Path, out_root: Path) -> dict:
     db_path = Path(db_path)
     if not db_path.is_file():
         return {"pruned": 0, "reason": "no database"}
+    # Never prune a row whose run directory still EXISTS under out/. The
+    # stored out_dir is CWD-relative, so a cleanup invoked from a different
+    # working directory than the run was created in would otherwise
+    # false-positive and delete history for a run that is still on disk.
+    # Matching by directory name against the live inventory is CWD-proof.
+    live_names = {r.path.name for r in scan_runs(out_root)}
     pruned = []
-    with sqlite3.connect(db_path) as cx:
+    with closing(sqlite3.connect(db_path, timeout=10)) as cx:
         cx.row_factory = sqlite3.Row
-        for row in cx.execute("SELECT id, payload FROM runs").fetchall():
-            try:
-                out_dir = (json.loads(row["payload"]) or {}).get("out_dir")
-            except (json.JSONDecodeError, TypeError):
-                out_dir = None
-            if out_dir and not (Path(out_dir).exists()
-                                or (Path(out_root).parent / out_dir).exists()):
+        with cx:
+            for row in cx.execute("SELECT id, payload FROM runs").fetchall():
+                try:
+                    out_dir = (json.loads(row["payload"]) or {}).get("out_dir")
+                except (json.JSONDecodeError, TypeError):
+                    out_dir = None
+                if not out_dir:
+                    continue                      # no directory recorded: keep
+                name = Path(out_dir).name
+                if name in live_names or Path(out_dir).exists():
+                    continue                      # still on disk: keep
                 pruned.append(row["id"])
-        for run_id in pruned:
-            cx.execute("DELETE FROM runs WHERE id = ?", (run_id,))
+            for run_id in pruned:
+                cx.execute("DELETE FROM runs WHERE id = ?", (run_id,))
     return {"pruned": len(pruned)}
 
 
@@ -195,7 +215,7 @@ def vacuum_db(db_path: Path) -> dict:
     if not db_path.is_file():
         return {"vacuumed": False, "reason": "no database"}
     before = db_path.stat().st_size
-    with sqlite3.connect(db_path) as cx:
+    with closing(sqlite3.connect(db_path, timeout=10)) as cx:
         cx.execute("VACUUM")
     return {"vacuumed": True, "bytes_before": before,
             "bytes_after": db_path.stat().st_size}

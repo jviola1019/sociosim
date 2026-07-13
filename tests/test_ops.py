@@ -128,6 +128,29 @@ def test_prune_orphan_history_removes_rows_for_deleted_run_dirs(tmp_path):
     assert store.payload("drop1") is None
 
 
+def test_prune_never_drops_a_row_whose_run_still_exists_under_out(tmp_path):
+    """CWD-proofing: out_dir is recorded CWD-relative, so a cleanup run from
+    a different working directory must NOT prune history for a run that is
+    still on disk. Matching by name against the live inventory prevents it."""
+    from socio_sim.web.store import RunStore
+    out = tmp_path / "out"
+    _make_run(out, "still-here")
+    db = tmp_path / "s.db"
+    store = RunStore(db)
+    store.save("r1", {
+        "summary": {}, "config": {"n_agents": 200, "n_ticks": 24,
+                                  "jurisdictions": ["EU"]},
+        "manifest": {"config_hash": "a", "stream_hash": "b"},
+        "content_mode": "template",
+        "replay": {"checked": False, "ok": None, "msg": ""},
+        # A relative path that does NOT resolve from this process's CWD:
+        "out_dir": "out/still-here",
+    })
+    res = ops.prune_orphan_history(db, out)
+    assert res["pruned"] == 0
+    assert store.payload("r1") is not None
+
+
 def test_vacuum_db_roundtrip(tmp_path):
     from socio_sim.web.store import RunStore
     db = tmp_path / "s.db"
