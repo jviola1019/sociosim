@@ -297,8 +297,13 @@ def main():
                         "aggregate_matched_prototype=synthetic aggregate-fit prototype")
     p.add_argument("--jurisdictions", default="EU",
                    help="comma list of US,EU,CN (default EU)")
-    p.add_argument("--benchmark", default="default",
-                   help="legacy aggregate target set: default | twitter_like | facebook_like")
+    p.add_argument("--benchmark", default="sourced_aggregates_v1",
+                   help="aggregate target set. Default 'sourced_aggregates_v1' "
+                        "(values verified against their primary sources). The "
+                        "'legacy_unsupported_*' sets are retired: their numbers "
+                        "could not be verified (several are contradicted by the "
+                        "papers they cited) and they exist only to reproduce "
+                        "older runs")
     p.add_argument("--classifier", default="synthetic_noise_classifier",
                    choices=["synthetic_noise_classifier", "synthetic_template_classifier"],
                    help="moderation classifier mechanics mode; both options are synthetic")

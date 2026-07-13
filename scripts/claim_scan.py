@@ -132,6 +132,13 @@ EXEMPT_PHRASES = (
     # what the slider sets (a user-supplied assumption), not a measured
     # accuracy claim about any component.
     "reviewer accuracy",
+    # PROVENANCE claims, deliberately narrow: "this NUMBER was read out of
+    # the paper it cites" says nothing about the simulator's validity. The
+    # phrase must name the source to qualify -- "verified" alone, or
+    # "verified against real-world data", still trips the scanner.
+    "verified against primary source",
+    "verified against their primary source",
+    "verified against the primary source",
 )
 
 NEGATION_RE = re.compile(

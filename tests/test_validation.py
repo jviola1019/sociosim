@@ -20,60 +20,108 @@ def test_targets_load_with_tolerances():
         assert "source" in spec
 
 
-def test_every_target_carries_the_full_metadata_schema_and_stays_gated():
-    """P3: each benchmark target carries the complete metadata schema with
-    machine-readable incompleteness (explicit nulls), scenario-threshold
-    tolerance labeling, and a verification_status that is never 'verified'
-    -- so the decision-facing comparison gate must remain closed."""
+_SCHEMA_FIELDS = {"value", "tolerance", "source", "evidence_id", "source_doi",
+                  "source_url", "source_status", "retrieved_at", "source_title",
+                  "source_version", "license_access", "population", "geography",
+                  "time_window", "methodology", "statistic_location", "units",
+                  "transformation", "source_hash", "tolerance_rationale",
+                  "applicability_limits", "valid_uses", "invalid_uses",
+                  "verification_status"}
+
+
+def test_legacy_unsupported_sets_stay_gated_out_of_decision_facing_output():
+    """The retired sets keep the full schema, an 'unverified' status, and an
+    UNSUPPORTED evidence record -- so the comparison gate stays shut for
+    them and they can never produce a pass/fail or closeness seal."""
     from socio_sim.evidence import targets_metadata_complete
-    required = {"value", "tolerance", "source", "evidence_id", "source_doi",
-                "source_url", "source_status", "retrieved_at", "source_title",
-                "source_version", "license_access", "population", "geography",
-                "time_window", "methodology", "statistic_location", "units",
-                "transformation", "source_hash", "tolerance_rationale",
-                "applicability_limits", "valid_uses", "invalid_uses",
-                "verification_status"}
-    for benchmark in ("default", "twitter_like", "facebook_like"):
+    from socio_sim.validation.targets import is_legacy_unsupported
+    for benchmark in ("legacy_unsupported_default",
+                      "legacy_unsupported_twitter_like",
+                      "legacy_unsupported_facebook_like"):
+        assert is_legacy_unsupported(benchmark)
         targets = load_targets(benchmark)
         assert targets, benchmark
         for name, spec in targets.items():
-            missing = required - set(spec)
-            assert not missing, (benchmark, name, missing)
+            assert not (_SCHEMA_FIELDS - set(spec)), (benchmark, name)
             assert spec["verification_status"] in (
-                "unverified", "identifier_verified_value_unverified"), (
-                benchmark, name)
-            assert "scenario_threshold" in spec["tolerance_rationale"]
+                "unverified", "identifier_verified_value_unverified")
             assert "pass/fail or closeness seals" in spec["invalid_uses"]
-        assert targets_metadata_complete(targets) is False, (
-            f"{benchmark}: gate must stay closed while values are unverified")
+        assert targets_metadata_complete(targets) is False, benchmark
 
 
-def test_bundled_empirical_benchmark_sets():
+def test_sourced_targets_are_value_verified_with_quoted_statistics():
+    """The default set's VALUES were read out of the primary sources: each
+    carries the quote it came from, a non-'unsupported' evidence record, and
+    a verification status that says the value itself was checked."""
+    from socio_sim.evidence import (EvidenceKind, get_evidence,
+                                    targets_metadata_complete)
+    from socio_sim.validation.targets import DEFAULT_BENCHMARK
+    targets = load_targets()                      # the default
+    assert targets == load_targets(DEFAULT_BENCHMARK)
+    assert set(targets) == {
+        "degree_tail_exponent", "clustering", "diurnal_peak_hour",
+        "diurnal_trough_hour", "posts_per_agent_day", "ad_ctr",
+        "appeal_grant_rate"}
+    for name, spec in targets.items():
+        assert not (_SCHEMA_FIELDS - set(spec)), name
+        assert spec["verification_status"] in (
+            "value_verified_against_source",
+            "value_derived_from_verified_source"), name
+        assert len(spec["statistic_location"]) > 20, name   # a real quote
+        assert spec["applicability_limits"], name
+        kind = get_evidence(spec["evidence_id"]).kind
+        assert kind is EvidenceKind.EXTERNAL_AGGREGATE, (name, kind)
+        # A tolerance is either derived from the source or clearly labelled
+        # a scenario knob -- never silently presented as a confidence bound.
+        assert (spec["tolerance_rationale"].startswith("derived_from_source")
+                or "scenario_threshold" in spec["tolerance_rationale"]), name
+    # Metadata is complete, so target-distance may be shown -- as a diagnostic.
+    assert targets_metadata_complete(targets) is True
+
+
+def test_corrected_values_match_the_verification_pass():
+    """Pins the numbers the sources actually support, so a regression cannot
+    quietly reintroduce the contradicted ones (2.5, 0.2, 0.01, 0.2-0.25)."""
+    t = load_targets()
+    assert (t["degree_tail_exponent"]["value"], t["degree_tail_exponent"]["tolerance"]) == (2.3, 0.1)
+    assert (t["clustering"]["value"], t["clustering"]["tolerance"]) == (0.238, 0.098)
+    assert t["diurnal_peak_hour"]["value"] == 20.0
+    assert t["ad_ctr"]["value"] == 0.001
+    assert t["appeal_grant_rate"]["value"] == 0.11
+    # posts_per_agent_day survives only as a DERIVED MEAN, never a median.
+    assert "median" in t["posts_per_agent_day"]["invalid_uses"][-1].lower()
+
+
+def test_bundled_benchmark_sets_are_discoverable():
     from socio_sim.validation.targets import available_benchmarks
     avail = available_benchmarks()
-    assert {"default", "twitter_like", "facebook_like"} <= set(avail)
-    for name in ("twitter_like", "facebook_like"):
-        t = load_targets(name)
-        assert t and all(s["tolerance"] > 0 and s.get("source") for s in t.values())
+    assert avail[0] == "sourced_aggregates_v1"         # sourced sets first
+    assert {"legacy_unsupported_default",
+            "legacy_unsupported_twitter_like",
+            "legacy_unsupported_facebook_like"} <= set(avail)
     # honest: Facebook degree is not power-law (Ugander 2011) -> omitted, not faked
-    assert "degree_tail_exponent" not in load_targets("facebook_like")
-    assert "clustering" in load_targets("facebook_like")
+    fb = load_targets("legacy_unsupported_facebook_like")
+    assert "degree_tail_exponent" not in fb and "clustering" in fb
 
 
 def test_benchmark_selection_flows_through_pipeline():
     from socio_sim.pipeline import run_and_analyze
-    a = run_and_analyze(RunConfig.test(jurisdictions=("EU",), benchmark="twitter_like"),
-                        verify_replay=False)
-    assert set(a.targets) == set(load_targets("twitter_like"))
+    a = run_and_analyze(
+        RunConfig.test(jurisdictions=("EU",),
+                       benchmark="legacy_unsupported_twitter_like"),
+        verify_replay=False)
+    assert set(a.targets) == set(load_targets("legacy_unsupported_twitter_like"))
     assert a.implausibility_components
     assert a.implausibility_dominant_metric in a.targets
 
 
 def test_validation_study_uses_selected_benchmark():
     from socio_sim.validation.study import aggregate_fit_implausibility
-    c = aggregate_fit_implausibility(RunConfig.test(jurisdictions=("EU",),
-                                                    benchmark="facebook_like"))
-    assert set(c["targets"]) == set(load_targets("facebook_like"))
+    c = aggregate_fit_implausibility(
+        RunConfig.test(jurisdictions=("EU",),
+                       benchmark="legacy_unsupported_facebook_like"))
+    assert set(c["targets"]) == set(
+        load_targets("legacy_unsupported_facebook_like"))
     assert c["implausibility_components"]
     assert c["implausibility_dominant_metric"] in c["targets"]
 

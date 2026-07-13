@@ -145,8 +145,10 @@ class RunConfig:
     # Behaviour parameters (extracted, documented, sensitivity-testable knobs)
     behavior: BehaviorParams = field(default_factory=BehaviorParams)
 
-    # Aggregate-fit benchmark target set (bundled legacy aggregates)
-    benchmark: str = "default"
+    # Aggregate-fit benchmark target set. Default = the source-verified set
+    # (socio_sim/data/benchmarks/sourced_aggregates_v1.json); the retired
+    # legacy_unsupported_* sets remain loadable by explicit name only.
+    benchmark: str = "sourced_aggregates_v1"
 
     # Output
     out_dir: str = "out"
@@ -175,9 +177,19 @@ class RunConfig:
         This is a synthetic scenario preset, not an empirical calibration seal.
         Legacy docs called it "calibrated"; that label is intentionally not used
         for decision-facing output.
+
+        IMPORTANT (2026-07-13 verification pass): this profile's graph
+        parameters were history-matched against the RETIRED
+        ``legacy_unsupported_default`` target set, whose numbers could not be
+        verified against the sources they cited. It is therefore pinned to
+        that set, and it is **not** matched to the source-verified aggregates
+        (against those, the simulator scores I ~= 6, i.e. clearly outside the
+        history-matching cutoff -- see docs/AGGREGATE_FIT_FINDINGS.md). Do not
+        read "matched" as agreement with any real measurement.
         """
         base = dict(n_agents=1_000, n_ticks=7 * 24, n_replicates=20,
-                    graph_kind="plc", graph_params={"m": 5, "p": 0.7})
+                    graph_kind="plc", graph_params={"m": 5, "p": 0.7},
+                    benchmark="legacy_unsupported_default")
         base.update(overrides)
         return cls(**base)
 
@@ -340,7 +352,7 @@ class RunConfig:
             except ValueError as exc:
                 fail("llm_base_url", str(exc))
         from socio_sim.validation.targets import available_benchmarks
-        if self.benchmark not in available_benchmarks():
+        if self.benchmark not in available_benchmarks() + ["default"]:
             fail("benchmark", f"must be one of {available_benchmarks()}")
         for rname in ("follow_rate", "unfollow_rate", "churn_rate"):
             if not 0.0 <= require_float(rname, getattr(self, rname)) <= 1.0:

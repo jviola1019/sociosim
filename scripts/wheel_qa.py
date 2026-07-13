@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_DATA = (
     "data/evidence_registry.json",
     "data/scenario_assumptions.json",
-    "data/benchmarks/default_targets.json",
+    "data/benchmarks/sourced_aggregates_v1.json",
 )
 EXPECTED_ROLE_COUNTS = {"feed-cover-v4-": 48, "ad-creative-v4-": 32,
                         "editorial-v4-": 16}

@@ -769,7 +769,7 @@ function render(r) {
   $("#compare").innerHTML = `<p class="dim small">No comparison run for this result.</p>`;
 
   if (r.targets_metadata_complete) {
-    $("#implaus").textContent = `synthetic target-distance diagnostic I = ${fmt(r.implausibility, 2)} (dominant: ${esc(r.implausibility_dominant_metric || "n/a")}; history-matching cutoff 3.0; lower = closer to the loaded target set)`;
+    $("#implaus").textContent = `Aggregate-fit diagnostic I = ${fmt(r.implausibility, 2)} (dominant: ${esc(r.implausibility_dominant_metric || "n/a")}; history-matching cutoff 3.0; lower = closer to the loaded target set). NOT validation or calibration: these targets measure different populations, metric definitions and periods than this synthetic world — see each target's applicability limits in the loaded benchmark file.`;
     $("#calib").innerHTML = Object.entries(r.targets).map(([name, spec]) => {
       const obs = r.observed[name]; if (obs == null) return "";
       const lo0 = spec.value - 3 * spec.tolerance, hi0 = spec.value + 3 * spec.tolerance, sp = Math.max(hi0 - lo0, 1e-9), L = v => Math.max(0, Math.min(100, 100 * (v - lo0) / sp)), inb = Math.abs(obs - spec.value) <= spec.tolerance;
