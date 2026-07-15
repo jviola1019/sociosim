@@ -35,7 +35,11 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install (dev, e2e, security, asset extras)
-        run: pip install -e .[dev,e2e,security,asset]
+        run: |
+          # Security-update the build toolchain before pip-audit (runner
+          # setuptools/pip attract fresh advisories; not runtime deps).
+          python -m pip install --upgrade pip setuptools
+          pip install -e .[dev,e2e,security,asset]
       - name: Install Playwright browsers
         run: python -m playwright install --with-deps chromium
 

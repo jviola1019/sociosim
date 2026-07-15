@@ -47,12 +47,16 @@ residual limitations: `KNOWN_LIMITATIONS.md`.
 
 ### Aggregate fit: the honest number
 
-Benchmark target values were verified against their primary sources on
-2026-07-13; most of the previous ones were contradicted by the papers they
-cited and are retired to `legacy_unsupported_*`. Against the corrected
-targets **the simulator does not fit (I = 6.03, cutoff 3.0)** — it does not
-reproduce real measured aggregates, and that number is published rather than
-tuned away. See [docs/AGGREGATE_FIT_FINDINGS.md](docs/AGGREGATE_FIT_FINDINGS.md).
+Benchmark target values were verified against their primary sources; most of
+the previous ones were contradicted by the papers they cited and are retired
+to `legacy_unsupported_*`. The **base model does not reproduce the corrected
+targets (I = 6.03, cutoff 3.0)** — published, not tuned away. The separate
+`aggregate_matched_prototype` profile is genuinely history-matched to those
+source-checked targets by moving model parameters only (no target/tolerance
+touched), reaching **I = 2.50** with the structural graph/temporal aggregates
+in band — which is one labelled configuration reproducing seven aggregates,
+NOT validation, calibration, or prediction. See
+[docs/AGGREGATE_FIT_FINDINGS.md](docs/AGGREGATE_FIT_FINDINGS.md).
 
 ### Output honesty gates
 

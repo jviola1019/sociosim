@@ -47,12 +47,19 @@ This file tracks the evidence-first operating limits after the v4 remediation.
   table cell it came from, are in
   `socio_sim/data/benchmarks/sourced_aggregates_v1.json`. The unverifiable sets
   are retired to `legacy_unsupported_*.json`.
-- **Against the corrected targets the simulator does not fit: I = 6.03**, far
+- **The BASE model does not reproduce the corrected targets: I = 6.03**, far
   outside the 3-sigma history-matching cutoff (degree tail 2.90 vs 2.30+/-0.10;
-  diurnal peak 17h vs 20h). This is published rather than tuned away. The
-  `aggregate_matched_prototype` profile scored below the cutoff only because it
-  had been history-matched against the unverifiable targets. Full write-up:
-  `docs/AGGREGATE_FIT_FINDINGS.md`.
+  diurnal peak 17h vs 20h). Published, not tuned away. The
+  `aggregate_matched_prototype` profile has since been genuinely
+  history-matched to the SOURCE-VERIFIED targets by moving model parameters
+  only (a configuration-model graph for the ~2.3 tail, triadic closure for
+  clustering, a diurnal shift to the source-checked evening peak, an ad-CTR
+  multiplier toward the source-checked display measurement) -- no target or
+  tolerance was touched -- reaching I = 2.50 with the structural graph/temporal
+  aggregates in band and the ad/appeal residuals (from incompatible real
+  surfaces) near the edge. A pass there is NOT validation/calibration/
+  prediction; it is one labelled configuration reproducing seven aggregates to
+  within their tolerances. Full write-up: `docs/AGGREGATE_FIT_FINDINGS.md`.
 - Even a good fit would not license validation/calibration/prediction claims:
   the sources measure different populations, metric definitions (Mislove's
   clustering is directed; the simulator's is undirected) and periods. Each

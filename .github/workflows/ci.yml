@@ -16,7 +16,12 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install (with dev, e2e, security, asset extras)
-        run: pip install -e .[dev,e2e,security,asset]
+        run: |
+          # Apply security updates to the build toolchain first: the runner
+          # ships setuptools/pip versions that pip-audit flags for freshly
+          # published advisories (build tooling, not a socio_sim runtime dep).
+          python -m pip install --upgrade pip setuptools
+          pip install -e .[dev,e2e,security,asset]
       - name: Install Playwright browsers
         run: python -m playwright install --with-deps chromium
       - name: Lint (ruff)
