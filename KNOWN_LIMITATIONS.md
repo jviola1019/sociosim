@@ -51,7 +51,7 @@ This file tracks the evidence-first operating limits after the v4 remediation.
   outside the 3-sigma history-matching cutoff (degree tail 2.90 vs 2.30+/-0.10;
   diurnal peak 17h vs 20h). Published, not tuned away. The
   `aggregate_matched_prototype` profile has since been genuinely
-  history-matched to the SOURCE-VERIFIED targets by moving model parameters
+  history-matched to the source-checked targets by moving model parameters
   only (a configuration-model graph for the ~2.3 tail, triadic closure for
   clustering, a diurnal shift to the source-checked evening peak, an ad-CTR
   multiplier toward the source-checked display measurement) -- no target or
