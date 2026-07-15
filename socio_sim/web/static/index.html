@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+<a class="skip-link" href="#output">Skip to results</a>
 <header class="nav">
   <div class="brand">
     <span class="brand-mark" aria-hidden="true"></span>
@@ -114,12 +115,14 @@
           <input type="range" id="homophily_rewire_fraction" min="0" max="0.8" step="0.05" value="0.15"></label>
         <p class="hint">How strongly agents prefer connecting to similar others.</p>
         <hr>
-        <label class="field"><span class="lbl">Benchmark <i>unsupported legacy target set</i></span>
+        <label class="field"><span class="lbl">Benchmark <i>aggregate-fit target set</i></span>
           <select id="benchmark">
-            <option value="default" selected>Default · generic aggregates</option>
-            <option value="twitter_like">Twitter-like · microblog</option>
-            <option value="facebook_like">Facebook-like · social network</option>
+            <option value="sourced_aggregates_v1" selected>Sourced aggregates v1 · values verified against primary sources</option>
+            <option value="legacy_unsupported_default">Legacy (unsupported) · generic — numbers unverifiable</option>
+            <option value="legacy_unsupported_twitter_like">Legacy (unsupported) · microblog — numbers unverifiable</option>
+            <option value="legacy_unsupported_facebook_like">Legacy (unsupported) · social network — numbers unverifiable</option>
           </select></label>
+        <p class="hint">Target distance is an aggregate-fit diagnostic, never validation: the sourced targets measure different populations, definitions and periods than this synthetic world (each target carries its applicability limits). The legacy sets are retired — their numbers could not be verified against the sources they cited.</p>
         <span class="lbl">Dynamic Graph <i>per active agent / day · 0 = static</i></span>
         <label class="field"><span class="lbl">Follow rate <b id="folVal" class="val">0.00</b></span>
           <input type="range" id="follow_rate" min="0" max="0.2" step="0.005" value="0"></label>
@@ -283,7 +286,7 @@
   </aside>
 
   <!-- ============ OUTPUT ============ -->
-  <section class="panel output">
+  <section class="panel output" id="output" tabindex="-1" aria-label="Simulation results">
     <div class="stage" id="idle">
       <span class="eyebrow reveal">Counterfactual social simulation</span>
       <h2 class="reveal">Design the world.<br>Watch it unfold.</h2>

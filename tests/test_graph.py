@@ -59,6 +59,31 @@ def test_homophily_mixing_raises_index():
     assert g2.number_of_edges() == g.number_of_edges()
 
 
+def test_homophily_index_closed_form():
+    """observed_same - sum(f_i^2). All one attribute -> 1 - 1 = 0-ish only
+    if every edge is same (it is) so observed=1, expected=1 -> 0. A fully
+    same-attribute graph over two equal groups with only within-group edges
+    -> observed=1, expected=0.5 -> index 0.5."""
+    import networkx as nx
+    g = nx.disjoint_union(nx.complete_graph(4), nx.complete_graph(4))
+    attrs = {n: (0 if n < 4 else 1) for n in g.nodes}     # two equal groups
+    # all edges are within-group -> observed same-fraction = 1.0
+    # expected under random mixing = 0.5^2 + 0.5^2 = 0.5
+    assert abs(homophily_index(g, attrs) - 0.5) < 1e-9
+
+
+def test_hill_exponent_recovers_known_power_law_and_is_nan_safe():
+    """Hill estimator on a large Pareto sample recovers the true tail
+    index; a degenerate (all-tied) tail returns NaN, not +inf."""
+    from socio_sim.validation.targets import hill_exponent
+    r = np.random.default_rng(0)
+    # pdf ~ x^-2.3  => Pareto shape b = 1.3
+    samp = 1.0 / r.random(200000) ** (1.0 / 1.3)
+    assert abs(hill_exponent(samp) - 2.3) < 0.05, hill_exponent(samp)
+    assert np.isnan(hill_exponent(np.full(100, 7.0)))     # tied tail -> NaN
+    assert np.isnan(hill_exponent([1.0, 2.0]))            # too small -> NaN
+
+
 def test_seed_determinism():
     g1 = make_graph("ba", 200, SeedTree(7).generator("graph", 0), m=3)
     g2 = make_graph("ba", 200, SeedTree(7).generator("graph", 0), m=3)

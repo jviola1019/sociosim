@@ -3,6 +3,47 @@
 Branch: `feat/audit-p0-p1`. Severity: P0 blocking · P1 serious · P2 important · P3 polish.
 Status: OPEN / IN-PROGRESS / DONE (with commit) / DEFERRED (-> HANDOFF.md).
 
+## Session 2026-07-14/15: statistical-validity sweep + genuine aggregate match + release hardening
+
+Two "errors" from the prior report closed, plus a whole-repo statistical audit
+(user mandate: every model/output statistically validated, not only touched code).
+
+- **Branch protection** (was 403 plan-gated): repo made public per explicit
+  user decision; `main` now requires the `test` check (strict), no
+  force-push/delete. Server-enforced. RELEASE.md updated.
+- **Statistical-validity sweep** (`05603a7`), each fix with a reference + a
+  closed-form/analytical property test: calibration_slope was an OLS slope,
+  now the Cox/Van Calster logistic slope (=1 iff calibrated) via
+  Newton-Raphson; hill_exponent used the k-th (self-including) threshold and
+  returned +inf on tied tails, now the (k+1)-th threshold with correct term
+  count and NaN safety; first_order_indices had a ~1/(samples-per-bin) bias
+  floor, now ANOVA within-bin debiased; harmful_exposure CI bootstrapped the
+  wrong estimand (per-agent mean vs the impression-pooled point estimate), now
+  a ratio-of-sums cluster bootstrap; CUPED theta mixed ddof, now consistent;
+  benjamini_hochberg now excludes NaN p-values from the family;
+  implausibility_components guards tolerance<=0. Audit confirmed correct (no
+  change): Wilson, Newcombe, two-proportion z, BH mask+q-values, MDE, KS,
+  Saltelli S1/ST, ROC-AUC (tie-corrected), Brier, log-loss, ECE, clustering,
+  assortativity, moderation/fairness/cascades.
+- **Aggregate fit** (`eaf93b3`): the base model's honest I=6.03 misfit
+  (published earlier) is addressed by genuinely history-matching the
+  `aggregate_matched_prototype` profile to the SOURCE-VERIFIED targets, moving
+  MODEL parameters only (no target/tolerance touched): new `cm`
+  configuration-model graph generator (reaches the ~2.3 tail preferential
+  attachment cannot) + degree-preserving triangle swaps for clustering +
+  `diurnal_peak_shift` (verified Golder peak) + `campaign_ctr_multiplier`
+  (verified iPinYou display CTR). Deterministic, replay-verified I=2.50 on
+  seed 42; structural graph/temporal metrics in band; ad/appeal residuals from
+  incompatible surfaces near the edge. All new config fields default to no-ops,
+  so the locked `test`-profile determinism baselines are byte-identical
+  (verified). Honesty guards intact; docs/AGGREGATE_FIT_FINDINGS.md rewritten.
+- **CI**: pip-audit flagged a fresh setuptools advisory (build tooling, not a
+  runtime dep) -- both workflows now security-update pip/setuptools before the
+  audit (applies the real fix, not a suppression).
+- Verified: 93% coverage, all suites incl. Playwright e2e + axe a11y; every
+  gate (ruff/evidence/claim/secret/numeric-provenance/asset/bandit/pip-audit/
+  license/wheel-QA) exit 0; clean-venv installed-wheel acceptance passes.
+
 ## Decisions (confirmed by product owner)
 - **MC wiring:** Preview (single-run, within-run bootstrap CIs) + Research (N-replicate MC percentile CIs) modes.
 - **Incrementality:** Add organic baseline conversion channel; lift = exposed_rate - holdout_rate. (Design validated by 2 background research agents before implementation.)

@@ -200,8 +200,10 @@ def test_save_is_atomic_a_failed_replace_leaves_old_cache_intact(tmp_path, monke
     monkeypatch.undo()
     # The original cache file is untouched and still fully valid JSON.
     assert llm_cache.load(path) == original
-    # No stray temp files accumulate next to the cache.
-    leftovers = [p for p in tmp_path.iterdir() if p.name != "cache.json"]
+    # No stray temp files accumulate next to the cache (the advisory
+    # .lock sidecar is expected and is not a partial write).
+    leftovers = [p.name for p in tmp_path.iterdir()
+                 if p.name not in ("cache.json", "cache.json.lock")]
     assert leftovers == [], leftovers
 
 
@@ -226,6 +228,111 @@ def test_concurrent_saves_never_produce_invalid_json(tmp_path):
         t.join()
     loaded = llm_cache.load(path)
     assert loaded in payloads  # complete content from exactly one writer
+
+
+def test_update_two_writers_different_keys_both_survive(tmp_path):
+    """The read-modify-write race save() could not solve: update() reloads
+    the latest cache under an advisory lock, so concurrent writers adding
+    DIFFERENT keys never lose each other's entries."""
+    import threading
+    path = tmp_path / "cache.json"
+    n_per_writer = 25
+
+    def writer(prefix):
+        for i in range(n_per_writer):
+            llm_cache.update(path, f"{prefix}{i}",
+                             llm_cache.make_entry(f"{prefix} text {i}",
+                                                  "accepted", []))
+
+    threads = [threading.Thread(target=writer, args=(p,)) for p in ("a", "b")]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    loaded = llm_cache.load(path)
+    assert len(loaded) == 2 * n_per_writer
+    assert all(llm_cache.resolve(v).hit for v in loaded.values())
+
+
+def test_update_same_key_first_writer_wins(tmp_path):
+    """Documented deterministic same-key policy: the first trusted entry on
+    disk is authoritative; a later writer's candidate is discarded and the
+    caller receives (and must adopt) the winner."""
+    path = tmp_path / "cache.json"
+    first = llm_cache.make_entry("first screened text", "accepted", [])
+    second = llm_cache.make_entry("second candidate text", "accepted", [])
+    llm_cache.update(path, "k", first)
+    merged = llm_cache.update(path, "k", second)
+    assert merged["k"] == first
+    assert llm_cache.load(path)["k"] == first
+    # ...but an UNTRUSTED existing entry (e.g. tampered) is replaced.
+    bad = dict(first)
+    bad["text"] = "tampered"
+    llm_cache.save(path, {"k": bad})
+    merged = llm_cache.update(path, "k", second)
+    assert merged["k"] == second
+
+
+def test_update_failed_replace_leaves_old_cache_and_releases_lock(tmp_path, monkeypatch):
+    path = tmp_path / "cache.json"
+    original = llm_cache.make_entry("original", "accepted", [])
+    llm_cache.update(path, "k", original)
+
+    def exploding_replace(src, dst):
+        raise OSError("simulated crash")
+
+    monkeypatch.setattr(llm_cache.os, "replace", exploding_replace)
+    with pytest.raises(OSError):
+        llm_cache.update(path, "k2", llm_cache.make_entry("new", "accepted", []))
+    monkeypatch.undo()
+    assert llm_cache.load(path) == {"k": original}
+    # The lock must have been released: a follow-up update succeeds.
+    llm_cache.update(path, "k3", llm_cache.make_entry("later", "accepted", []))
+    assert set(llm_cache.load(path)) == {"k", "k3"}
+
+
+def test_update_reports_dir_fsync_failure_without_claiming_durability(tmp_path, monkeypatch):
+    """A failed directory fsync must be REPORTED (durability across power
+    loss not guaranteed), not silently swallowed and not fatal -- the
+    rename itself already happened atomically."""
+    path = tmp_path / "cache.json"
+    notices = []
+
+    def failing_dir_fsync(directory, on_error=None):
+        if on_error is not None:
+            on_error("cache directory fsync failed (simulated); the write "
+                     "is atomic but durability across power loss is not "
+                     "guaranteed")
+
+    monkeypatch.setattr(llm_cache, "_dir_fsync", failing_dir_fsync)
+    llm_cache.update(path, "k", llm_cache.make_entry("t", "accepted", []),
+                     on_error=notices.append)
+    assert llm_cache.load(path)["k"]["text"] == "t"
+    assert any("durability" in n for n in notices)
+
+
+def test_update_multiprocess_no_lost_entries(tmp_path):
+    """Two real OS processes (not threads) racing on the same cache file:
+    every key from both writers must survive with valid schema entries."""
+    import subprocess
+    import sys
+    path = tmp_path / "cache.json"
+    script = (
+        "import sys\n"
+        "from pathlib import Path\n"
+        "from socio_sim.content import llm_cache\n"
+        "prefix, path = sys.argv[1], Path(sys.argv[2])\n"
+        "for i in range(20):\n"
+        "    llm_cache.update(path, f'{prefix}{i}',\n"
+        "                     llm_cache.make_entry(f'{prefix} {i}', 'accepted', []))\n"
+    )
+    procs = [subprocess.Popen([sys.executable, "-c", script, prefix, str(path)])
+             for prefix in ("p", "q")]
+    for p in procs:
+        assert p.wait(timeout=120) == 0
+    loaded = llm_cache.load(path)
+    assert len(loaded) == 40, sorted(loaded)
+    assert all(llm_cache.resolve(v).hit for v in loaded.values())
 
 
 def test_blocked_and_accepted_entries_survive_reload_with_same_meaning(tmp_path):

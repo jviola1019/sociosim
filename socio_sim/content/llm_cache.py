@@ -9,7 +9,8 @@ Trust model (deliberately conservative -- this is a local single-user
 research tool, not a defense against a filesystem-level adversary who can
 recompute hashes; `record_hash` catches accidental corruption, stale
 hand-edits, and naive tampering, not a sophisticated attacker with write
-access who also updates the hash to match their forged content):
+access who also updates the hash to match their forged content. The cache
+file is NOT a security boundary):
 
 - A cache entry written by this module is a dict with `text`,
   `status` ("accepted" | "blocked"), `reason_codes`, `guard_version`, and a
@@ -43,6 +44,7 @@ import hashlib
 import json
 import os
 import tempfile
+import time
 from pathlib import Path
 from typing import NamedTuple
 
@@ -181,18 +183,10 @@ def load(path: Path, on_error=None) -> dict:
     return data
 
 
-def save(path: Path, cache: dict) -> None:
-    """Atomically persist the cache.
-
-    Serialize to a temp file in the same directory, flush + fsync, then
-    os.replace() over the target: a crash, interruption, or racing writer
-    at any point leaves either the old complete file or the new complete
-    file on disk -- never a truncated or interleaved mix. (record_hash
-    detects accidental corruption after the fact; this layer prevents the
-    save path from being the thing that corrupts it.)"""
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(cache, sort_keys=True)
+def _atomic_write(path: Path, payload: str) -> None:
+    """Temp file in the same directory, flush + fsync, os.replace: a crash
+    or racing writer leaves either the old or the new complete file --
+    never a truncated or interleaved mix."""
     fd, tmp_name = tempfile.mkstemp(dir=path.parent,
                                     prefix=path.name + ".", suffix=".tmp")
     try:
@@ -207,6 +201,104 @@ def save(path: Path, cache: dict) -> None:
         except OSError:
             pass
         raise
+
+
+def _dir_fsync(directory: Path, on_error=None) -> None:
+    """Best-effort parent-directory fsync (POSIX): makes the rename itself
+    durable across power loss. Windows has no directory fsync; there and on
+    any failure we REPORT the gap instead of claiming durable persistence
+    (the rename is still atomic against crashes either way)."""
+    if os.name == "nt":
+        return
+    try:
+        dfd = os.open(directory, os.O_RDONLY)
+        try:
+            os.fsync(dfd)
+        finally:
+            os.close(dfd)
+    except OSError as exc:
+        if on_error is not None:
+            on_error(f"cache directory fsync failed ({exc!r}); the write is "
+                     "atomic but durability across power loss is not "
+                     "guaranteed")
+
+
+class _FileLock:
+    """Advisory cross-process lock via a sidecar .lock file (msvcrt on
+    Windows, flock elsewhere). Advisory only: it coordinates cooperating
+    SocioSim processes; it is not a security boundary."""
+
+    def __init__(self, path: Path):
+        self._lock_path = path.with_name(path.name + ".lock")
+        self._fh = None
+
+    def __enter__(self):
+        self._fh = open(self._lock_path, "a+b")
+        if os.name == "nt":
+            import msvcrt
+            while True:
+                try:
+                    msvcrt.locking(self._fh.fileno(), msvcrt.LK_LOCK, 1)
+                    break
+                except OSError:
+                    time.sleep(0.05)
+        else:
+            import fcntl
+            fcntl.flock(self._fh, fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *exc):
+        try:
+            if os.name == "nt":
+                import msvcrt
+                self._fh.seek(0)
+                msvcrt.locking(self._fh.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(self._fh, fcntl.LOCK_UN)
+        finally:
+            self._fh.close()
+        return False
+
+
+def save(path: Path, cache: dict, on_error=None) -> None:
+    """Atomically persist a WHOLE cache dict (last writer wins).
+
+    Takes the same advisory lock as update(): without it, two writers can
+    race inside os.replace() and Windows raises PermissionError when the
+    destination is open in the other writer (observed, not theoretical).
+    For concurrent per-entry writes prefer update(), which also merges
+    instead of overwriting."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with _FileLock(path):
+        _atomic_write(path, json.dumps(cache, sort_keys=True))
+        _dir_fsync(path.parent, on_error=on_error)
+
+
+def update(path: Path, key: str, entry: dict, on_error=None) -> dict:
+    """Concurrency-safe single-entry upsert; returns the merged cache.
+
+    Under an advisory file lock: reload the LATEST on-disk cache, merge the
+    caller's entry, atomically write (+ best-effort directory fsync on
+    POSIX), release. Two writers adding different keys both survive.
+
+    Same-key policy (deterministic, documented): FIRST WRITER WINS -- if
+    the latest on-disk cache already holds an entry for `key` that
+    resolve() trusts (accepted or currently-blocked), that entry is kept
+    and returned; the caller must adopt it. This matches replay semantics:
+    the first screened result for a prompt is authoritative. Entries
+    resolve() does not trust (tampered/legacy/stale-guard) are replaced."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with _FileLock(path):
+        latest = load(path, on_error=on_error)
+        existing = latest.get(key)
+        if existing is None or not resolve(existing).hit:
+            latest[key] = entry
+        _atomic_write(path, json.dumps(latest, sort_keys=True))
+        _dir_fsync(path.parent, on_error=on_error)
+    return latest
 
 
 def file_hash(path: Path) -> str | None:

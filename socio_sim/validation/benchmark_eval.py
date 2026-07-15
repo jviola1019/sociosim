@@ -120,14 +120,38 @@ def expected_calibration_error(y_true, p, n_bins: int = 10) -> float:
     return float(ece)
 
 
-def calibration_slope(y_true, p) -> float:
+def calibration_slope(y_true, p, max_iter: int = 50, tol: float = 1e-8) -> float:
+    """Cox / Van Calster calibration slope: the coefficient b1 in the
+    logistic regression logit P(Y=1) = b0 + b1 * logit(p_hat).
+
+    A perfectly calibrated model has b1 = 1; b1 < 1 => over-confident
+    (predictions too extreme), b1 > 1 => under-confident. This is NOT an OLS
+    slope of y on logit(p) (that has no "= 1 iff calibrated" meaning and a
+    different scale); it is fit here by Newton-Raphson on the two-parameter
+    logistic likelihood. Ref: Cox 1958; Van Calster et al. 2019, J Clin
+    Epidemiol 74:167-176.
+    """
     y = np.asarray(y_true, dtype=float)
-    p = np.clip(np.asarray(p, dtype=float), 1e-6, 1 - 1e-6)
-    x = np.log(p / (1 - p))
-    vx = float(np.var(x))
-    if vx == 0:
+    x = np.log(np.clip(np.asarray(p, dtype=float), 1e-6, 1 - 1e-6)
+               / (1 - np.clip(np.asarray(p, dtype=float), 1e-6, 1 - 1e-6)))
+    if y.size == 0 or float(np.var(x)) == 0 or len(np.unique(y)) < 2:
         return float("nan")
-    return float(np.cov(x, y)[0, 1] / vx)
+    X = np.column_stack([np.ones_like(x), x])          # intercept + logit(p)
+    beta = np.zeros(2)
+    for _ in range(max_iter):
+        eta = np.clip(X @ beta, -30, 30)      # avoid exp overflow at the tails
+        mu = 1.0 / (1.0 + np.exp(-eta))
+        w = np.clip(mu * (1 - mu), 1e-9, None)
+        grad = X.T @ (y - mu)
+        hess = (X * w[:, None]).T @ X
+        try:
+            step = np.linalg.solve(hess, grad)
+        except np.linalg.LinAlgError:
+            return float("nan")
+        beta = beta + step
+        if np.max(np.abs(step)) < tol:
+            break
+    return float(beta[1])
 
 
 def _binary_metrics(y_true, scores, threshold: float) -> dict:

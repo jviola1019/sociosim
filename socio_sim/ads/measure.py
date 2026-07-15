@@ -33,10 +33,14 @@ def _oracle_covariate_adjusted_simulation_diagnostic(ads, exposed, holdout,
     xe = np.array([float(personas.base_conversion[a]) for a in exp])
     xh = np.array([float(personas.base_conversion[a]) for a in hld])
     x_all, y_all = np.concatenate([xe, xh]), np.concatenate([ye, yh])
-    var_x = float(np.var(x_all))
+    # Consistent ddof: take both the covariance and the variance from the
+    # same np.cov call (ddof=1) so theta = Cov(y,x)/Var(x) is unbiased --
+    # mixing np.cov (ddof=1) with np.var (ddof=0) scales theta by N/(N-1).
+    cov = np.cov(y_all, x_all)             # 2x2, ddof=1
+    var_x = float(cov[1, 1])
     if var_x <= 0:
         return float(ye.mean() - yh.mean())
-    theta = float(np.cov(y_all, x_all)[0, 1] / var_x)
+    theta = float(cov[0, 1] / var_x)
     xbar = float(x_all.mean())
     return float((ye - theta * (xe - xbar)).mean()
                  - (yh - theta * (xh - xbar)).mean())

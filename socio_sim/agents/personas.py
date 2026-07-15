@@ -73,9 +73,16 @@ class Personas:
                    ad_responsiveness, moderation_attitude, influencer,
                    vulnerable, interests, base_conversion, trusted_flagger)
 
-    def active_mask(self, hour: int, rng: np.random.Generator) -> np.ndarray:
-        """Vectorized Bernoulli draw: P(active) = activity × diurnal[hour]."""
-        p = np.clip(self.activity * DIURNAL_CURVE[hour % 24], 0, 1)
+    def active_mask(self, hour: int, rng: np.random.Generator,
+                    diurnal_shift: int = 0) -> np.ndarray:
+        """Vectorized Bernoulli draw: P(active) = activity × diurnal[hour].
+
+        `diurnal_shift` rolls the curve later by that many hours (0 = the
+        default curve; the aggregate-matched profile uses a shift to align
+        the peak with a verified source). Shift 0 leaves behaviour and the
+        RNG draw byte-identical."""
+        p = np.clip(self.activity * DIURNAL_CURVE[(hour - diurnal_shift) % 24],
+                    0, 1)
         return rng.random(self.n) < p
 
     def group_labels(self) -> dict:

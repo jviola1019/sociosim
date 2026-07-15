@@ -319,6 +319,49 @@ def test_blocked_cache_invalidated_by_deliberate_guard_version_bump(tmp_path, mo
     assert item.text == "totally fine local news text"
 
 
+def test_blocked_branch_adopts_a_concurrent_writers_accepted_winner(tmp_path):
+    """Determinism under a SHARED cache (runs with the same config+seed
+    share out/llm_cache/<config_hash>.json by design).
+
+    Race: another process's ACCEPTED entry lands first for this key; our
+    guard blocks our own response. update() is first-writer-wins, so the
+    accepted entry stays on disk -- which is exactly what the NEXT run of
+    this config+seed will replay. If this run served template text instead,
+    the two runs' event streams would diverge. The blocked branch must
+    adopt the winner too."""
+    from socio_sim.content import llm_cache
+    gen, personas = setup()
+    cache_path = tmp_path / "cache.json"
+
+    # A concurrent writer already screened this prompt and accepted it.
+    probe = LLMAdapter(base=gen, cache_path=cache_path, backend="ollama",
+                       transport=lambda p: "x")
+    prompt = probe._prompt(1, personas, probe.base.generate(1, personas, 3).topic, 3)
+    # Rebuild the key exactly as generate() will for (author=1, tick=3).
+    gen2, _ = setup()
+    adapter = LLMAdapter(base=gen2, cache_path=cache_path, backend="ollama",
+                         transport=lambda p: "local news email me at a@b.com")
+    item_preview = gen2.generate(1, personas, 3)
+    key = adapter.prompt_key(
+        adapter._prompt(1, personas, item_preview.topic, 3))
+    llm_cache.update(cache_path, key,
+                     llm_cache.make_entry("winner text from process A",
+                                          "accepted", []))
+
+    gen3, _ = setup()
+    racer = LLMAdapter(base=gen3, cache_path=cache_path, backend="ollama",
+                       transport=lambda p: "local news email me at a@b.com")
+    # Its own response is blocked, but A's accepted entry owns the key.
+    item = racer.generate(1, personas, tick=3)
+    assert "email me" not in item.text          # blocked text never served
+    on_disk = llm_cache.load(cache_path)[key]
+    assert on_disk["status"] == "accepted"      # first writer still wins
+    assert item.text == "winner text from process A", (
+        "blocked branch must adopt the accepted entry that won the key, "
+        "or the next same-seed run replays different text")
+    del prompt
+
+
 def test_usage_accounting_counts_calls_hits_blocked_and_failures(tmp_path):
     """Deferred P5 item: transport usage diagnostics. Counters live on the
     adapter only (RunResult.llm_usage) -- never in the hashed event stream."""
@@ -548,6 +591,10 @@ def test_e05_redirect_response_is_refused_not_followed(tmp_path):
 
     class Redirector(BaseHTTPRequestHandler):
         def do_POST(self):
+            # Drain the request body first: responding while unread bytes
+            # sit in the socket makes Windows abort the connection before
+            # the client can read the 302.
+            self.rfile.read(int(self.headers.get("Content-Length", 0)))
             self.send_response(302)
             self.send_header("Location", "http://169.254.169.254/latest/")
             self.end_headers()

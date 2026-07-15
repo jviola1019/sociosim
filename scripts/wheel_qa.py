@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_DATA = (
     "data/evidence_registry.json",
     "data/scenario_assumptions.json",
-    "data/benchmarks/default_targets.json",
+    "data/benchmarks/sourced_aggregates_v1.json",
 )
 EXPECTED_ROLE_COUNTS = {"feed-cover-v4-": 48, "ad-creative-v4-": 32,
                         "editorial-v4-": 16}
@@ -71,6 +71,24 @@ def main() -> int:
         errors.append("expected exactly 4 packaged policy packs")
     if any("v3" in n for n in names):
         errors.append("legacy v3 asset packaged")
+
+    # The packaged benchmark set must be EXACTLY the current one. A dirty
+    # build/ directory silently re-packages deleted/renamed data files: the
+    # retired, unverifiable target sets once shipped under their old
+    # un-prefixed names (default_targets.json, twitter_like.json), where an
+    # installed wheel would have offered them as ordinary benchmarks.
+    packaged_bm = {Path(n).name for n in names if "/benchmarks/" in n
+                   and n.endswith(".json")}
+    expected_bm = {"sourced_aggregates_v1.json",
+                   "legacy_unsupported_default.json",
+                   "legacy_unsupported_twitter_like.json",
+                   "legacy_unsupported_facebook_like.json"}
+    if packaged_bm != expected_bm:
+        errors.append(
+            "packaged benchmark files do not match the source tree "
+            f"(unexpected: {sorted(packaged_bm - expected_bm)}; "
+            f"missing: {sorted(expected_bm - packaged_bm)}) -- "
+            "delete build/ and rebuild")
 
     reg_matches = [n for n in names if n.endswith("assets/v4/registry.json")]
     if not reg_matches:

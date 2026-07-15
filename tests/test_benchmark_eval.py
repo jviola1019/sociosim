@@ -69,3 +69,23 @@ def test_roc_auc_known_cases():
     assert roc_auc([0, 0, 1, 1], [0.1, 0.2, 0.8, 0.9]) == 1.0   # perfect ranking
     assert abs(roc_auc([0, 1, 0, 1], [0.5, 0.5, 0.5, 0.5]) - 0.5) < 1e-9  # ties
     assert roc_auc([0, 0, 1, 1], [0.9, 0.8, 0.2, 0.1]) == 0.0   # inverted
+
+
+def test_calibration_slope_is_the_logistic_slope_not_ols():
+    """A well-calibrated model has calibration slope ~= 1 (Van Calster
+    2019). A model whose probabilities are too EXTREME (over-confident) has
+    slope < 1; too timid has slope > 1. The old OLS-of-y-on-logit(p) did
+    not have the '=1 iff calibrated' property."""
+    import numpy as np
+
+    from socio_sim.validation.benchmark_eval import calibration_slope
+    rng = np.random.default_rng(0)
+    # Perfectly calibrated: y ~ Bernoulli(p), p uniform-ish over (0,1).
+    p = rng.uniform(0.02, 0.98, 20000)
+    y = (rng.random(20000) < p).astype(int)
+    assert abs(calibration_slope(y, p) - 1.0) < 0.15, calibration_slope(y, p)
+    # Over-confident: push probabilities toward the extremes -> slope < 1.
+    p_over = np.clip(1 / (1 + np.exp(-2.0 * np.log(p / (1 - p)))), 1e-6, 1 - 1e-6)
+    assert calibration_slope(y, p_over) < 0.85, calibration_slope(y, p_over)
+    # Degenerate inputs -> NaN, not a spurious number.
+    assert np.isnan(calibration_slope([1, 1, 1], [0.6, 0.6, 0.6]))

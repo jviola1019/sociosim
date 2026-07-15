@@ -26,6 +26,10 @@ def implausibility_components(observed: dict, targets: dict) -> list[dict]:
             continue
         target = float(spec["value"])
         tolerance = float(spec["tolerance"])
+        if not tolerance > 0:
+            # A zero/negative tolerance is undefined for a standardized
+            # discrepancy; skip rather than inject inf/NaN into max().
+            continue
         z = abs(float(observed[name]) - target) / tolerance
         components.append({
             "metric": name,

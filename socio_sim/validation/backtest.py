@@ -35,7 +35,8 @@ _PROFILES = {"test": RunConfig.test, "quick": RunConfig.quick,
 DEFAULT_HOLDOUT = ("degree_tail_exponent", "diurnal_peak_hour")
 
 
-def leave_out_backtest(benchmark: str = "default", holdout=DEFAULT_HOLDOUT,
+def leave_out_backtest(benchmark: str = "sourced_aggregates_v1",
+                       holdout=DEFAULT_HOLDOUT,
                        grid=None, profile: str = "quick", seed: int = 42,
                        **cfg_overrides) -> dict:
     targets = load_targets(benchmark)
@@ -83,9 +84,15 @@ def render_backtest_report(bt: dict, stylized: dict) -> str:
     lines = [
         "# SocioSim Aggregate-Fit Diagnostics Report",
         "",
-        "> Scope: synthetic aggregate-fit diagnostics only. Legacy target files "
-        "have incomplete source metadata and cannot support validation, backtest, "
-        "calibration, or confidence seals.",
+        "> Scope: synthetic aggregate-fit diagnostics only — never validation, "
+        "calibration, realism, or a prediction of any real platform. Even for "
+        "the source-verified target set, the sources measure different "
+        "populations, metric definitions and periods than this synthetic world "
+        "(each target carries its own applicability limits). The "
+        "`legacy_unsupported_*` sets additionally have values that could NOT be "
+        "verified against the papers they cited and cannot support any claim at "
+        "all. Measured outcome against the verified set: see "
+        "docs/AGGREGATE_FIT_FINDINGS.md.",
         "",
         f"## 1. Held-out aggregate diagnostic — `{bt['benchmark']}` (profile `{bt['profile']}`)",
         f"Selected graph triad p = **{bt['chosen_p']}** on the TRAIN metrics "

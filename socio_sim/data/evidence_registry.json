@@ -182,6 +182,187 @@
         "Testimonials or platform screenshots"
       ],
       "verification_status": "qa_required"
+    },
+    {
+      "id": "ev.external_aggregate.barabasi_albert_1999",
+      "kind": "external_aggregate",
+      "source_title": "Emergence of Scaling in Random Networks (Science 286:509)",
+      "source_url": "https://arxiv.org/abs/cond-mat/9910332",
+      "source_version_or_revision": "arXiv cond-mat/9910332 v1 (1999-10-21); DOI 10.1126/science.286.5439.509",
+      "retrieved_at": "2026-07-13",
+      "license": "open preprint (arXiv)",
+      "data_scope": "published aggregate statistic (power-law exponent of the actor-collaboration degree tail)",
+      "units": "dimensionless power-law exponent",
+      "population": "movie-actor collaboration graph, N=212,250, mean degree 28.78",
+      "time_window": "not stated in the source (pre-1999 corpus)",
+      "known_limitations": [
+        "an actor-collaboration graph is not an online social feed",
+        "the paper's exponents span 2.1-4 across networks; the commonly repeated '2-3 for social networks' band does not appear in it",
+        "later measurements (Kwak 2010, Ugander 2011) reject a pure power-law for real platform degree distributions"
+      ],
+      "valid_uses": [
+        "aggregate-fit diagnostic on a synthetic graph's tail exponent"
+      ],
+      "invalid_uses": [
+        "validation claims",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "pass/fail seals",
+        "decision guidance"
+      ],
+      "verification_status": "value_verified_against_source"
+    },
+    {
+      "id": "ev.external_aggregate.mislove_2007",
+      "kind": "external_aggregate",
+      "source_title": "Measurement and Analysis of Online Social Networks (IMC'07)",
+      "source_url": "https://www.khoury.northeastern.edu/home/amislove/publications/SocialNetworks-IMC.pdf",
+      "source_version_or_revision": "IMC'07 pp.29-42; DOI 10.1145/1298306.1298311",
+      "retrieved_at": "2026-07-13",
+      "license": "author-hosted open PDF",
+      "data_scope": "published aggregate statistics (clustering coefficients of four online social networks)",
+      "units": "average local clustering coefficient [0,1]",
+      "population": "Flickr, LiveJournal, Orkut, YouTube public user-link crawls (1.1M-5.3M users each)",
+      "time_window": "October 2006 - January 2007",
+      "known_limitations": [
+        "the paper measures a DIRECTED clustering coefficient; this simulator measures the undirected one, so the definitions are not interchangeable",
+        "measured values span 0.136-0.330 across the four networks",
+        "the paper's reported degree exponents (1.50-1.99) are all below the conventional 2-3 band and its fit convention is unstated"
+      ],
+      "valid_uses": [
+        "aggregate-fit diagnostic on a synthetic graph's clustering"
+      ],
+      "invalid_uses": [
+        "validation claims",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "pass/fail seals",
+        "decision guidance"
+      ],
+      "verification_status": "value_verified_against_source"
+    },
+    {
+      "id": "ev.external_aggregate.golder_2007",
+      "kind": "external_aggregate",
+      "source_title": "Rhythms of Social Interaction: Messaging Within a Massive Online Network",
+      "source_url": "https://arxiv.org/abs/cs/0611137",
+      "source_version_or_revision": "Communities & Technologies 2007, pp.41-66 (arXiv cs/0611137)",
+      "retrieved_at": "2026-07-13",
+      "license": "open preprint (arXiv)",
+      "data_scope": "published aggregate statistic (hour-of-day messaging peak and trough)",
+      "units": "hour of day [0,23]",
+      "population": "4.2 million Facebook users (US college students), 362 million messages and pokes",
+      "time_window": "26-month interval ending ~2006",
+      "known_limitations": [
+        "US college students on 2005-2006 Facebook, not a general or present-day population",
+        "measures private messaging rhythm, not public posting volume"
+      ],
+      "valid_uses": [
+        "aggregate-fit diagnostic on a synthetic diurnal curve"
+      ],
+      "invalid_uses": [
+        "validation claims",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "pass/fail seals",
+        "decision guidance"
+      ],
+      "verification_status": "value_verified_against_source"
+    },
+    {
+      "id": "ev.external_aggregate.pew_twitter_2019",
+      "kind": "external_aggregate",
+      "source_title": "Pew Research Center \u2014 Sizing Up Twitter Users (2019)",
+      "source_url": "https://www.pewresearch.org/internet/2019/04/24/sizing-up-twitter-users/",
+      "source_version_or_revision": "published 2019-04-24",
+      "retrieved_at": "2026-07-13",
+      "license": "open web publication",
+      "data_scope": "published aggregate statistics (tweet-volume decomposition by user decile)",
+      "units": "posts per user per day (derived)",
+      "population": "2,791 US adult Twitter users, probability-based panel linked to observed account data",
+      "time_window": "survey fielded November 2018",
+      "known_limitations": [
+        "the comparable per-agent MEAN (~0.51/day) is DERIVED from the published decile decomposition, not published directly",
+        "the published MEDIAN is 2 tweets/month (~0.066/day): the mean is not a typical user",
+        "Pew's 2021 follow-up is materially lower, so the figure is not period-stable"
+      ],
+      "valid_uses": [
+        "aggregate-fit diagnostic on synthetic posting volume (as a mean)"
+      ],
+      "invalid_uses": [
+        "validation claims",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "pass/fail seals",
+        "decision guidance",
+        "any claim about a median or typical user"
+      ],
+      "verification_status": "value_derived_from_verified_source"
+    },
+    {
+      "id": "ev.external_aggregate.ipinyou_2014",
+      "kind": "external_aggregate",
+      "source_title": "Real-Time Bidding Benchmarking with iPinYou Dataset (arXiv:1407.7073)",
+      "source_url": "https://arxiv.org/abs/1407.7073",
+      "source_version_or_revision": "UCL Technical Report, 2014-07-23",
+      "retrieved_at": "2026-07-13",
+      "license": "open preprint (arXiv)",
+      "data_scope": "published aggregate statistic (display-advertising click-through rate)",
+      "units": "clicks per priced impression [0,1]",
+      "population": "9 advertiser campaigns on the iPinYou DSP real-time-bidding logs",
+      "time_window": "2013 (dataset released 2014)",
+      "known_limitations": [
+        "desktop DISPLAY real-time bidding in China, not social-feed advertising (this simulator's ad surface)",
+        "no named, publicly verifiable primary source for a social-feed CTR was found; commercial aggregator figures rest on proprietary, non-auditable samples and are deliberately not used"
+      ],
+      "valid_uses": [
+        "aggregate-fit diagnostic on synthetic ad click-through"
+      ],
+      "invalid_uses": [
+        "validation claims",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "pass/fail seals",
+        "decision guidance",
+        "any claim about social-feed ad performance"
+      ],
+      "verification_status": "value_verified_against_source"
+    },
+    {
+      "id": "ev.external_aggregate.youtube_ab587_2024h1",
+      "kind": "external_aggregate",
+      "source_title": "YouTube California AB 587 Transparency Report, H1 2024",
+      "source_url": "https://oag.ca.gov/ab587/submissions",
+      "source_version_or_revision": "H1 2024 filing (2024-01-01 to 2024-06-30)",
+      "retrieved_at": "2026-07-13",
+      "license": "public regulatory filing",
+      "data_scope": "published aggregate statistics (appeals filed and reinstatements granted)",
+      "units": "granted appeals per filed appeal [0,1]",
+      "population": "YouTube videos removed for Community Guidelines violations and appealed (745,707 appeals; 82,190 reinstatements)",
+      "time_window": "2024-01-01 to 2024-06-30",
+      "known_limitations": [
+        "one platform, one half-year, video removals only",
+        "Meta and TikTok omit the numeric tables from their AB 587 filings, so no cross-platform rate is derivable",
+        "not period-stable: reporting around Q4 2019 implies roughly double this rate"
+      ],
+      "valid_uses": [
+        "aggregate-fit diagnostic on a synthetic appeals workflow"
+      ],
+      "invalid_uses": [
+        "validation claims",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "pass/fail seals",
+        "decision guidance",
+        "compliance assessment of any real platform"
+      ],
+      "verification_status": "value_verified_against_source"
     }
   ]
 }

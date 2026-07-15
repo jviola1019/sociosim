@@ -64,9 +64,34 @@ def test_appeal_stats_includes_resolution_p95():
 
 
 def test_harmful_exposure_exact():
-    rate, per_agent = harmful_exposure(fixture_log())
-    assert rate == 0.5  # 1 harmful of 2 impressions
-    assert per_agent[5] == 0.5
+    rate, per_agent_counts = harmful_exposure(fixture_log())
+    assert rate == 0.5  # 1 harmful of 2 impressions (pooled)
+    # per_agent_counts now carries (harm, total) so the CI can re-pool.
+    assert per_agent_counts[5] == (1, 2)
+
+
+def test_harmful_exposure_ci_matches_the_pooled_estimand():
+    """The reported CI must bound the impression-POOLED rate, not the
+    unweighted mean of per-agent rates. With one high-volume agent seeing
+    all harmful content and many low-volume agents seeing none, the pooled
+    rate (0.333) and the per-agent mean (0.048) diverge: the new
+    ratio-of-sums CI contains the pooled rate, while the OLD per-agent-mean
+    bootstrap excludes it entirely."""
+    import numpy as np
+
+    from socio_sim.analytics.metrics import bootstrap_ci, ratio_bootstrap_ci
+    harm = [10] + [0] * 20          # one agent: 10 harmful impressions
+    tot = [10] + [1] * 20           # + 20 agents with 1 clean impression each
+    pooled = sum(harm) / sum(tot)   # 10/30 = 0.333
+
+    lo, hi = ratio_bootstrap_ci(harm, tot, rng=np.random.default_rng(0))
+    assert lo <= pooled <= hi, (lo, pooled, hi)
+
+    # The estimand the old code used (mean of per-agent rates) yields a CI
+    # that does NOT cover the pooled rate -- the bug this fix corrects.
+    rates = [h / t for h, t in zip(harm, tot)]
+    old_lo, old_hi = bootstrap_ci(rates, rng=np.random.default_rng(0))
+    assert not (old_lo <= pooled <= old_hi), (old_lo, pooled, old_hi)
 
 
 def test_cascade_sizes_exact():

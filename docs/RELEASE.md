@@ -22,7 +22,18 @@ health endpoint (single-user stdlib server by design).
    `verify_replay=True`.
 4. CI green **for the exact SHA being released** (`gh run watch <run-id>
    --exit-status`), not just a PR head.
-5. Tag: `git tag -a vX.Y.Z -m "..." && git push --tags`.
+5. Tag: `git tag -a vX.Y.Z -m "..." && git push --tags`. The
+   **Release workflow** (`.github/workflows/release.yml`) then re-runs the
+   entire gate suite *against the tagged SHA* and only then publishes the
+   wheel, `SHA256SUMS`, an SPDX SBOM, `provenance.json` (commit, workflow
+   run, gate list, scope), and release notes generated from the reviewed
+   commits since the previous tag. A green PR-head run is never accepted
+   as proof of a release commit; `workflow_dispatch` can also verify any
+   arbitrary SHA.
+
+Rollback verification: after checking out a previous tag, run
+`make verify` (which now ends with `installed-wheel-smoke`) — the release
+is only considered rolled back once that passes on the older SHA.
 
 ## Rollback
 
@@ -36,18 +47,60 @@ Releases are plain git tags + wheels; no migrations, no external state.
   a local cache of run payloads, not a source of truth (every run's
   authoritative record is its `out/<run>/events.jsonl` + `manifest.json`).
 
+## Branch protection
+
+**Active and server-enforced (enabled 2026-07-14 after the repository was
+made public).** `main` requires the `test` status check to pass, in strict
+mode (a branch must be up to date with `main` before it can merge), and
+force-pushes and branch deletion are disabled. Read the live state with:
+
+```bash
+gh api repos/<owner>/<repo>/branches/main/protection \
+  --jq '{required_checks: .required_status_checks.checks, strict: .required_status_checks.strict}'
+```
+
+Historical note: while the repo was private on the free plan, both classic
+protection (`PUT /repos/:owner/:repo/branches/main/protection`, 2026-07-11)
+and repository rulesets (`POST /repos/:owner/:repo/rulesets`, 2026-07-13)
+returned `403 Upgrade to GitHub Pro or make this repository public`; the
+release gate below was the interim substitute. To re-apply protection from
+scratch:
+
+```bash
+gh api -X PUT repos/<owner>/<repo>/branches/main/protection --input - <<'JSON'
+{"required_status_checks":{"strict":true,"contexts":["test"]},
+ "enforce_admins":false,"required_pull_request_reviews":null,
+ "restrictions":null,"allow_force_pushes":false,"allow_deletions":false}
+JSON
+```
+
+Independently of protection, the release gate still holds: **never tag or
+announce a release whose exact SHA lacks a completed successful run**
+(`gh run list --commit <sha>` + `gh api .../commits/<sha>/check-runs`).
+CI has `workflow_dispatch` so any ref can be re-proven manually.
+
+## Corrupted run-history database (recovery)
+
+`python run.py --status` reports DB health (`PRAGMA integrity_check`).
+If it reports corruption: stop the console, move `out/sociosim.db` aside,
+and restart — the schema is recreated empty. The DB is a local cache;
+every run's authoritative record is its `out/<run>/events.jsonl` +
+`manifest.json`, and determinism means any run is reproducible from
+config + seed. To salvage rows first: `sqlite3 out/sociosim.db ".recover" |
+sqlite3 recovered.db`.
+
 ## Local data retention & cleanup
 
 - Every run writes `out/<name>/` (events.jsonl, manifest.json, report.md)
   and the web console appends to `out/sociosim.db`. Nothing leaves the
   machine.
-- There is NO automatic retention policy: `out/` grows until you delete
-  it. Safe cleanup: remove `out/` entirely (regenerable; determinism means
-  any run can be reproduced from its config + seed) or delete individual
-  run folders / History entries in the UI.
-- Backup/export limitation: exports are per-run markdown/JSON from the
-  UI/CLI; there is no bulk backup tool. Copy `out/` wholesale if you need
-  an archive.
+- Retention is OPT-IN via the CLI: `python run.py --status` (inventory,
+  disk headroom, DB health), `--cleanup --keep-last N / --max-age-days D`
+  (dry run by default; `--yes` to delete — this also prunes orphaned
+  history rows and vacuums the DB), `--vacuum-db`.
+- Bulk backup: `python run.py --export-all DEST` copies every run with a
+  per-run sha256 `integrity.json`; `--verify-export DIR` re-checks an
+  archived copy. Exports are plain directories, no archive format.
 
 ## Secrets
 

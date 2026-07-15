@@ -45,6 +45,19 @@ untrusted networks. A private/RFC1918 `llm_base_url` requires
 `SOCIOSIM_LLM_ALLOWED_HOSTS`. Details: `SECURITY.md`;
 residual limitations: `KNOWN_LIMITATIONS.md`.
 
+### Aggregate fit: the honest number
+
+Benchmark target values were verified against their primary sources; most of
+the previous ones were contradicted by the papers they cited and are retired
+to `legacy_unsupported_*`. The **base model does not reproduce the corrected
+targets (I = 6.03, cutoff 3.0)** — published, not tuned away. The separate
+`aggregate_matched_prototype` profile is genuinely history-matched to those
+source-checked targets by moving model parameters only (no target/tolerance
+touched), reaching **I = 2.50** with the structural graph/temporal aggregates
+in band — which is one labelled configuration reproducing seven aggregates,
+NOT validation, calibration, or prediction. See
+[docs/AGGREGATE_FIT_FINDINGS.md](docs/AGGREGATE_FIT_FINDINGS.md).
+
 ### Output honesty gates
 
 - Observed-vs-target comparisons are suppressed on the CLI and web UI alike

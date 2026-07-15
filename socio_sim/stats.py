@@ -94,21 +94,32 @@ def discrete_ks(observed_counts, expected_weights) -> float:
 
 def benjamini_hochberg(pvalues, alpha: float = 0.05) -> list:
     """Benjamini-Hochberg FDR control. Returns a boolean rejected-mask aligned
-    to `pvalues` (preferred over Bonferroni for families of campaign tests)."""
+    to `pvalues` (preferred over Bonferroni for families of campaign tests).
+
+    NaN p-values (an untestable hypothesis, e.g. an empty holdout) are
+    excluded from the family: they are never rejected and do not inflate the
+    family size `m` used in the step-up thresholds -- otherwise a NaN would
+    dilute the power of every real test in the family.
+    """
     p = np.asarray(list(pvalues), dtype=float)
     n = p.size
     if n == 0:
         return []
-    order = np.argsort(p)
-    ranked = p[order]
-    thresh = alpha * (np.arange(1, n + 1) / n)
-    below = ranked <= thresh
     rejected = np.zeros(n, dtype=bool)
+    valid_idx = np.where(np.isfinite(p))[0]
+    m = valid_idx.size
+    if m == 0:
+        return [False] * n
+    pv = p[valid_idx]
+    order = np.argsort(pv)
+    ranked = pv[order]
+    thresh = alpha * (np.arange(1, m + 1) / m)
+    below = ranked <= thresh
     if below.any():
         kmax = int(np.max(np.where(below)[0]))
-        keep = np.zeros(n, dtype=bool)
+        keep = np.zeros(m, dtype=bool)
         keep[: kmax + 1] = True
-        rejected[order] = keep
+        rejected[valid_idx[order]] = keep
     return [bool(x) for x in rejected]
 
 

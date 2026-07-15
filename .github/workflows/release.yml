@@ -1,0 +1,148 @@
+name: Release
+
+# Tag-driven release. The full gate suite runs AGAINST THE EXACT TAGGED SHA
+# before any artifact is published -- a green PR-head run is never accepted
+# as proof of a release commit.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Exact SHA or tag to build and verify"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  verify-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Record the exact SHA under test
+        id: sha
+        run: |
+          SHA="$(git rev-parse HEAD)"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Releasing exact SHA: $SHA"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install (dev, e2e, security, asset extras)
+        run: |
+          # Security-update the build toolchain before pip-audit (runner
+          # setuptools/pip attract fresh advisories; not runtime deps).
+          python -m pip install --upgrade pip setuptools
+          pip install -e .[dev,e2e,security,asset]
+      - name: Install Playwright browsers
+        run: python -m playwright install --with-deps chromium
+
+      # ---- the same gates CI runs, on the tagged commit -------------------
+      - name: Lint
+        run: ruff check socio_sim tests run.py scripts examples
+      - name: Evidence, claim, secret and provenance gates
+        run: |
+          python scripts/evidence_gate.py
+          python scripts/claim_scan.py
+          python scripts/secret_scan.py
+          python scripts/numeric_provenance_scan.py
+      - name: Tests + coverage gate
+        run: pytest -q --cov=socio_sim --cov-report=term-missing --cov-fail-under=85
+      - name: E2E browser smoke
+        run: pytest -q tests/test_e2e_playwright.py
+      - name: Accessibility gate (axe-core)
+        run: pytest -q tests/test_a11y_axe.py
+      - name: Asset QA
+        run: python scripts/asset_qa.py
+      - name: Security scans
+        run: |
+          bandit -q -r socio_sim -ll
+          pip-audit --skip-editable
+      - name: License inventory
+        run: python scripts/license_inventory.py
+
+      # ---- artifacts: wheel + deep QA + clean-venv smoke + hashes + SBOM ---
+      - name: Build wheel
+        run: python -m build --wheel
+      - name: Deep wheel QA
+        run: python scripts/wheel_qa.py
+      - name: Installed-wheel smoke (clean venv)
+        run: |
+          python -m venv /tmp/relenv
+          /tmp/relenv/bin/pip -q install dist/*.whl
+          /tmp/relenv/bin/python - <<'PY'
+          import tempfile
+          from socio_sim.config import RunConfig
+          from socio_sim.pipeline import run_and_analyze
+          cfg = RunConfig.test(n_agents=50, n_ticks=6, out_dir=tempfile.mkdtemp())
+          a = run_and_analyze(cfg, verify_replay=True)
+          assert a.summary and a.replay["ok"]
+          print("installed wheel smoke OK")
+          PY
+
+      - name: SBOM (SPDX) + artifact hashes + provenance
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh \
+            | sh -s -- -b /usr/local/bin
+          syft packages dir:. -o spdx-json > dist/sbom.spdx.json
+          ( cd dist && sha256sum *.whl sbom.spdx.json > SHA256SUMS )
+          python - <<PY
+          import json, pathlib
+          pathlib.Path("dist/provenance.json").write_text(json.dumps({
+              "commit": "${{ steps.sha.outputs.sha }}",
+              "ref": "${{ github.event.inputs.ref || github.ref }}",
+              "workflow_run": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "builder": "github-actions/ubuntu-latest",
+              "gates": ["ruff", "evidence_gate", "claim_scan", "secret_scan",
+                        "numeric_provenance_scan", "pytest+coverage>=85",
+                        "e2e", "axe-a11y", "asset_qa", "bandit", "pip-audit",
+                        "wheel_qa", "installed-wheel-smoke"],
+              "scope": "local synthetic research tool; no production/enterprise claim",
+          }, indent=2), encoding="utf-8")
+          PY
+          cat dist/SHA256SUMS
+
+      - name: Generate release notes from reviewed commits
+        run: |
+          PREV="$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)"
+          {
+            echo "## SocioSim ${{ github.ref_name }}"
+            echo
+            echo "Verified on exact SHA \`${{ steps.sha.outputs.sha }}\` — every gate above ran on this commit."
+            echo
+            echo "### Changes"
+            if [ -n "$PREV" ]; then git log --no-merges --pretty='- %s' "$PREV..HEAD"; else git log --no-merges --pretty='- %s' -20; fi
+            echo
+            echo "### Scope"
+            echo "PASS FOR LOCAL SYNTHETIC RESEARCH USE ONLY. Not enterprise, not production SaaS, not an empirically validated model, not ADA-certified, no tenant isolation."
+            echo
+            echo "Artifacts: wheel, \`SHA256SUMS\`, \`sbom.spdx.json\`, \`provenance.json\`."
+          } > dist/RELEASE_NOTES.md
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: |
+            dist/*.whl
+            dist/SHA256SUMS
+            dist/sbom.spdx.json
+            dist/provenance.json
+            dist/RELEASE_NOTES.md
+
+      # Published with the preinstalled gh CLI rather than a third-party
+      # action: one less supply-chain dependency in the release path.
+      - name: Publish GitHub release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "SocioSim ${{ github.ref_name }}" \
+            --notes-file dist/RELEASE_NOTES.md \
+            dist/*.whl dist/SHA256SUMS dist/sbom.spdx.json dist/provenance.json

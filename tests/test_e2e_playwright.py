@@ -49,7 +49,13 @@ def test_e2e_dashboard_runs_and_renders():
                 page = browser.new_page()
                 page.goto(base)
                 assert page.title() == "SocioSim"
-                page.wait_for_function("document.querySelectorAll('#preset option').length > 0")
+                # Wait via the locator engine, NOT page.wait_for_function:
+                # the latter polls with new Function() inside the page, which
+                # the app's own CSP (script-src 'self', no 'unsafe-eval')
+                # correctly refuses. Keeping this page under the real CSP
+                # means the e2e run also proves the app works under it.
+                page.locator("#preset option").first.wait_for(
+                    state="attached", timeout=15_000)
                 page.evaluate("""() => {
                   document.querySelector('#cfgTabs button[data-tab=feedads]').click();
                   document.querySelector('#addCampaign').click();

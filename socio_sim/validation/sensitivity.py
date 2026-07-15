@@ -12,26 +12,42 @@ import numpy as np
 
 def first_order_indices(X: np.ndarray, y: np.ndarray, names: list,
                         n_bins: int = 20) -> dict:
+    """First-order sensitivity via the correlation-ratio (binned
+    conditional-mean) estimator, S_j ~= Var(E[y|x_j]) / Var(y).
+
+    Two corrections over the naive form:
+    - keep >= ~10 samples per bin (the naive `len(y)//2` cap allows 2/bin,
+      where the between-bin variance saturates and a NULL parameter reads
+      ~0.5);
+    - subtract the within-bin sampling-variance inflation: the observed
+      between-bin variance overestimates the true Var(E[y|x]) by
+      mean_b( var_within_b / n_b ) (an ANOVA/omega-squared-style debiasing),
+      so a non-influential parameter estimates ~0 rather than a positive
+      floor.
+
+    For a rigorous index prefer `saltelli_indices`; this remains the fast
+    single-output screen.
+    """
     X = np.asarray(X, dtype=float)
     y = np.asarray(y, dtype=float)
-    # Adapt bin count to sample size: with n_bins >= n the conditional-mean
-    # estimator degenerates (every bin holds ~1 sample -> Var(E[y|x_j]) -> Var(y)
-    # -> every index saturates to 1.0). Keep >= ~2 samples per bin.
-    n_bins = max(2, min(n_bins, len(y) // 2))
+    n_bins = max(2, min(n_bins, max(2, len(y) // 10)))
     var_y = float(np.var(y))
     if var_y == 0:
         return {name: 0.0 for name in names}
     indices = {}
     for j, name in enumerate(names):
         order = np.argsort(X[:, j])
-        y_sorted = y[order]
-        bins = np.array_split(y_sorted, n_bins)
-        bin_means = np.array([b.mean() for b in bins if len(b)])
-        bin_weights = np.array([len(b) for b in bins if len(b)], dtype=float)
-        grand = float(np.average(bin_means, weights=bin_weights))
-        var_cond = float(np.average((bin_means - grand) ** 2,
-                                    weights=bin_weights))
-        indices[name] = max(var_cond / var_y, 0.0)
+        bins = [b for b in np.array_split(y[order], n_bins) if len(b)]
+        bin_means = np.array([b.mean() for b in bins])
+        bin_sizes = np.array([len(b) for b in bins], dtype=float)
+        grand = float(np.average(bin_means, weights=bin_sizes))
+        var_between = float(np.average((bin_means - grand) ** 2,
+                                       weights=bin_sizes))
+        # Inflation of the between-bin variance by within-bin sampling noise.
+        within = np.array([float(np.var(b)) / len(b) if len(b) > 1 else 0.0
+                           for b in bins])
+        bias = float(np.average(within, weights=bin_sizes))
+        indices[name] = max((var_between - bias) / var_y, 0.0)
     return indices
 
 

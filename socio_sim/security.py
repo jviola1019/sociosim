@@ -10,6 +10,22 @@ from urllib.parse import urlparse
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]"}
 
 
+def normalize_ip(value) -> ipaddress._BaseAddress:
+    """Canonicalize an address before classification (URL normalization).
+
+    IPv4-mapped IPv6 (``::ffff:a.b.c.d``) is unwrapped to its IPv4 form.
+    Python classifies the wrapped form inconsistently -- e.g.
+    ``::ffff:169.254.169.254`` reports ``is_link_local == False`` (it is
+    caught only incidentally by ``is_reserved``), while
+    ``::ffff:127.0.0.1`` is *not* ``is_loopback`` and would be rejected
+    even though plain 127.0.0.1 is allowed. Unwrapping makes every
+    downstream check see the address an attacker actually reaches."""
+    ip = (value if isinstance(value, ipaddress._BaseAddress)
+          else ipaddress.ip_address(value))
+    mapped = getattr(ip, "ipv4_mapped", None)
+    return mapped if mapped is not None else ip
+
+
 def validate_llm_url(url: str) -> str | None:
     """SSRF guard for user-supplied local LLM endpoints.
 
@@ -33,7 +49,7 @@ def validate_llm_url(url: str) -> str | None:
     host = p.hostname or ""
     try:
         # An IP-literal host (127.0.0.1, ::1, 10.0.0.5, ...) pins itself.
-        literal = ipaddress.ip_address(host)
+        literal = normalize_ip(host)
     except ValueError:
         literal = None
     if literal is not None and literal.is_loopback:
@@ -52,7 +68,7 @@ def validate_llm_url(url: str) -> str | None:
     except OSError as exc:
         raise ValueError(f"llm_base_url host not resolvable: {host}") from exc
     for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
+        ip = normalize_ip(info[4][0])
         if ip.is_link_local or ip.is_multicast or ip.is_reserved:
             raise ValueError(
                 f"llm_base_url host {ip} is link-local/metadata/reserved")
@@ -66,5 +82,6 @@ def validate_llm_url(url: str) -> str | None:
         else:
             raise ValueError(
                 f"llm_base_url must point to a loopback/allowed private host (got public {ip})")
-    # Every resolved address passed; pin the first one.
-    return str(ipaddress.ip_address(infos[0][4][0]))
+    # Every resolved address passed; pin the first one (normalized, so the
+    # transport dials the IPv4 form of a mapped address).
+    return str(normalize_ip(infos[0][4][0]))
