@@ -63,6 +63,30 @@ def bootstrap_ci(values, stat=np.mean, n_resamples: int = 1000,
     return (float(np.percentile(stats, 2.5)), float(np.percentile(stats, 97.5)))
 
 
+def ratio_bootstrap_ci(numerators, denominators, n_resamples: int = 1000,
+                       rng: np.random.Generator | None = None) -> tuple:
+    """Cluster bootstrap for a ratio-of-sums estimator sum(num)/sum(den).
+
+    Resamples the (numerator, denominator) pairs (e.g. per-agent harm and
+    impression counts) and recomputes the POOLED ratio each time, so the
+    interval is a CI for the impression-weighted pooled rate -- matching a
+    pooled point estimate rather than the unweighted mean of per-unit
+    rates (a different estimand)."""
+    num = np.asarray(numerators, dtype=float)
+    den = np.asarray(denominators, dtype=float)
+    if num.size == 0 or den.sum() <= 0:
+        return (float("nan"), float("nan"))
+    rng = rng or SeedTree(0).generator("bootstrap", 0)
+    idx = rng.integers(0, num.size, size=(n_resamples, num.size))
+    den_sums = den[idx].sum(axis=1)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        ratios = np.where(den_sums > 0, num[idx].sum(axis=1) / den_sums, np.nan)
+    ratios = ratios[np.isfinite(ratios)]
+    if ratios.size == 0:
+        return (float("nan"), float("nan"))
+    return (float(np.percentile(ratios, 2.5)), float(np.percentile(ratios, 97.5)))
+
+
 def moderation_confusion(log: EventLog) -> dict:
     truth = _truth_map(log)
     actioned = {e["content_id"] for e in log.by_kind("moderation")
@@ -90,7 +114,10 @@ def moderation_confusion(log: EventLog) -> dict:
 
 
 def harmful_exposure(log: EventLog) -> tuple:
-    """Returns (overall harmful-impression rate, per-agent rates)."""
+    """Returns (overall impression-pooled harmful rate, per-agent
+    (harm_count, total_count) pairs). The pooled rate = sum(harm)/sum(total)
+    is impression-weighted; the returned counts let a caller build a CI for
+    THAT estimand via ratio_bootstrap_ci (resample agents, re-pool)."""
     truth = _truth_map(log)
     per_agent_harm: dict = {}
     per_agent_total: dict = {}
@@ -101,9 +128,9 @@ def harmful_exposure(log: EventLog) -> tuple:
             per_agent_harm[aid] = per_agent_harm.get(aid, 0) + 1
     total = sum(per_agent_total.values())
     harm = sum(per_agent_harm.values())
-    rates = {aid: per_agent_harm.get(aid, 0) / n
-             for aid, n in per_agent_total.items()}
-    return (harm / total if total else 0.0), rates
+    counts = {aid: (per_agent_harm.get(aid, 0), n)
+              for aid, n in per_agent_total.items()}
+    return (harm / total if total else 0.0), counts
 
 
 def appeal_stats(log: EventLog) -> dict:
@@ -285,8 +312,12 @@ def minor_protection(log: EventLog, personas) -> dict:
 def summarize_run(result, rng: np.random.Generator | None = None) -> dict:
     log = result.log
     rng = rng or SeedTree(result.config.root_seed).generator("analytics", 0)
-    rate, per_agent = harmful_exposure(log)
-    agent_rates = list(per_agent.values())
+    rate, per_agent_counts = harmful_exposure(log)
+    # CI matches the pooled point estimate (impression-weighted), via a
+    # ratio-of-sums cluster bootstrap over agents -- not the unweighted
+    # mean of per-agent rates, which is a different estimand.
+    _harm = [h for h, _ in per_agent_counts.values()]
+    _tot = [t for _, t in per_agent_counts.values()]
     welfare = welfare_proxy(log)
     return {
         "n_posts": len(log.by_kind("post")),
@@ -294,7 +325,7 @@ def summarize_run(result, rng: np.random.Generator | None = None) -> dict:
         "n_engagements": len(log.by_kind("engagement")),
         "harmful_exposure": {
             "rate": rate,
-            "ci": bootstrap_ci(agent_rates, rng=rng) if agent_rates
+            "ci": ratio_bootstrap_ci(_harm, _tot, rng=rng) if per_agent_counts
             else (float("nan"), float("nan")),
         },
         "moderation": moderation_confusion(log),

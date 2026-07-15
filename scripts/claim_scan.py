@@ -69,6 +69,7 @@ ALLOW = (
     "HANDOFF.md",
     "SOURCE_LEDGER.md",
     "FABLE_AUDIT_LOG.md",
+    "docs/STAT_VALIDATION_HANDOFF.md",
 )
 
 #: Directories fully exempt from both layers: forensic audit reports must

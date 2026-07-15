@@ -205,6 +205,22 @@ def test_sensitivity_ranks_dominant_parameter_first():
     assert indices["a"] > 5 * indices["c"]
 
 
+def test_first_order_index_of_a_null_parameter_is_near_zero():
+    """The within-bin bias correction: a parameter with NO effect on a pure-
+    noise output must estimate ~0, not the ~1/(samples-per-bin) positive
+    floor the naive correlation-ratio estimator produced."""
+    rng = SeedTree(11).generator("sens", 0)
+    n = 400
+    X = rng.random((n, 2))
+    y = rng.normal(0, 1, n)            # output independent of every input
+    idx = first_order_indices(X, y, names=["x0", "x1"])
+    assert idx["x0"] < 0.12 and idx["x1"] < 0.12, idx
+    # And a real signal still reads high on the same small design.
+    y2 = 4.0 * X[:, 0] + rng.normal(0, 0.1, n)
+    idx2 = first_order_indices(X, y2, names=["x0", "x1"])
+    assert idx2["x0"] > 0.7 > idx2["x1"]
+
+
 @pytest.mark.slow
 def test_monte_carlo_replicates_summary():
     cfg = RunConfig.test(n_agents=100, n_ticks=24)

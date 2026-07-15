@@ -49,29 +49,32 @@ Releases are plain git tags + wheels; no migrations, no external state.
 
 ## Branch protection
 
-**Blocked by the repository plan, not by choice.** Both mechanisms were
-attempted and both return `403 Upgrade to GitHub Pro or make this
-repository public`:
-
-- classic protection — `PUT /repos/:owner/:repo/branches/main/protection`
-  (attempted 2026-07-11);
-- repository rulesets — `POST /repos/:owner/:repo/rulesets` (attempted
-  2026-07-13).
-
-To enable it, make the repo public **or** upgrade to GitHub Pro, then run:
+**Active and server-enforced (enabled 2026-07-14 after the repository was
+made public).** `main` requires the `test` status check to pass, in strict
+mode (a branch must be up to date with `main` before it can merge), and
+force-pushes and branch deletion are disabled. Read the live state with:
 
 ```bash
-gh api -X POST repos/<owner>/<repo>/rulesets --input - <<'JSON'
-{"name":"main-ci-required","target":"branch","enforcement":"active",
- "conditions":{"ref_name":{"include":["~DEFAULT_BRANCH"],"exclude":[]}},
- "rules":[{"type":"required_status_checks","parameters":{
-   "strict_required_status_checks_policy":true,
-   "required_status_checks":[{"context":"test"}]}},
-  {"type":"deletion"},{"type":"non_fast_forward"}]}
+gh api repos/<owner>/<repo>/branches/main/protection \
+  --jq '{required_checks: .required_status_checks.checks, strict: .required_status_checks.strict}'
+```
+
+Historical note: while the repo was private on the free plan, both classic
+protection (`PUT /repos/:owner/:repo/branches/main/protection`, 2026-07-11)
+and repository rulesets (`POST /repos/:owner/:repo/rulesets`, 2026-07-13)
+returned `403 Upgrade to GitHub Pro or make this repository public`; the
+release gate below was the interim substitute. To re-apply protection from
+scratch:
+
+```bash
+gh api -X PUT repos/<owner>/<repo>/branches/main/protection --input - <<'JSON'
+{"required_status_checks":{"strict":true,"contexts":["test"]},
+ "enforce_admins":false,"required_pull_request_reviews":null,
+ "restrictions":null,"allow_force_pushes":false,"allow_deletions":false}
 JSON
 ```
 
-Until then the enforced substitute is this release gate: **never tag or
+Independently of protection, the release gate still holds: **never tag or
 announce a release whose exact SHA lacks a completed successful run**
 (`gh run list --commit <sha>` + `gh api .../commits/<sha>/check-runs`).
 CI has `workflow_dispatch` so any ref can be re-proven manually.

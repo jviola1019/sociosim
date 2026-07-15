@@ -82,12 +82,37 @@ def load_targets(name: str = DEFAULT_BENCHMARK,
 
 
 def hill_exponent(sample: np.ndarray, tail_fraction: float = 0.1) -> float:
-    """Hill estimator of the power-law tail exponent (alpha)."""
+    """Hill estimator of the power-law tail exponent (alpha).
+
+    Uses the standard order-statistic convention (Hill 1975): the threshold
+    is the (k+1)-th largest value, and the estimator sums the log-ratios of
+    the top k values over that threshold:
+
+        alpha_hat = 1 + k / sum_{i=1..k} log(X_(i) / X_(k+1))
+
+    Two correctness points over a naive implementation:
+    - the threshold is the (k+1)-th largest, NOT the k-th largest; using the
+      k-th includes a log(1)=0 term and biases the estimate upward;
+    - the numerator counts the terms actually summed, so it stays correct
+      when the sample is smaller than the k floor.
+
+    Returns NaN when the tail is too small or degenerate (all top values
+    tied => zero denominator), rather than +inf.
+    """
     x = np.sort(np.asarray(sample, dtype=float))
-    k = max(int(len(x) * tail_fraction), 10)
-    tail = x[-k:]
-    xmin = tail[0]
-    return 1.0 + k / float(np.sum(np.log(tail / xmin)))
+    n = len(x)
+    if n < 3:
+        return float("nan")
+    k = max(int(n * tail_fraction), 10)
+    k = min(k, n - 1)                       # need an (k+1)-th value below the top k
+    threshold = x[n - k - 1]               # (k+1)-th largest
+    top = x[n - k:]                        # k largest
+    if threshold <= 0:
+        return float("nan")
+    denom = float(np.sum(np.log(top / threshold)))
+    if denom <= 0:                         # degenerate (tied) tail
+        return float("nan")
+    return 1.0 + k / denom
 
 
 def ks_distance(sample_a: np.ndarray, sample_b: np.ndarray) -> float:
