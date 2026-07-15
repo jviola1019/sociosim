@@ -128,6 +128,17 @@ class RunConfig:
     graph_kind: str = "ba"
     graph_params: dict = field(default_factory=lambda: {"m": 5})
     homophily_rewire_fraction: float = 0.15
+    #: Hours to roll the diurnal activity curve later. 0 (default) keeps the
+    #: existing peak at 17h so every current run is byte-identical; the
+    #: aggregate-matched profile shifts it to align the peak with a verified
+    #: source (Golder 2007, ~20-21h). Reporting/behaviour only, deterministic.
+    diurnal_peak_shift: int = 0
+    #: Multiplier on the default demo campaigns' base click-through rate.
+    #: 1.0 (default) leaves them unchanged; the aggregate-matched profile
+    #: lowers it to reproduce the verified display-ad CTR (iPinYou 2014,
+    #: ~0.001) rather than the unsourced 0.012 assumption. Only affects the
+    #: built-in demo campaigns; user-supplied campaigns are untouched.
+    campaign_ctr_multiplier: float = 1.0
     # Dynamic-graph evolution (per active agent, per day). All 0 => static graph
     # (default; determinism baselines preserved). >0 enables follow/unfollow/churn.
     follow_rate: float = 0.0       # P(add a tie via triadic closure)
@@ -174,22 +185,41 @@ class RunConfig:
     def aggregate_matched_prototype(cls, **overrides) -> "RunConfig":
         """Aggregate-matched prototype profile.
 
-        This is a synthetic scenario preset, not an empirical calibration seal.
-        Legacy docs called it "calibrated"; that label is intentionally not used
-        for decision-facing output.
+        A synthetic scenario preset HISTORY-MATCHED (2026-07-14) against the
+        source-verified ``sourced_aggregates_v1`` target set -- every target
+        value there was read out of its primary source. Matching is done
+        only by moving MODEL parameters (never by editing a target value or
+        widening a tolerance), through principled mechanisms:
+        - graph_kind ``cm``: a configuration model with a power-law degree
+          exponent, so the realized degree tail sits near 2.3 (real social
+          graphs, Barabasi & Albert 1999); vanilla preferential attachment
+          asymptotes to 3 and cannot;
+        - triangle-forming, degree-preserving swaps for realistic clustering;
+        - homophily rewiring off, so it does not flatten the matched tail;
+        - diurnal_peak_shift = 3h, aligning the activity peak with the
+          verified Golder 2007 evening peak (~20h);
+        - campaign_ctr_multiplier lowering the demo-ad CTR toward the
+          verified display-ad measurement (iPinYou 2014, ~0.001) rather than
+          the unsourced 0.012 assumption.
 
-        IMPORTANT (2026-07-13 verification pass): this profile's graph
-        parameters were history-matched against the RETIRED
-        ``legacy_unsupported_default`` target set, whose numbers could not be
-        verified against the sources they cited. It is therefore pinned to
-        that set, and it is **not** matched to the source-verified aggregates
-        (against those, the simulator scores I ~= 6, i.e. clearly outside the
-        history-matching cutoff -- see docs/AGGREGATE_FIT_FINDINGS.md). Do not
-        read "matched" as agreement with any real measurement.
+        With these it scores I ~= 2.5 (< the 3-sigma history-matching cutoff)
+        on seed 42: the graph and temporal aggregates land in band; the ad-
+        and appeal-rate terms sit nearer the tolerance edge because their
+        real sources are incompatible surfaces (China display RTB; one
+        platform's video appeals) and are small-count in a single run. This
+        is NOT validation, calibration, realism, or prediction of any real
+        platform -- see docs/AGGREGATE_FIT_FINDINGS.md and each target's
+        applicability_limits. The base/quick model (no matching) still scores
+        I ~= 6.
         """
         base = dict(n_agents=1_000, n_ticks=7 * 24, n_replicates=20,
-                    graph_kind="plc", graph_params={"m": 5, "p": 0.7},
-                    benchmark="legacy_unsupported_default")
+                    graph_kind="cm",
+                    graph_params={"gamma": 2.05, "min_degree": 2,
+                                  "triangle_swaps": 15.0},
+                    homophily_rewire_fraction=0.0,
+                    diurnal_peak_shift=3,
+                    campaign_ctr_multiplier=0.09,
+                    benchmark="sourced_aggregates_v1")
         base.update(overrides)
         return cls(**base)
 
@@ -288,8 +318,8 @@ class RunConfig:
             fail("jurisdictions", f"unknown: {sorted(unknown)}")
         if self.feed_strategy not in VALID_FEED_STRATEGIES:
             fail("feed_strategy", f"must be one of {sorted(VALID_FEED_STRATEGIES)}")
-        if self.graph_kind not in {"ba", "plc", "ws", "sbm"}:
-            fail("graph_kind", "must be one of ['ba', 'plc', 'sbm', 'ws']")
+        if self.graph_kind not in {"ba", "plc", "ws", "sbm", "cm"}:
+            fail("graph_kind", "must be one of ['ba', 'cm', 'plc', 'sbm', 'ws']")
         unknown_adv = set(self.red_team) - set(ADVERSARIES)
         if unknown_adv:
             fail("red_team", f"unknown adversaries: {sorted(unknown_adv)}")
@@ -309,6 +339,16 @@ class RunConfig:
                 p = require_float("graph_params", gp.get("p", 0.3))
                 if not 0.0 <= p <= 1.0:
                     fail("graph_params", "plc.p must be in [0, 1]")
+        elif self.graph_kind == "cm":
+            gamma = require_float("graph_params", gp.get("gamma", 2.3))
+            if not 2.0 <= gamma <= 4.0:
+                fail("graph_params", "cm.gamma must be in [2, 4]")
+            min_deg = require_int("graph_params", gp.get("min_degree", 2))
+            if min_deg < 1 or min_deg >= n_agents:
+                fail("graph_params", "cm.min_degree must be in [1, n_agents)")
+            swaps = require_float("graph_params", gp.get("triangle_swaps", 8.0))
+            if swaps < 0:
+                fail("graph_params", "cm.triangle_swaps must be >= 0")
         elif self.graph_kind == "ws":
             k = require_int("graph_params", gp.get("k", 10))
             p = require_float("graph_params", gp.get("p", 0.05))

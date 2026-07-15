@@ -89,10 +89,20 @@
     "value": "0.85",
     "justification": "synthetic classifier operating-point default; illustrative, not a measured benchmark (see scenario_assumptions.json)"
   },
+  "socio_sim/config.py::RunConfig.campaign_ctr_multiplier": {
+    "classification": "technical_constant",
+    "value": "1.0",
+    "justification": "no-op multiplier default (1.0 = demo campaigns unchanged, determinism preserved); the aggregate-matched profile sets it to ground the demo-ad CTR in the verified iPinYou display measurement"
+  },
   "socio_sim/config.py::RunConfig.churn_rate": {
     "classification": "scenario_assumption",
     "value": "0.0",
     "justification": "synthetic scenario default (RunConfig.churn_rate); editable and surfaced with the run configuration"
+  },
+  "socio_sim/config.py::RunConfig.diurnal_peak_shift": {
+    "classification": "technical_constant",
+    "value": "0",
+    "justification": "no-op diurnal phase shift default (0 = curve unchanged, determinism preserved); the aggregate-matched profile shifts it to align the activity peak with the source-checked Golder 2007 evening peak"
   },
   "socio_sim/config.py::RunConfig.n_agents": {
     "classification": "scenario_assumption",

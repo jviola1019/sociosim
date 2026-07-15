@@ -48,16 +48,17 @@ LLM_CONTENT_MODES = {"claude", "ollama", "openai_compatible"}
 
 def default_campaigns(cfg: RunConfig) -> list[Campaign]:
     budget = 0.02 * cfg.n_agents  # scales with audience size
+    c = float(getattr(cfg, "campaign_ctr_multiplier", 1.0))  # 1.0 = unchanged
     return [
         Campaign(id="brand-general", advertiser="BrandCo", bid=2.0,
-                 budget=budget, base_ctr=0.012, base_cvr=0.05),
+                 budget=budget, base_ctr=0.012 * c, base_cvr=0.05),
         Campaign(id="tech-niche", advertiser="GadgetInc", bid=3.5,
                  budget=budget / 2, targeting={"topics": [2]},
-                 base_ctr=0.020, base_cvr=0.08),
+                 base_ctr=0.020 * c, base_cvr=0.08),
         Campaign(id="adults-finance", advertiser="FinServe", bid=2.8,
                  budget=budget / 2,
                  targeting={"age_groups": ["25-34", "35-49", "50-64", "65+"]},
-                 base_ctr=0.008, base_cvr=0.10),
+                 base_ctr=0.008 * c, base_cvr=0.10),
     ]
 
 
@@ -299,7 +300,8 @@ class Simulation:
             self.state.decay_fatigue(self.bp.fatigue_decay_per_tick)
 
             active = np.flatnonzero(
-                self.personas.active_mask(hour, self.rngs["activity"]))
+                self.personas.active_mask(hour, self.rngs["activity"],
+                                          diurnal_shift=cfg.diurnal_peak_shift))
             if self.churned:
                 active = active[~np.isin(active,
                                          np.fromiter(self.churned, dtype=int))]

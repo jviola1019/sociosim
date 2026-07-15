@@ -25,9 +25,9 @@ The unverifiable sets are retired to
 `kind: unsupported` evidence, are excluded from the default, and remain
 loadable by explicit name only so older runs can still be reproduced.
 
-## Second finding: against the corrected targets, the simulator does not fit
+## Second finding: the BASE model does not fit; a history-matched profile does
 
-Running the `quick` profile (1,000 agents × 7 days, EU) against
+**Base / `quick` profile** (1,000 agents × 7 days, EU, no matching) against
 `sourced_aggregates_v1`:
 
 ```
@@ -43,17 +43,63 @@ ad_ctr                       0.0000     0.0010   0.0010    1.00
 appeal_grant_rate            0.0000     0.1100   0.0440    2.50
 ```
 
-**I = 6.03 is far outside the conventional 3σ history-matching cutoff.**
-Stated plainly: *the simulator does not reproduce the real measured
-aggregates it can be compared against.* Its graph is too heavy-tailed and
-too sparse in triangles, its diurnal peak is three hours early, and in this
-run no ad clicks and no appeal grants occurred at all.
+I = 6.03 is far outside the cutoff: the default preferential-attachment
+graph is too heavy-tailed (γ→3) and too sparse in triangles, and its diurnal
+peak is three hours early. **This base number is published, not tuned away.**
 
-This number is published rather than tuned away. The previous
-`aggregate_matched_prototype` profile scored *below* the cutoff only because
-it had been history-matched against the **unverifiable** targets; it is now
-pinned to `legacy_unsupported_default` and explicitly does **not** claim
-agreement with any verified measurement.
+**History-matched profile** (`aggregate_matched_prototype`, 2026-07-14).
+History matching = move MODEL parameters to minimise the target distance;
+no target value or tolerance was touched. The parameters, each a principled
+mechanism:
+
+| Parameter | Set to | Why (mechanism) |
+|---|---|---|
+| `graph_kind` | `cm` (config model, γ_seq = 2.05) | Reproduces a specified degree exponent; preferential attachment asymptotes to 3 and cannot reach 2.3. Multi-edge collapse steepens the realized tail, so a sequence exponent of 2.05 yields an observed ~2.31. |
+| `triangle_swaps` | 15 × \|E\| | Degree-preserving triangle-forming swaps inject clustering without changing the tail. |
+| `homophily_rewire_fraction` | 0.0 | Homophily rewiring perturbs degrees and flattens the matched tail. |
+| `diurnal_peak_shift` | 3 h | Aligns the activity peak with the source-checked Golder 2007 evening peak (~20h). |
+| `campaign_ctr_multiplier` | 0.09 | Lowers the demo-ad CTR toward the source-checked display-ad measurement (iPinYou ~0.001) instead of the unsourced 0.012 assumption. |
+
+Result (seed 42, deterministic, replay-verified):
+
+```
+Implausibility I = 2.50  (dominant: appeal_grant_rate; cutoff 3.0)
+
+metric                     observed     target      tol       z
+degree_tail_exponent         2.3145     2.3000   0.1000    0.14   in band
+clustering                   0.3023     0.2380   0.0980    0.66   in band
+diurnal_peak_hour           20.0000    20.0000   1.0000    0.00   in band
+diurnal_trough_hour          7.0000     5.5000   2.5000    0.60   in band
+posts_per_agent_day          0.5026     0.5100   0.2500    0.03   in band
+ad_ctr                       0.0000     0.0010   0.0010    1.00   edge
+appeal_grant_rate            0.0000     0.1100   0.0440    2.50   out of band
+```
+
+**I = 2.50, under the 3σ cutoff.** The STRUCTURAL graph and temporal
+aggregates -- the properties a social-network model should reproduce -- all
+land in band. The two residuals are `ad_ctr` (at the tolerance edge) and
+`appeal_grant_rate` (out of band): their real sources are incompatible
+surfaces (2013 China desktop-display RTB; one platform's 2024 video
+appeals) and both are small-count in a single run, so they sit near the edge
+rather than being genuinely reproduced.
+
+### What a pass here does and does NOT mean
+
+Being under the cutoff is a statement about ONE explicitly-labelled,
+history-matched configuration reproducing SEVEN aggregate statistics to
+within their (untouched) tolerances. It is **not** validation, calibration,
+realism, or a prediction of any real platform:
+
+- the targets are drawn from mutually incompatible populations (2007 actor
+  collaboration graph; 2007 Flickr/LiveJournal crawls; 2006 US college
+  Facebook; 2013 China display RTB; 2024 YouTube appeals) and definitions
+  (Mislove's clustering is directed; the simulator's is undirected);
+- the degree exponent and CTR were matched by SETTING a parameter to the
+  target regime -- reproducing a stylized fact, not discovering it;
+- the base model (no matching) still scores I ≈ 6.
+
+Every target keeps its `applicability_limits`, and the comparison remains an
+aggregate-fit DIAGNOSTIC.
 
 ## What this does and does not license
 
