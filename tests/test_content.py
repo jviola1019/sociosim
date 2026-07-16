@@ -155,6 +155,47 @@ def test_claude_accepted_cache_invalidated_by_guard_version_bump(tmp_path, monke
     assert item.text == "template"
 
 
+def test_claude_blocked_branch_adopts_a_concurrent_writers_accepted_winner(tmp_path):
+    """ClaudeAdapter side of the adoption invariant (the sibling LLMAdapter
+    test is test_blocked_branch_adopts_a_concurrent_writers_accepted_winner):
+    when another process's ACCEPTED entry already owns the key and this
+    process's own response is guard-blocked, the adapter must serve the
+    on-disk winner -- and blocked text must never be served."""
+    from socio_sim.content import llm_cache
+    cache = tmp_path / "llm_cache.json"
+    p = personas()
+    class _Resp:
+        content = [type("C", (), {"text": "contact me at leak@example.com"})()]
+        usage = None
+
+    class _Messages:
+        @staticmethod
+        def create(**kwargs):
+            return _Resp()
+
+    class _Client:
+        messages = _Messages()
+
+    degradations = []
+    adapter = ClaudeAdapter(base=FixedBase(), cache_path=cache, api_key=None,
+                            on_degradation=degradations.append)
+    adapter._client = _Client()
+    # The concurrent writer's accepted entry lands on disk AFTER this
+    # adapter loaded its (empty) in-memory cache -- so generate() misses,
+    # calls the stub client, gets guard-blocked, and must adopt the winner.
+    key = adapter.prompt_key(author_id=2, personas=p, tick=0, topic=2, stance=0.1)
+    llm_cache.update(cache, key,
+                     llm_cache.make_entry("winner text from process A",
+                                          "accepted", []))
+    item = adapter.generate(author_id=2, personas=p, tick=0)
+    assert "leak@example.com" not in item.text   # blocked text never served
+    assert item.text == "winner text from process A", (
+        "ClaudeAdapter must adopt the accepted entry that won the key")
+    on_disk = llm_cache.load(cache)[key]
+    assert on_disk["text"] == "winner text from process A"  # first writer wins
+    assert any("semantic_mismatch" in d for d in degradations)
+
+
 def test_claude_cache_key_includes_model_topic_and_tick(tmp_path):
     gen, _ = make_gen()
     p = personas()
