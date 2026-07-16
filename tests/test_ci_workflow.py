@@ -14,11 +14,13 @@ the install step appears before the first step that runs pytest without
 excluding the e2e test, so the ordering bug cannot silently regress.
 """
 
+import re
 from pathlib import Path
 
 import yaml
 
-WORKFLOW_PATH = Path(__file__).resolve().parents[1] / ".github" / "workflows" / "ci.yml"
+WORKFLOW_DIR = Path(__file__).resolve().parents[1] / ".github" / "workflows"
+WORKFLOW_PATH = WORKFLOW_DIR / "ci.yml"
 
 
 def _load_steps():
@@ -67,3 +69,62 @@ def test_no_step_runs_pytest_before_dependencies_are_installed():
     assert install_idx is not None
     assert pytest_idx is not None
     assert install_idx < pytest_idx
+
+
+# ---------------------------------------------------------------------------
+# Supply-chain pinning guards (audit P2: the release workflow used to run
+# `curl .../anchore/syft/main/install.sh | sh` -- executing a mutable
+# upstream branch inside the release path that claims exact-SHA provenance).
+# ---------------------------------------------------------------------------
+
+def _all_workflow_texts():
+    return {p.name: p.read_text(encoding="utf-8")
+            for p in sorted(WORKFLOW_DIR.glob("*.yml"))}
+
+
+#: Downloads of executable content from refs that can move underneath a
+#: reviewed workflow: raw.githubusercontent.com/<org>/<repo>/{main,master,HEAD}
+_MUTABLE_RAW_REF = re.compile(
+    r"raw\.githubusercontent\.com/[^/\s]+/[^/\s]+/(main|master|HEAD)/", re.I)
+#: Any `curl ... | sh` (or bash) pipeline: even a tag-pinned installer script
+#: executes unverified bytes; the release path must verify a checksum instead.
+_CURL_PIPE_SH = re.compile(r"curl[^\n|]*\|\s*(sudo\s+)?(ba)?sh\b")
+
+
+def test_no_workflow_downloads_executables_from_mutable_refs():
+    for name, text in _all_workflow_texts().items():
+        assert not _MUTABLE_RAW_REF.search(text), (
+            f"{name}: downloads from a mutable branch ref "
+            "(main/master/HEAD); pin a release version and verify its "
+            "published checksum instead")
+
+
+def test_no_workflow_pipes_a_downloaded_script_into_a_shell():
+    for name, text in _all_workflow_texts().items():
+        assert not _CURL_PIPE_SH.search(text), (
+            f"{name}: pipes a downloaded script into a shell; download a "
+            "pinned release artifact and verify its sha256 before executing")
+
+
+def test_all_third_party_actions_are_pinned_to_full_commit_shas():
+    full_sha = re.compile(r"@[0-9a-f]{40}(\s|$)")
+    for name, text in _all_workflow_texts().items():
+        wf = yaml.safe_load(text)
+        for job in wf.get("jobs", {}).values():
+            for step in job.get("steps", []):
+                uses = step.get("uses", "")
+                if not uses or uses.startswith("./"):
+                    continue
+                assert full_sha.search(uses + " "), (
+                    f"{name}: action {uses!r} is not pinned to a full "
+                    "40-hex commit SHA (floating tags can be retargeted)")
+
+
+def test_release_verifies_syft_checksum_before_generating_the_sbom():
+    text = (WORKFLOW_DIR / "release.yml").read_text(encoding="utf-8")
+    assert "SYFT_SHA256" in text and "sha256sum --check --strict" in text, (
+        "release.yml must verify the pinned Syft checksum (fail closed) "
+        "before any SBOM generation")
+    # The verified install step must appear before the first syft invocation
+    # that produces the SBOM.
+    assert text.index("sha256sum --check --strict") < text.index("spdx-json")
