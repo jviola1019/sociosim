@@ -19,14 +19,38 @@
       "statistic_location": "p.3 and Fig.1 caption: 'P(k) ~ k^-gamma_actor, where gamma_actor = 2.3 +/- 0.1'",
       "units": "dimensionless power-law exponent",
       "transformation": "none (value used as published)",
-      "source_hash": null,
+      "source_hash": "ed152b0a089b3de4a0534f2ec60c8e4335105297acbbe9e8d1e45581dc1ba535",
       "tolerance_rationale": "derived_from_source: the paper's own stated uncertainty on gamma_actor (+/- 0.1)",
       "applicability_limits": "An actor-collaboration graph is NOT an online social feed. The paper reports exponents scattered from 2.1 to 4 across its networks; the commonly repeated '2 to 3 for social networks' band does NOT appear in it. Later measurements of real platforms (Kwak 2010 for Twitter; Ugander 2011 for Facebook) explicitly reject a pure power-law for their degree distributions.",
-      "valid_uses": ["aggregate-fit diagnostic on the synthetic graph's tail exponent"],
-      "invalid_uses": ["pass/fail or closeness seals", "calibration claims", "realism claims", "real-platform prediction", "decision guidance"],
+      "valid_uses": [
+        "aggregate-fit diagnostic on the synthetic graph's tail exponent"
+      ],
+      "invalid_uses": [
+        "pass/fail or closeness seals",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "decision guidance"
+      ],
       "verification_status": "value_verified_against_source",
-      "source_status": "citation_identifier_verified",
-      "verification_note": "Verified 2026-07-13 by reading the arXiv full text. NOTE: the previous target value of 2.5 appears NOWHERE in this paper and was removed."
+      "source_status": "artifact_hash_recorded",
+      "verification_note": "Verified 2026-07-13 by reading the arXiv full text. NOTE: the previous target value of 2.5 appears NOWHERE in this paper and was removed. 2026-07-16: the exact reviewed artifact was re-retrieved, SHA-256 hashed (see source_artifact), and the quoted statistic mechanically re-located in the hashed bytes.",
+      "source_artifact": {
+        "artifact_url": "https://arxiv.org/pdf/cond-mat/9910332v1",
+        "sha256": "ed152b0a089b3de4a0534f2ec60c8e4335105297acbbe9e8d1e45581dc1ba535",
+        "bytes": 211825,
+        "retrieved_at_utc": "2026-07-16T16:10:00Z",
+        "stability": "immutable_versioned_arxiv_pdf",
+        "archived_in_repo": false,
+        "not_archived_reason": "copyright/licensing does not permit committing the artifact to this repository; the hash + retrieval instructions below make the review reproducible instead",
+        "retrieval_instructions": "curl -sSfL -o artifact \"https://arxiv.org/pdf/cond-mat/9910332v1\"; sha256sum artifact",
+        "verified_quotes": [
+          "actor\\s*=\\s*2\\s*\\.\\s*3\\s*±\\s*0\\.\\s*1"
+        ],
+        "quote_note": "γ_actor = 2.3 ± 0.1 present in the hashed bytes (pypdf extraction)",
+        "verify_with": "python scripts/verify_sources.py"
+      },
+      "value_reproduced_from_artifact": true
     },
     "clustering": {
       "value": 0.238,
@@ -46,14 +70,41 @@
       "statistic_location": "Table 4 ('The observed clustering coefficient...'): Flickr 0.313, LiveJournal 0.330, Orkut 0.171, YouTube 0.136",
       "units": "average local clustering coefficient [0,1]",
       "transformation": "mean (0.238) and sample standard deviation (0.098) computed across the four reported networks; the arithmetic is reproducible from the quoted table",
-      "source_hash": null,
+      "source_hash": "031c3dd2e7a5c3a63ce495fa79dfab9797c66d070546afe7f1652eed45400efc",
       "tolerance_rationale": "derived_from_source: sample standard deviation of the four measured networks (0.098). The paper separately reports a 0.040 sd across Orkut subsamples, so cross-network spread dominates.",
       "applicability_limits": "The paper measures a DIRECTED clustering coefficient; this simulator measures the standard UNDIRECTED coefficient, so the definitions are not interchangeable. The measured range (0.136-0.330) also straddles the frequently repeated '0.1-0.3' band rather than confirming it.",
-      "valid_uses": ["aggregate-fit diagnostic on the synthetic graph's clustering"],
-      "invalid_uses": ["pass/fail or closeness seals", "calibration claims", "realism claims", "real-platform prediction", "decision guidance"],
+      "valid_uses": [
+        "aggregate-fit diagnostic on the synthetic graph's clustering"
+      ],
+      "invalid_uses": [
+        "pass/fail or closeness seals",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "decision guidance"
+      ],
       "verification_status": "value_verified_against_source",
-      "source_status": "citation_identifier_verified",
-      "verification_note": "Verified 2026-07-13 from the paper's Table 4. The previous target of 0.2 is not any measured network's value."
+      "source_status": "artifact_hash_recorded",
+      "verification_note": "Verified 2026-07-13 from the paper's Table 4. The previous target of 0.2 is not any measured network's value. 2026-07-16: the exact reviewed artifact was re-retrieved, SHA-256 hashed (see source_artifact), and the quoted statistic mechanically re-located in the hashed bytes.",
+      "source_artifact": {
+        "artifact_url": "https://www.khoury.northeastern.edu/home/amislove/publications/SocialNetworks-IMC.pdf",
+        "sha256": "031c3dd2e7a5c3a63ce495fa79dfab9797c66d070546afe7f1652eed45400efc",
+        "bytes": 532704,
+        "retrieved_at_utc": "2026-07-16T16:10:00Z",
+        "stability": "author_hosted_pdf_stability_not_guaranteed",
+        "archived_in_repo": false,
+        "not_archived_reason": "copyright/licensing does not permit committing the artifact to this repository; the hash + retrieval instructions below make the review reproducible instead",
+        "retrieval_instructions": "curl -sSfL -o artifact \"https://www.khoury.northeastern.edu/home/amislove/publications/SocialNetworks-IMC.pdf\"; sha256sum artifact",
+        "verified_quotes": [
+          "0\\.313",
+          "0\\.330",
+          "0\\.171",
+          "0\\.136"
+        ],
+        "quote_note": "all four Table-4 clustering coefficients present in the hashed bytes",
+        "verify_with": "python scripts/verify_sources.py"
+      },
+      "value_reproduced_from_artifact": true
     },
     "diurnal_peak_hour": {
       "value": 20.0,
@@ -73,14 +124,39 @@
       "statistic_location": "Sec.3.4: '...weekday 20--21 (a peak of activity)...'",
       "units": "hour of day [0,23]",
       "transformation": "none (peak hour used as published)",
-      "source_hash": null,
+      "source_hash": "5a8099f9b60eedc2d8f6635c063cfd1511c3a45ba1bede123804b9380cccba77",
       "tolerance_rationale": "derived_from_source: the paper names a 20-21h peak window, giving +/- 1 hour",
       "applicability_limits": "US college students on 2005-2006 Facebook messaging; NOT a general-population or present-day posting rhythm, and messaging is not the same activity as public posting.",
-      "valid_uses": ["aggregate-fit diagnostic on the synthetic diurnal curve's peak"],
-      "invalid_uses": ["pass/fail or closeness seals", "calibration claims", "realism claims", "real-platform prediction", "decision guidance"],
+      "valid_uses": [
+        "aggregate-fit diagnostic on the synthetic diurnal curve's peak"
+      ],
+      "invalid_uses": [
+        "pass/fail or closeness seals",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "decision guidance"
+      ],
       "verification_status": "value_verified_against_source",
-      "source_status": "citation_identifier_verified",
-      "verification_note": "Verified 2026-07-13 from the paper's full text. The previous general-purpose 16-18h peak had no citable source and was removed."
+      "source_status": "artifact_hash_recorded",
+      "verification_note": "Verified 2026-07-13 from the paper's full text. The previous general-purpose 16-18h peak had no citable source and was removed. 2026-07-16: the exact reviewed artifact was re-retrieved, SHA-256 hashed (see source_artifact), and the quoted statistic mechanically re-located in the hashed bytes.",
+      "source_artifact": {
+        "artifact_url": "https://arxiv.org/pdf/cs/0611137v1",
+        "sha256": "5a8099f9b60eedc2d8f6635c063cfd1511c3a45ba1bede123804b9380cccba77",
+        "bytes": 249315,
+        "retrieved_at_utc": "2026-07-16T16:10:00Z",
+        "stability": "immutable_versioned_arxiv_pdf",
+        "archived_in_repo": false,
+        "not_archived_reason": "copyright/licensing does not permit committing the artifact to this repository; the hash + retrieval instructions below make the review reproducible instead",
+        "retrieval_instructions": "curl -sSfL -o artifact \"https://arxiv.org/pdf/cs/0611137v1\"; sha256sum artifact",
+        "verified_quotes": [
+          "20[\\s\\S]{0,3}21",
+          "peak of activity"
+        ],
+        "quote_note": "'20–21 (a peak of activity)' present in the hashed bytes",
+        "verify_with": "python scripts/verify_sources.py"
+      },
+      "value_reproduced_from_artifact": true
     },
     "diurnal_trough_hour": {
       "value": 5.5,
@@ -100,14 +176,38 @@
       "statistic_location": "Sec.3.4: '...little messaging activity between roughly 3 and 8 am...'",
       "units": "hour of day [0,23]",
       "transformation": "midpoint (5.5) of the paper's stated 3-8am low-activity window",
-      "source_hash": null,
+      "source_hash": "5a8099f9b60eedc2d8f6635c063cfd1511c3a45ba1bede123804b9380cccba77",
       "tolerance_rationale": "derived_from_source: half-width (2.5h) of the paper's stated 3-8am window",
       "applicability_limits": "Same population caveat as the peak: US college students, 2005-2006 Facebook messaging.",
-      "valid_uses": ["aggregate-fit diagnostic on the synthetic diurnal curve's trough"],
-      "invalid_uses": ["pass/fail or closeness seals", "calibration claims", "realism claims", "real-platform prediction", "decision guidance"],
+      "valid_uses": [
+        "aggregate-fit diagnostic on the synthetic diurnal curve's trough"
+      ],
+      "invalid_uses": [
+        "pass/fail or closeness seals",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "decision guidance"
+      ],
       "verification_status": "value_verified_against_source",
-      "source_status": "citation_identifier_verified",
-      "verification_note": "Verified 2026-07-13 from the paper's full text."
+      "source_status": "artifact_hash_recorded",
+      "verification_note": "Verified 2026-07-13 from the paper's full text. 2026-07-16: the exact reviewed artifact was re-retrieved, SHA-256 hashed (see source_artifact), and the quoted statistic mechanically re-located in the hashed bytes.",
+      "source_artifact": {
+        "artifact_url": "https://arxiv.org/pdf/cs/0611137v1",
+        "sha256": "5a8099f9b60eedc2d8f6635c063cfd1511c3a45ba1bede123804b9380cccba77",
+        "bytes": 249315,
+        "retrieved_at_utc": "2026-07-16T16:10:00Z",
+        "stability": "immutable_versioned_arxiv_pdf",
+        "archived_in_repo": false,
+        "not_archived_reason": "copyright/licensing does not permit committing the artifact to this repository; the hash + retrieval instructions below make the review reproducible instead",
+        "retrieval_instructions": "curl -sSfL -o artifact \"https://arxiv.org/pdf/cs/0611137v1\"; sha256sum artifact",
+        "verified_quotes": [
+          "3\\s+and\\s+8\\s+am"
+        ],
+        "quote_note": "'between roughly 3 and 8 am' present in the hashed bytes",
+        "verify_with": "python scripts/verify_sources.py"
+      },
+      "value_reproduced_from_artifact": true
     },
     "posts_per_agent_day": {
       "value": 0.51,
@@ -127,14 +227,40 @@
       "statistic_location": "'the median user in the top 10% by tweet volume creates 138 tweets monthly, while the median user in the bottom 90% creates just two tweets per month'",
       "units": "posts per user per day",
       "transformation": "DERIVED MEAN, not a published figure: (0.1*138 + 0.9*2)/30.4 ~= 0.51 posts/day. The published MEDIAN is 2 tweets/month ~= 0.066/day; this simulator's observable is a per-agent mean, so the mean is the comparable statistic.",
-      "source_hash": null,
+      "source_hash": "fa01ed3b9e917c54aa78973563f8b5c000498ae77f703ad86dcc3f2e15628372",
       "tolerance_rationale": "scenario_threshold_not_derived: Pew publishes no uncertainty on this decomposition and the distribution is extremely right-skewed; the tolerance is a scenario knob, not a confidence bound",
       "applicability_limits": "US adult Twitter users in 2018, derived (not published) as a mean over a heavily right-skewed distribution. Pew's 2021 follow-up is materially lower (bottom 75% of users: median zero tweets/month), so this figure is neither platform- nor period-stable.",
-      "valid_uses": ["aggregate-fit diagnostic on synthetic posting volume"],
-      "invalid_uses": ["pass/fail or closeness seals", "calibration claims", "realism claims", "real-platform prediction", "decision guidance", "any claim about a MEDIAN or typical user"],
+      "valid_uses": [
+        "aggregate-fit diagnostic on synthetic posting volume"
+      ],
+      "invalid_uses": [
+        "pass/fail or closeness seals",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "decision guidance",
+        "any claim about a MEDIAN or typical user"
+      ],
       "verification_status": "value_derived_from_verified_source",
-      "source_status": "citation_identifier_verified",
-      "verification_note": "Verified 2026-07-13. The prior justification ('median platform posting rates') was WRONG even where the number survives: 0.5 is defensible only as a derived mean, never as a median."
+      "source_status": "artifact_hash_recorded",
+      "verification_note": "Verified 2026-07-13. The prior justification ('median platform posting rates') was WRONG even where the number survives: 0.5 is defensible only as a derived mean, never as a median. 2026-07-16: the exact reviewed artifact was re-retrieved, SHA-256 hashed (see source_artifact), and the quoted statistic mechanically re-located in the hashed bytes.",
+      "source_artifact": {
+        "artifact_url": "https://www.pewresearch.org/internet/2019/04/24/sizing-up-twitter-users/",
+        "sha256": "fa01ed3b9e917c54aa78973563f8b5c000498ae77f703ad86dcc3f2e15628372",
+        "bytes": 481295,
+        "retrieved_at_utc": "2026-07-16T16:10:00Z",
+        "stability": "mutable_html_hash_valid_only_at_retrieval",
+        "archived_in_repo": false,
+        "not_archived_reason": "copyright/licensing does not permit committing the artifact to this repository; the hash + retrieval instructions below make the review reproducible instead",
+        "retrieval_instructions": "curl -sSfL -o artifact \"https://www.pewresearch.org/internet/2019/04/24/sizing-up-twitter-users/\"; sha256sum artifact",
+        "verified_quotes": [
+          "138 tweets",
+          "two tweets per month"
+        ],
+        "quote_note": "live web page: two consecutive 2026-07-16 fetches produced different bytes, so the hash identifies THIS retrieval only; verification is by quote presence, not byte identity",
+        "verify_with": "python scripts/verify_sources.py"
+      },
+      "value_reproduced_from_artifact": true
     },
     "ad_ctr": {
       "value": 0.001,
@@ -154,14 +280,41 @@
       "statistic_location": "Sec.2.3: 'all the advertisers has CTR less than 0.1% except for advertiser 2997 (0.444%)... 0.1% is usually around the average CTR for desktop display advertising in practice'",
       "units": "clicks per priced impression [0,1]",
       "transformation": "the paper's stated typical desktop-display average (0.1% = 0.001) used as the target",
-      "source_hash": null,
+      "source_hash": "3fed0db16689604d82b34aff42e10b367ef532b1366d6f8c485329f9926a509f",
       "tolerance_rationale": "derived_from_source: 8 of 9 campaigns fall below 0.001 with a single outlier at 0.00444; a +/-0.001 band covers the bulk of the observed campaign spread",
       "applicability_limits": "DESKTOP DISPLAY real-time-bidding in China (2013) — NOT social-feed advertising, which is this simulator's ad surface. No named, publicly verifiable primary source for a social-feed CTR was found; the widely quoted ~1% figure comes only from commercial aggregators with proprietary, non-auditable samples, so it is not used here.",
-      "valid_uses": ["aggregate-fit diagnostic on synthetic ad click-through"],
-      "invalid_uses": ["pass/fail or closeness seals", "calibration claims", "realism claims", "real-platform prediction", "decision guidance", "any claim about social-feed ad performance"],
+      "valid_uses": [
+        "aggregate-fit diagnostic on synthetic ad click-through"
+      ],
+      "invalid_uses": [
+        "pass/fail or closeness seals",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "decision guidance",
+        "any claim about social-feed ad performance"
+      ],
       "verification_status": "value_verified_against_source",
-      "source_status": "citation_identifier_verified",
-      "verification_note": "Verified 2026-07-13. The previous 0.01 (1%) target was an order of magnitude above the only citable measurement and cited no named source."
+      "source_status": "artifact_hash_recorded",
+      "verification_note": "Verified 2026-07-13. The previous 0.01 (1%) target was an order of magnitude above the only citable measurement and cited no named source. 2026-07-16: the exact reviewed artifact was re-retrieved, SHA-256 hashed (see source_artifact), and the quoted statistic mechanically re-located in the hashed bytes.",
+      "source_artifact": {
+        "artifact_url": "https://arxiv.org/pdf/1407.7073v1",
+        "sha256": "3fed0db16689604d82b34aff42e10b367ef532b1366d6f8c485329f9926a509f",
+        "bytes": 1056069,
+        "retrieved_at_utc": "2026-07-16T16:10:00Z",
+        "stability": "immutable_versioned_arxiv_pdf",
+        "archived_in_repo": false,
+        "not_archived_reason": "copyright/licensing does not permit committing the artifact to this repository; the hash + retrieval instructions below make the review reproducible instead",
+        "retrieval_instructions": "curl -sSfL -o artifact \"https://arxiv.org/pdf/1407.7073v1\"; sha256sum artifact",
+        "verified_quotes": [
+          "CTR less than 0\\.1%",
+          "2997 \\(0\\.444",
+          "0\\.1% is usually around the average CTR"
+        ],
+        "quote_note": "v1 (2014-07-23, the cited UCL TR version) pinned explicitly; arXiv 1407.7073 has later revisions whose bytes differ, and the quoted Sec 2.3 sentence is present in v1",
+        "verify_with": "python scripts/verify_sources.py"
+      },
+      "value_reproduced_from_artifact": true
     },
     "appeal_grant_rate": {
       "value": 0.11,
@@ -181,14 +334,41 @@
       "statistic_location": "Sec.04 'Information on actioned content': appeals received 745,707; appealed videos reinstated 82,190",
       "units": "granted appeals per filed appeal [0,1]",
       "transformation": "ratio computed from the two published counts: 82,190 / 745,707 = 0.110",
-      "source_hash": null,
+      "source_hash": "c419c6aceb88a8d27afc1a0e82a561dba647a8f49514f8ea509ccb61a9fc647e",
       "tolerance_rationale": "derived_from_source: the per-policy reinstatement rates published in the same report span 6.0% (violent extremism) to 14.8% (hateful/abusive); +/-0.044 covers that spread around the 11.0% overall rate",
       "applicability_limits": "One platform (YouTube), one half-year, video removals only. Meta and TikTok omit the numeric tables from their AB 587 filings (citing the X Corp. v. Bonta injunction), so no cross-platform rate is derivable. The rate is not period-stable: reporting around Q4 2019 implies roughly double this figure.",
-      "valid_uses": ["aggregate-fit diagnostic on the synthetic appeals workflow"],
-      "invalid_uses": ["pass/fail or closeness seals", "calibration claims", "realism claims", "real-platform prediction", "decision guidance", "compliance assessment of any real platform"],
+      "valid_uses": [
+        "aggregate-fit diagnostic on the synthetic appeals workflow"
+      ],
+      "invalid_uses": [
+        "pass/fail or closeness seals",
+        "calibration claims",
+        "realism claims",
+        "real-platform prediction",
+        "decision guidance",
+        "compliance assessment of any real platform"
+      ],
       "verification_status": "value_verified_against_source",
-      "source_status": "citation_identifier_verified",
-      "verification_note": "Verified 2026-07-13 from the filing's own counts. The previous 0.2-0.25 target was roughly double the only citable measurement and cited no named source."
+      "source_status": "artifact_hash_recorded",
+      "verification_note": "Verified 2026-07-13 from the filing's own counts. The previous 0.2-0.25 target was roughly double the only citable measurement and cited no named source. 2026-07-16: the exact reviewed artifact was re-retrieved, SHA-256 hashed (see source_artifact), and the quoted statistic mechanically re-located in the hashed bytes.",
+      "source_artifact": {
+        "artifact_url": "https://oag.ca.gov/sites/default/files/H1%202024%20%28v3%29%20YouTube%20CA%20587%20Transparency%20Report.pdf/H1%202024%20%28v3%29%20YouTube%20CA%20587%20Transparency%20Report.pdf",
+        "sha256": "c419c6aceb88a8d27afc1a0e82a561dba647a8f49514f8ea509ccb61a9fc647e",
+        "bytes": 237163,
+        "retrieved_at_utc": "2026-07-16T16:10:00Z",
+        "stability": "regulator_hosted_pdf_may_be_superseded",
+        "archived_in_repo": false,
+        "not_archived_reason": "copyright/licensing does not permit committing the artifact to this repository; the hash + retrieval instructions below make the review reproducible instead",
+        "retrieval_instructions": "curl -sSfL -o artifact \"https://oag.ca.gov/sites/default/files/H1%202024%20%28v3%29%20YouTube%20CA%20587%20Transparency%20Report.pdf/H1%202024%20%28v3%29%20YouTube%20CA%20587%20Transparency%20Report.pdf\"; sha256sum artifact",
+        "verified_quotes": [
+          "745,707",
+          "82,190",
+          "16,793,180"
+        ],
+        "quote_note": "direct filing PDF ('(v3)' filename suggests the AG portal can replace filings); all three published counts present in the hashed bytes",
+        "verify_with": "python scripts/verify_sources.py"
+      },
+      "value_reproduced_from_artifact": true
     }
   }
 }
