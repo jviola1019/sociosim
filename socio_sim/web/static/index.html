@@ -53,13 +53,14 @@
         </div>
         <label class="field"><span class="lbl">Run Label <i>optional · for history</i></span><input type="text" id="label" placeholder="EU baseline — Q3" maxlength="60"></label>
         <hr>
-        <span class="lbl" title="Number of agents and simulated hours. Larger = richer dynamics, slower runs.">Scale Profile</span>
-        <div class="seg" id="profile">
+        <span class="lbl" id="profileLbl" title="Number of agents and simulated hours. Larger = richer dynamics, slower runs.">Scale Profile</span>
+        <div class="seg" id="profile" role="radiogroup" aria-labelledby="profileLbl">
           <label><input type="radio" name="profile" value="test"><b>Test</b><i>200 · 48h</i></label>
           <label><input type="radio" name="profile" value="quick" checked><b>Quick</b><i>1K · 7d</i></label>
           <label><input type="radio" name="profile" value="standard"><b>Standard</b><i>10K · 28d</i></label>
-          <label><input type="radio" name="profile" value="aggregate_matched_prototype"><b>Aggregate matched</b><i>prototype</i></label>
+          <label><input type="radio" name="profile" value="aggregate_matched_prototype"><b>Seed-42 demo</b><i>aggregate profile</i></label>
         </div>
+        <p class="hint">The seed-42 demo profile reaches the sourced aggregate targets on its fitting seed (42) only. In the locked 20-seed holdout evaluation it passed on 60% of seeds — below the 80% acceptance bar — so it is a demonstration, not a matched or validated model (Target Comparison tab shows the full status).</p>
         <div class="duo">
           <label class="field"><span class="lbl">Random Seed</span><input type="number" id="root_seed" value="42"></label>
           <label class="field"><span class="lbl">Tick (hours)</span><select id="tick_hours"><option value="1" selected>1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="6">6</option><option value="8">8</option><option value="12">12</option><option value="24">24</option></select></label>
@@ -99,12 +100,18 @@
           <select id="graph_kind">
             <option value="ba" selected>Barabási–Albert · scale-free hubs</option>
             <option value="plc">Holme-Kim · scale-free + clustering prototype</option>
+            <option value="cm">Configuration model · specified degree exponent</option>
             <option value="ws">Watts–Strogatz · small-world</option>
             <option value="sbm">Stochastic block · communities</option>
           </select></label>
         <div data-graph="ba" class="duo gp"><label class="field"><span class="lbl">Attachments m</span><input type="number" id="graph_m" value="5" min="1"></label></div>
         <div data-graph="plc" class="duo gp" hidden>
           <label class="field"><span class="lbl">Triad prob p <i>clustering</i></span><input type="number" id="graph_plc_p" value="0.7" step="0.05" min="0" max="1"></label>
+        </div>
+        <div data-graph="cm" class="duo gp" hidden>
+          <label class="field"><span class="lbl">Degree exponent γ</span><input type="number" id="graph_gamma" value="2.3" step="0.05" min="2" max="4"></label>
+          <label class="field"><span class="lbl">Min degree</span><input type="number" id="graph_min_degree" value="2" min="1"></label>
+          <label class="field"><span class="lbl">Triangle swaps <i>× edges</i></span><input type="number" id="graph_swaps" value="8" step="1" min="0"></label>
         </div>
         <div data-graph="ws" class="duo gp" hidden>
           <label class="field"><span class="lbl">Neighbours k</span><input type="number" id="graph_k" value="10" min="2"></label>
@@ -295,12 +302,12 @@
 
     <div class="stage" id="running" hidden>
       <div class="spinner" aria-hidden="true"></div>
-      <h3 id="runPhase">Simulating</h3>
+      <h3 id="runPhase" aria-live="polite">Simulating</h3>
       <div class="meter"><div id="meterFill"></div></div>
       <p class="mono dim" id="runDetail">tick 0</p>
     </div>
 
-    <div class="stage" id="errstage" hidden>
+    <div class="stage" id="errstage" hidden role="alert">
       <h3 class="err">Run failed</h3>
       <pre class="mono" id="errText"></pre>
     </div>
@@ -315,7 +322,7 @@
         <div class="rhead-actions">
           <div class="seal" id="seal"><b class="dot"></b><span id="sealTxt">—</span></div>
           <div class="export">
-            <button type="button" id="exportBtn" class="pill">Export</button>
+            <button type="button" id="exportBtn" class="pill" aria-haspopup="true" aria-expanded="false" aria-controls="exportMenu">Export</button>
             <div class="export-menu" id="exportMenu" hidden>
               <a id="expReport" href="#" download>Report · Markdown</a>
               <a id="expJson" href="#" download>Full result · JSON</a>
@@ -345,11 +352,11 @@
         <section data-opanel="network" class="opanel"><div id="network" class="network"></div></section>
         <section data-opanel="cascade" class="opanel"><div id="cascade" class="network"></div></section>
         <section data-opanel="fairness" class="opanel">
-          <h4>Moderation Confusion</h4><div id="confusion" class="confusion"></div>
-          <h4>False-Positive / False-Negative Rate by Group</h4><div id="fairness"></div>
+          <h3>Moderation Confusion</h3><div id="confusion" class="confusion"></div>
+          <h3>False-Positive / False-Negative Rate by Group</h3><div id="fairness"></div>
         </section>
         <section data-opanel="ads" class="opanel"><div id="ads"></div></section>
-        <section data-opanel="calib" class="opanel"><p class="dim small" id="implaus"></p><div id="calib" class="calib"></div></section>
+        <section data-opanel="calib" class="opanel"><div id="fitStatus" class="fit-status"></div><p class="dim small" id="implaus"></p><div id="calib" class="calib"></div></section>
         <section data-opanel="compare" class="opanel"><div id="compare"></div></section>
         <section data-opanel="audit" class="opanel"><div id="audit"></div></section>
         <section data-opanel="log" class="opanel"><pre class="mono report" id="rawReport"></pre></section>

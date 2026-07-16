@@ -42,6 +42,7 @@ from socio_sim.llm_bootstrap import (DEFAULT_HOST, ensure_model,
                                      ensure_server, server_up)
 from socio_sim.pipeline import run_and_analyze
 from socio_sim.presets import PRESETS
+from socio_sim.validation import seed_protocol
 from socio_sim.security import LOOPBACK_HOSTS, validate_llm_url
 from socio_sim.web.store import RunStore
 
@@ -218,6 +219,39 @@ def _asset_registry() -> dict:
 _targets_metadata_complete = targets_metadata_complete
 
 
+def _seed_protocol_status(root_seed: int | None = None) -> dict:
+    """Honest multi-seed status for the aggregate profile, derived from the
+    committed seed-protocol artifact (never asserted independently of it).
+    With a root_seed, also classifies THIS run's seed: fitting / validation
+    / holdout / outside the protocol."""
+    results = seed_protocol.load_results()
+    out = {
+        "label": seed_protocol.profile_label(results),
+        "protocol_artifact": seed_protocol.RESULTS_RESOURCE if results else None,
+        "holdout_accepted": bool(results and results.get(
+            "acceptance", {}).get("accepted")),
+    }
+    if results:
+        h = results.get("summaries", {}).get("holdout", {})
+        out["holdout"] = {
+            "n_seeds": h.get("n_seeds"),
+            "pass_proportion": h.get("pass_proportion"),
+            "median_implausibility": h.get("median_implausibility"),
+            "p95": h.get("p95"),
+            "max_implausibility": h.get("max_implausibility"),
+            "pass_ci_wilson95": h.get("pass_ci_wilson95"),
+        }
+    if root_seed is not None:
+        seed = int(root_seed)
+        group = ("fitting" if seed in seed_protocol.FITTING_SEEDS else
+                 "validation" if seed in seed_protocol.VALIDATION_SEEDS else
+                 "holdout" if seed in seed_protocol.HOLDOUT_SEEDS else
+                 "outside_protocol")
+        out["run_seed"] = seed
+        out["run_seed_group"] = group
+    return out
+
+
 def _jsonable(obj):
     if isinstance(obj, dict):
         return {str(k): _jsonable(v) for k, v in obj.items()}
@@ -253,7 +287,7 @@ def _profile_scales() -> dict:
     mis-sizing SBM blocks and mislabeling the UI."""
     return {name: {"n_agents": f().n_agents, "n_ticks": f().n_ticks}
             for name, f in _PROFILE_FACTORIES.items()}
-_GRAPH_KINDS = {"ba", "plc", "ws", "sbm"}
+_GRAPH_KINDS = {"ba", "plc", "ws", "sbm", "cm"}
 _AGE_SEGMENTS = {"13-17", "18-24", "25-34", "35-49", "50-64", "65+"}
 
 
@@ -347,8 +381,13 @@ def _build_config(body: dict) -> RunConfig:
         if f"rate_{cat}" in body:
             base_rates[cat] = _f(body, f"rate_{cat}", base_rates.get(cat, 0.0))
 
-    graph_default = "plc" if profile == "aggregate_matched_prototype" else "ba"
-    graph_kind = _choice(body, "graph_kind", graph_default, _GRAPH_KINDS)
+    # Graph defaults come from the profile FACTORY (single source): the
+    # aggregate profile previously defaulted to a plc approximation with
+    # homophily 0.15 here, silently building a config that was NOT the
+    # profile it was labelled as (the real one is cm + homophily 0).
+    _prof_cfg = factory()
+    graph_kind = _choice(body, "graph_kind", _prof_cfg.graph_kind, _GRAPH_KINDS)
+    _prof_gp = dict(_prof_cfg.graph_params) if _prof_cfg.graph_kind == graph_kind else {}
     # SBM blocks must sum to the agent count (else the graph has a different node
     # count than n_agents -> engine indexing error). Derive from the effective n.
     _scale = _profile_scales()[profile]           # A-05: factory-derived
@@ -357,13 +396,20 @@ def _build_config(body: dict) -> RunConfig:
     _n = _f(body, "n_agents", _prof_n)
     _half = _n // 2
     if graph_kind == "ba":
-        graph_params = {"m": int(_f(body, "graph_m", 5))}
+        graph_params = {"m": int(_f(body, "graph_m", _prof_gp.get("m", 5)))}
     elif graph_kind == "plc":
-        graph_params = {"m": int(_f(body, "graph_m", 5)),
-                        "p": _f(body, "graph_plc_p", 0.7)}
+        graph_params = {"m": int(_f(body, "graph_m", _prof_gp.get("m", 5))),
+                        "p": _f(body, "graph_plc_p", _prof_gp.get("p", 0.7))}
     elif graph_kind == "ws":
         graph_params = {"k": int(_f(body, "graph_k", 10)),
                         "p": _f(body, "graph_p", 0.05)}
+    elif graph_kind == "cm":
+        graph_params = {
+            "gamma": _f(body, "graph_gamma", _prof_gp.get("gamma", 2.3)),
+            "min_degree": int(_f(body, "graph_min_degree",
+                                 _prof_gp.get("min_degree", 2))),
+            "triangle_swaps": _f(body, "graph_swaps",
+                                 _prof_gp.get("triangle_swaps", 8.0))}
     else:  # sbm
         graph_params = {"block_sizes": [_half, _n - _half],
                         "p_matrix": [[0.02, 0.002], [0.002, 0.02]]}
@@ -402,7 +448,8 @@ def _build_config(body: dict) -> RunConfig:
         ftc_compliance=_bool(body, "ftc_compliance", True),
         graph_kind=graph_kind,
         graph_params=graph_params,
-        homophily_rewire_fraction=_f(body, "homophily_rewire_fraction", 0.15),
+        homophily_rewire_fraction=_f(body, "homophily_rewire_fraction",
+                                     _prof_cfg.homophily_rewire_fraction),
         human_review_accuracy=_f(body, "human_review_accuracy",
                                  DEFAULT_HUMAN_REVIEW_ACCURACY),
         human_review_delay_ticks=int(_f(body, "human_review_delay_ticks", 6)),
@@ -688,6 +735,9 @@ def _run_job(job_id: str, body: dict):
             "observed": a.observed,
             "targets": a.targets,
             "targets_metadata_complete": _targets_metadata_complete(a.targets),
+            # Multi-seed honesty: which protocol group this run's seed is in
+            # and the committed holdout verdict for the aggregate profile.
+            "seed_protocol": _seed_protocol_status(cfg.root_seed),
             "implausibility": a.implausibility,
             "implausibility_components": a.implausibility_components,
             "implausibility_dominant_metric": a.implausibility_dominant_metric,
@@ -864,6 +914,9 @@ class Handler(BaseHTTPRequestHandler):
                 "assets": _asset_registry(),
                 "llm_available": server_up(_LLM_HOST, timeout=0.4),
                 "profiles": _profile_scales(),  # A-05: factory-derived
+                # Honest multi-seed status for the aggregate profile (drives
+                # the profile radio's label and the target-comparison chips).
+                "aggregate_profile": _seed_protocol_status(),
             })
         elif route.startswith("/api/job"):
             # F-03: snapshot under the lock -- worker threads insert keys via
