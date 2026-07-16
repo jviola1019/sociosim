@@ -50,16 +50,22 @@ This file tracks the evidence-first operating limits after the v4 remediation.
 - **The BASE model does not reproduce the corrected targets: I = 6.03**, far
   outside the 3-sigma history-matching cutoff (degree tail 2.90 vs 2.30+/-0.10;
   diurnal peak 17h vs 20h). Published, not tuned away. The
-  `aggregate_matched_prototype` profile has since been genuinely
-  history-matched to the source-checked targets by moving model parameters
-  only (a configuration-model graph for the ~2.3 tail, triadic closure for
+  `aggregate_matched_prototype` profile was history-matched to the
+  source-checked targets by moving model parameters only (a
+  configuration-model graph for the ~2.3 tail, triadic closure for
   clustering, a diurnal shift to the source-checked evening peak, an ad-CTR
   multiplier toward the source-checked display measurement) -- no target or
-  tolerance was touched -- reaching I = 2.50 with the structural graph/temporal
-  aggregates in band and the ad/appeal residuals (from incompatible real
-  surfaces) near the edge. A pass there is NOT validation/calibration/
-  prediction; it is one labelled configuration reproducing seven aggregates to
-  within their tolerances. Full write-up: `docs/AGGREGATE_FIT_FINDINGS.md`.
+  tolerance was touched -- reaching I = 2.50 ON ITS FITTING SEED (42).
+- **The seed-42 result does not generalize across seeds.** Under the locked
+  seed-generalization protocol (20 fitting / 20 validation / 20 holdout
+  seeds, replay-verified; `socio_sim/data/seed_protocol_results_v1.json`)
+  the holdout pass rate is 60% (needs >=80%), with p95 I = 4.64 and max
+  5.08, dominated by the small-count appeal-rate and ad-CTR terms. Per
+  protocol no tolerance was widened; the profile's honest label is the
+  **seed-42 aggregate demonstration profile**. A below-cutoff score there
+  is NOT validation/calibration/prediction; it is one labelled
+  configuration reproducing seven aggregates on one seed. Full write-up:
+  `docs/AGGREGATE_FIT_FINDINGS.md`.
 - Even a good fit would not license validation/calibration/prediction claims:
   the sources measure different populations, metric definitions (Mislove's
   clustering is directed; the simulator's is undirected) and periods. Each

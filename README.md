@@ -51,12 +51,17 @@ Benchmark target values were verified against their primary sources; most of
 the previous ones were contradicted by the papers they cited and are retired
 to `legacy_unsupported_*`. The **base model does not reproduce the corrected
 targets (I = 6.03, cutoff 3.0)** — published, not tuned away. The separate
-`aggregate_matched_prototype` profile is genuinely history-matched to those
+`aggregate_matched_prototype` profile was history-matched to those
 source-checked targets by moving model parameters only (no target/tolerance
-touched), reaching **I = 2.50** with the structural graph/temporal aggregates
-in band — which is one labelled configuration reproducing seven aggregates,
-NOT validation, calibration, or prediction. See
-[docs/AGGREGATE_FIT_FINDINGS.md](docs/AGGREGATE_FIT_FINDINGS.md).
+touched), reaching **I = 2.50 on its fitting seed (42)**. Under the locked
+seed-generalization protocol (20 fitting / 20 validation / 20 holdout
+seeds, all replay-verified) it passes on only **60% of the holdout seeds**
+(median I 2.50, p95 4.64, max 5.08) — below the ≥80% acceptance bar — so
+its honest label is the **seed-42 aggregate demonstration profile**: a
+demonstration on one seed, NOT a distributional match, and NOT validation,
+calibration, or prediction. Full distributions:
+[docs/AGGREGATE_FIT_FINDINGS.md](docs/AGGREGATE_FIT_FINDINGS.md); artifact:
+`socio_sim/data/seed_protocol_results_v1.json`.
 
 ### Output honesty gates
 

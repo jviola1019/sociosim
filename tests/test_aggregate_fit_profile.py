@@ -1,17 +1,21 @@
-"""Aggregate-fit regression: the history-matched profile stays below the
-history-matching cutoff and explains any out-of-band component. This is an
-aggregate-fit diagnostic on synthetic targets, not a calibration claim."""
+"""Seed-42 demonstration-profile regression: the profile stays below the
+history-matching cutoff ON ITS FITTING SEED (42) and explains any
+out-of-band component. This is a single-seed regression pin, NOT the
+multi-seed evidence -- the seed-generalization protocol and its committed
+verdict (holdout acceptance FAILED -> demonstration label) live in
+tests/test_seed_protocol.py and socio_sim/validation/seed_protocol.py."""
 
 from socio_sim.config import RunConfig
 from socio_sim.pipeline import run_and_analyze
 
 
 def test_aggregate_matched_profile_is_within_cutoff_and_replays():
-    """History-matched against the SOURCE-VERIFIED targets, the profile
-    scores below the 3-sigma cutoff, and the STRUCTURAL graph/temporal
-    aggregates (a social-network model's job to reproduce) land in band.
-    The residual is the ad/appeal terms, whose real sources are
-    incompatible surfaces and are small-count in one run."""
+    """On its FITTING SEED (42, the default) the profile scores below the
+    3-sigma cutoff and the STRUCTURAL graph/temporal aggregates land in
+    band; the residual is the ad/appeal terms, whose real sources are
+    incompatible surfaces and are small-count in one run. This is the
+    seed-42 demonstration pin -- the multi-seed distribution (which FAILS
+    the holdout acceptance) is tested in test_seed_protocol.py."""
     a = run_and_analyze(
         RunConfig.aggregate_matched_prototype(jurisdictions=("EU",)),
         verify_replay=True)

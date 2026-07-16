@@ -294,7 +294,10 @@ def main():
     p.add_argument("--profile", default="quick",
                    choices=["quick", "test", "standard", "aggregate_matched_prototype"],
                    help="quick=1k/7d (default), test=200/48t, standard=10k/28d, "
-                        "aggregate_matched_prototype=synthetic aggregate-fit prototype")
+                        "aggregate_matched_prototype=seed-42 aggregate "
+                        "demonstration profile (matched on its fitting seed "
+                        "only; failed the multi-seed holdout acceptance -- "
+                        "see docs/AGGREGATE_FIT_FINDINGS.md)")
     p.add_argument("--jurisdictions", default="EU",
                    help="comma list of US,EU,CN (default EU)")
     p.add_argument("--benchmark", default="sourced_aggregates_v1",
