@@ -38,9 +38,20 @@ def _headline_metrics(result) -> dict:
     ad_conversions = sum(float(a.get("conversions", 0)) for a in ads)
     ad_spend = sum(float(a.get("spend", 0)) for a in ads)
     ad_revenue = sum(float(a.get("revenue", 0)) for a in ads)
-    exposed_n = sum(float(a.get("n_exposed", 0)) for a in ads)
-    ad_lift = (sum(float(a.get("lift", 0)) * float(a.get("n_exposed", 0))
-                   for a in ads) / exposed_n) if exposed_n else 0.0
+    # Exposure-weighted ITT lift over campaigns whose lift is DEFINED: a
+    # campaign with an empty/zero-denominator arm reports lift as NaN/None
+    # (honest n/a) and previously poisoned the whole weighted mean to NaN
+    # even when every other campaign measured fine (found by
+    # scripts/settings_sweep.py). Undefined strata are excluded; if NO
+    # campaign has a defined lift the aggregate is NaN, never a made-up 0.
+    lift_pairs = [(float(a["lift"]), float(a.get("n_exposed", 0)))
+                  for a in ads
+                  if a.get("lift") is not None
+                  and float(a.get("lift")) == float(a.get("lift"))
+                  and float(a.get("n_exposed", 0)) > 0]
+    exposed_n = sum(n for _, n in lift_pairs)
+    ad_lift = (sum(lift * n for lift, n in lift_pairs) / exposed_n
+               if exposed_n else float("nan"))
     disclosures = [1.0 if a.get("disclosure_present") else 0.0 for a in ads]
     return {
         "harmful_exposure_rate": float(s["harmful_exposure"]["rate"]),

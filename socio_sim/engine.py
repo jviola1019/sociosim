@@ -418,7 +418,10 @@ class Simulation:
         posts_by_author: dict = {}
         for p in recent:
             posts_by_author.setdefault(p.author_id, []).append(p)
-        pool_size = self.bp.exploration_pool_size
+        # int() coercion: validate() accepts any non-negative NUMBER for this
+        # field (a float like 20.0 passed validation), but numpy's rng size
+        # argument requires an integer -- found by scripts/settings_sweep.py.
+        pool_size = int(self.bp.exploration_pool_size)
 
         for agent_id in active:
             aid = int(agent_id)

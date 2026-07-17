@@ -64,6 +64,16 @@
     "value": "8",
     "justification": "local process-pool size for the seed-protocol evaluation script; a runtime performance knob, not a modelled quantity"
   },
+  "scripts/settings_sweep.py::SEED": {
+    "classification": "technical_constant",
+    "value": "7",
+    "justification": "fixed root seed for the settings-sweep coherence harness (common random numbers across cases); a test-harness constant, not a modelled quantity"
+  },
+  "scripts/settings_sweep.py::argparse.--workers": {
+    "classification": "technical_constant",
+    "value": "8",
+    "justification": "local process-pool size for the settings-sweep script; a runtime performance knob, not a modelled quantity"
+  },
   "scripts/wheel_qa.py::EXPECTED_ROLE_COUNTS['ad-creative-v4-']": {
     "classification": "technical_constant",
     "value": "32",
