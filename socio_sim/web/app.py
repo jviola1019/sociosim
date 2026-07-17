@@ -268,6 +268,9 @@ def _seed_protocol_status(root_seed: int | None = None) -> dict:
             "p95": h.get("p95"),
             "max_implausibility": h.get("max_implausibility"),
             "pass_ci_wilson95": h.get("pass_ci_wilson95"),
+            "dominant_failing_metrics":
+                h.get("dominant_failing_metric_frequency", {}),
+            "replay_all_ok": h.get("replay_all_ok"),
         }
     if root_seed is not None:
         seed = int(root_seed)
@@ -788,6 +791,10 @@ def _run_job(job_id: str, body: dict):
             # Multi-seed honesty: which protocol group this run's seed is in
             # and the committed holdout verdict for the aggregate profile.
             "seed_protocol": _seed_protocol_status(cfg.root_seed),
+            # per-rate event support (numerator/denominator/interval/
+            # min-support): a z-distance is not meaningful for a rate
+            # without adequate event support (audit Phase 5)
+            "rate_support": a.rate_support,
             "implausibility": a.implausibility,
             "implausibility_components": a.implausibility_components,
             "implausibility_dominant_metric": a.implausibility_dominant_metric,

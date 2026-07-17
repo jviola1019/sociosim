@@ -788,9 +788,13 @@ function renderFitStatus(r) {
   if (groupTxt) chips.push(`<span class="fs-chip seed">${groupTxt}</span>`);
   if (sp.holdout) {
     const h = sp.holdout;
+    const dom = Object.entries(h.dominant_failing_metrics || {})
+      .sort((a, b) => b[1] - a[1])
+      .map(([m, n]) => `${esc(m.replace(/_/g, " "))} ×${esc(n)}`).join(", ");
     chips.push(sp.holdout_accepted
       ? `<span class="fs-chip ok">Multi-seed holdout: passed (${pct(h.pass_proportion, 0)} of ${esc(h.n_seeds)} locked seeds)</span>`
-      : `<span class="fs-chip bad">Multi-seed holdout: FAILED — ${pct(h.pass_proportion, 0)} of ${esc(h.n_seeds)} locked seeds under the cutoff (needs ≥80%); median I ${fmt(h.median_implausibility, 2)}, p95 ${fmt(h.p95, 2)}, max ${fmt(h.max_implausibility, 2)}</span>`);
+      : `<span class="fs-chip bad">Multi-seed holdout: FAILED — ${pct(h.pass_proportion, 0)} of ${esc(h.n_seeds)} locked seeds under the cutoff (needs ≥80%); median I ${fmt(h.median_implausibility, 2)}, p95 ${fmt(h.p95, 2)}, max ${fmt(h.max_implausibility, 2)}${dom ? "; dominant failures: " + dom : ""}</span>`);
+    if (h.replay_all_ok) chips.push(`<span class="fs-chip ok">Replay verified (all protocol runs)</span>`);
   }
   chips.push(`<span class="fs-chip warn">Not empirically validated</span>`);
   const seedNote = `<p class="dim small">Profile label: <b>${esc(sp.label || "n/a")}</b> · this run: seed ${esc((r.manifest || {}).root_seed)}, ${esc(r.n_replicates || 1)} replicate${(r.n_replicates || 1) > 1 ? "s" : ""} · full protocol artifact: ${esc(sp.protocol_artifact || "not present")}</p>`;
@@ -815,6 +819,15 @@ function targetDetails(name, spec, obs, r) {
     + li("Source artifact", art.sha256 ? `sha256 ${art.sha256.slice(0, 16)}… (${art.stability || "recorded"}; retrieved ${art.retrieved_at_utc || "?"})` : "")
     + li("Observed (this run)", `${fmt(obs, 4)} at seed ${(r.manifest || {}).root_seed}, ${r.n_replicates || 1} replicate(s)`)
     + li("Target ± tolerance", `${spec.value} ± ${spec.tolerance}`)
+    + (((r.rate_support || {})[name])
+        ? li("Event support",
+             `${(r.rate_support[name].numerator)}/${(r.rate_support[name].denominator)} events; ` +
+             `95% interval [${fmt(r.rate_support[name].interval[0], 3)}, ${fmt(r.rate_support[name].interval[1], 3)}] ` +
+             `(${r.rate_support[name].interval_method}); minimum support n=${r.rate_support[name].minimum_support_n}; ` +
+             (r.rate_support[name].adequately_supported
+               ? "adequately supported"
+               : "INSUFFICIENT — descriptive diagnostic only; excluded from the predeclared protocol v2 acceptance score"))
+        : "")
     + li("Valid uses", uses(spec.valid_uses))
     + li("Invalid uses", uses(spec.invalid_uses))
     + `</ul></details>`;
@@ -876,7 +889,15 @@ function render(r) {
     $("#calib").innerHTML = Object.entries(r.targets).map(([name, spec]) => {
       const obs = r.observed[name]; if (obs == null) return "";
       const lo0 = spec.value - 3 * spec.tolerance, hi0 = spec.value + 3 * spec.tolerance, sp = Math.max(hi0 - lo0, 1e-9), L = v => Math.max(0, Math.min(100, 100 * (v - lo0) / sp)), inb = Math.abs(obs - spec.value) <= spec.tolerance;
-      return `<div class="calib-item"><div class="calib-row"><span class="nm">${esc(name.replace(/_/g, " "))}</span><div class="ctrack"><span class="tol" style="left:${L(spec.value - spec.tolerance)}%;width:${L(spec.value + spec.tolerance) - L(spec.value - spec.tolerance)}%"></span><span class="ctr" style="left:${L(spec.value)}%"></span><span class="obs ${inb ? "in" : "out"}" style="left:${L(obs)}%"></span></div><span class="vl">${fmt(obs, 3)} <span class="dim">/ ${spec.value}</span> <span class="${inb ? "inband" : "outband"}">${inb ? "in band" : "out of band"}</span></span></div>${targetDetails(name, spec, obs, r)}</div>`;
+      // rate-type targets without adequate event support: the band label is
+      // replaced by an explicit insufficient-support status (a z-distance
+      // is not meaningful when one chance event spans several tolerances)
+      const sup = (r.rate_support || {})[name];
+      const weak = sup && !sup.adequately_supported;
+      const bandTxt = weak
+        ? `insufficient event support (${esc(sup.numerator)}/${esc(sup.denominator)} events; needs ≥${esc(sup.minimum_support_n)})`
+        : (inb ? "in band" : "out of band");
+      return `<div class="calib-item"><div class="calib-row"><span class="nm">${esc(name.replace(/_/g, " "))}</span><div class="ctrack"><span class="tol" style="left:${L(spec.value - spec.tolerance)}%;width:${L(spec.value + spec.tolerance) - L(spec.value - spec.tolerance)}%"></span><span class="ctr" style="left:${L(spec.value)}%"></span><span class="obs ${inb ? "in" : "out"}" style="left:${L(obs)}%"></span></div><span class="vl">${fmt(obs, 3)} <span class="dim">/ ${spec.value}</span> <span class="${weak ? "weaksupport" : (inb ? "inband" : "outband")}">${bandTxt}</span></span></div>${targetDetails(name, spec, obs, r)}</div>`;
     }).join("");
   } else {
     // Bundled legacy target sets are all evidence-kind "unsupported" (missing

@@ -415,8 +415,10 @@ body[data-theme="dark"] .fs-chip.warn { color: #e6b45a; }
 .tgt-details li { font-size: 12px; line-height: 1.55; color: var(--ink-2); }
 .vl .inband, .vl .outband { display: block; font-size: 10px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
 .vl .inband { color: #087237; } .vl .outband { color: #b42318; }
+.vl .weaksupport { display: block; font-size: 10px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; color: #9a6700; }
 body[data-theme="dark"] .vl .inband { color: #57d08a; }
 body[data-theme="dark"] .vl .outband { color: #ff8f86; }
+body[data-theme="dark"] .vl .weaksupport { color: #e6b45a; }
 
 .calib-row { display: grid; grid-template-columns: 180px 1fr 116px; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .calib-row .nm { font-size: 14px; color: var(--ink); text-transform: capitalize; }

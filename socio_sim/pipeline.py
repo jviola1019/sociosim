@@ -23,6 +23,7 @@ from socio_sim.validation.calibrate import (dominant_implausibility_metric,
                                             implausibility,
                                             implausibility_components)
 from socio_sim.validation.montecarlo import run_replicates
+from socio_sim.validation.support import rate_support
 from socio_sim.validation.targets import compute_observed, load_targets
 
 #: Replay verification doubles runtime, so it is auto-skipped above this size.
@@ -108,6 +109,9 @@ class Analysis:
     replay: dict          # {checked, ok, msg}
     mc: object = None     # None in Preview; {metric: {median, ci, n_replicates, provenance}} in Research
     transparency: object = None  # DSA/§230/CN/FTC-style transparency-report tally
+    #: per-rate event-support records (numerator/denominator/interval/
+    #: min-support; audit Phase 5) for rate-type aggregate targets
+    rate_support: dict = None
 
 
 def run_and_analyze(cfg: RunConfig, *, write: bool = True,
@@ -166,4 +170,5 @@ def run_and_analyze(cfg: RunConfig, *, write: bool = True,
         implausibility_components=i_components,
         implausibility_dominant_metric=dominant_implausibility_metric(i_components),
         replay=replay, mc=mc,
-        transparency=transparency)
+        transparency=transparency,
+        rate_support=rate_support(summary, targets))

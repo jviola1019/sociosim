@@ -147,6 +147,36 @@ aggregates are stable across seeds — exactly what the per-metric table
 shows. Fixing this honestly requires larger runs or mechanism work, not
 wider tolerances.
 
+## Fourth finding (2026-07-17): the failing rates are not statistically estimable at this scale
+
+Event-support measurement on FITTING and VALIDATION seeds only (the locked
+holdout stayed untouched; seeds 42, 101–103, 201–204):
+
+| rate | events per run (measured) | needed for the 95% interval at the target rate to be as tight as the tolerance |
+|---|---|---|
+| `appeal_grant_rate` (target 0.110 ± 0.044) | **3–12 appeals filed**, 0–2 granted | **≥195 appeals** |
+| `ad_ctr` (target 0.001 ± 0.001) | **119–451 impressions**, 0–1 clicks | **≥3,838 impressions** |
+
+A single chance event moves either observed rate by several tolerances
+(one click at 119 impressions = CTR 0.0084 → z = 7.4 — exactly the
+outlier the multi-seed distribution showed). An ordinary z-distance is not
+meaningful at this event support, so:
+
+- every run now carries a **support record** per rate
+  (`socio_sim/validation/support.py`, surfaced in the web payload and the
+  Target Comparison tab): numerator, denominator, effective sample size,
+  zero-denominator indicator, Wilson-95 interval, minimum-support
+  threshold, and an acceptance-inclusion flag with rationale;
+- **protocol v1 is untouched**: its committed verdict (holdout FAILED,
+  60% pass) keeps both rates in its score exactly as evaluated;
+- **protocol v2 is PREDECLARED, not evaluated**
+  (`seed_protocol.PROTOCOL_V2`): acceptance on the five structural
+  metrics only; both sparse rates demoted to descriptive diagnostics with
+  mandatory support records; a brand-new hash-pinned holdout seed list
+  (17001–17020, disjoint from every v1 list) that has never been run.
+  Whether the profile passes v2 is unknown until a future evaluation —
+  nothing here re-scores v1.
+
 ## What this does and does not license
 
 - It **does** support: aggregate-fit diagnostics; sensitivity and mechanism
