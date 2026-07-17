@@ -1,5 +1,38 @@
 # SocioSim Handoff
 
+## Context-Reset Packet — 2026-07-16 material-audit remediation (from main @ 86bb4b7)
+
+- **Objective:** remediate the 2026-07-16 material audit (exact-SHA CI proof;
+  multi-seed validity of the aggregate profile; reproducible source
+  verification; supply-chain pinning; cache regression tests; UI honesty +
+  a11y).
+- **Done & verified:** (1) exact SHA 86bb4b7 has a successful push CI run
+  29398446514 (headSha equal; recorded in docs/RELEASE.md ledger);
+  (2) seed-generalization protocol built + full 60-seed replay-verified
+  evaluation run twice with identical results — holdout 12/20 = 60% pass
+  (needs >=80%), so the profile label is DOWNGRADED to "seed-42 aggregate
+  demonstration profile" across config/docs/UI, artifact committed at
+  socio_sim/data/seed_protocol_results_v1.json, honesty coupled by tests;
+  (3) all 7 sourced targets carry source_artifact hashes; verify_sources.py
+  re-verified them over the network; evidence gate now rejects unreproducible
+  source-verified claims; (4) Syft pinned v1.48.0 + checksum, actions pinned
+  by full SHA, mutable-ref/pipe-to-shell CI guard tests; (5) cache gap tests
+  (ClaudeAdapter adoption, win32 lock, lock-file secrets, byte-identical
+  winner); (6) web UI: real cm profile fidelity, status-hierarchy chips,
+  per-target provenance drawers, a11y fixes — Playwright-verified with
+  screenshots; axe/e2e suites green.
+- **Confirmed facts:** protocol evaluation is deterministic across re-runs;
+  appeal_grant_rate (30% of holdout seeds) and ad_ctr are the failing terms
+  (small-count rates), structural metrics stable.
+- **Open risks / not-yet-done:** verdict remains PASS FOR LOCAL SYNTHETIC
+  RESEARCH USE ONLY; making the profile genuinely pass holdout needs larger
+  runs or mechanism work on appeals/ad counts (do NOT widen tolerances);
+  Windows lock test runs only on win32 dev machines (CI gap documented);
+  Mislove/AB587/Pew artifacts are mutable-hosted (hash valid at retrieval;
+  quote-verification fallback).
+- **Next target:** push to main via PR, confirm exact-SHA CI green for the
+  new merge commit, add its row to the RELEASE.md ledger.
+
 This is an evidence-first remediation program, on branch
 `fix/p0-llm-cache-and-audit-hardening` (PR #5, open against `main`, CI green
 at `fc625fc` — confirmed via `gh run watch` on both the push and

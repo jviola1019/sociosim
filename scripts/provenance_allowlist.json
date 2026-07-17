@@ -59,6 +59,11 @@
     "value": "1500",
     "justification": "benchmark-dataset fetch parameter (length cap / page size / per-class sample count) for the provenance fetch script"
   },
+  "scripts/seed_protocol_eval.py::argparse.--workers": {
+    "classification": "technical_constant",
+    "value": "8",
+    "justification": "local process-pool size for the seed-protocol evaluation script; a runtime performance knob, not a modelled quantity"
+  },
   "scripts/wheel_qa.py::EXPECTED_ROLE_COUNTS['ad-creative-v4-']": {
     "classification": "technical_constant",
     "value": "32",
@@ -218,6 +223,11 @@
     "classification": "scenario_assumption",
     "value": "0.5",
     "justification": "synthetic severity floor for severe-category policy handling; a scenario mechanics threshold"
+  },
+  "socio_sim/validation/seed_protocol.py::CUTOFF": {
+    "classification": "technical_constant",
+    "value": "3.0",
+    "justification": "conventional 3-sigma history-matching implausibility cutoff; the same threshold socio_sim/validation/calibrate.py documents (I < 3), restated for the seed protocol"
   },
   "socio_sim/web/app.py::MAX_BODY_BYTES": {
     "classification": "security_limit",
@@ -484,6 +494,26 @@
     "value": "0",
     "justification": "UI pre-fill mirroring the follow_rate scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
   },
+  "socio_sim/web/static/index.html::input#graph_gamma.max": {
+    "classification": "technical_constant",
+    "value": "4",
+    "justification": "form input bound; mirrors RunConfig.validate()'s cm.gamma [2, 4] validity range"
+  },
+  "socio_sim/web/static/index.html::input#graph_gamma.min": {
+    "classification": "technical_constant",
+    "value": "2",
+    "justification": "form input bound; mirrors RunConfig.validate()'s cm.gamma [2, 4] validity range"
+  },
+  "socio_sim/web/static/index.html::input#graph_gamma.step": {
+    "classification": "ui_formatting",
+    "value": "0.05",
+    "justification": "slider/input step granularity only"
+  },
+  "socio_sim/web/static/index.html::input#graph_gamma.value": {
+    "classification": "scenario_assumption",
+    "value": "2.3",
+    "justification": "cm graph form default; mirrors RunConfig.validate()'s cm.gamma default (2.3), the Barabasi & Albert 1999 actor-graph exponent used as the sourced aggregate target"
+  },
   "socio_sim/web/static/index.html::input#graph_k.min": {
     "classification": "ui_formatting",
     "value": "2",
@@ -503,6 +533,16 @@
     "classification": "scenario_assumption",
     "value": "5",
     "justification": "UI pre-fill mirroring the graph_m scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#graph_min_degree.min": {
+    "classification": "technical_constant",
+    "value": "1",
+    "justification": "form input bound; mirrors RunConfig.validate()'s cm.min_degree >= 1"
+  },
+  "socio_sim/web/static/index.html::input#graph_min_degree.value": {
+    "classification": "scenario_assumption",
+    "value": "2",
+    "justification": "cm graph form default; mirrors RunConfig.validate()'s cm.min_degree default"
   },
   "socio_sim/web/static/index.html::input#graph_p.max": {
     "classification": "ui_formatting",
@@ -543,6 +583,21 @@
     "classification": "scenario_assumption",
     "value": "0.7",
     "justification": "UI pre-fill mirroring the graph_plc_p scenario-assumption default; authoritative value + provenance live in scenario_assumptions.json and the app constants"
+  },
+  "socio_sim/web/static/index.html::input#graph_swaps.min": {
+    "classification": "technical_constant",
+    "value": "0",
+    "justification": "form input bound; mirrors RunConfig.validate()'s cm.triangle_swaps >= 0"
+  },
+  "socio_sim/web/static/index.html::input#graph_swaps.step": {
+    "classification": "ui_formatting",
+    "value": "1",
+    "justification": "slider/input step granularity only"
+  },
+  "socio_sim/web/static/index.html::input#graph_swaps.value": {
+    "classification": "scenario_assumption",
+    "value": "8",
+    "justification": "cm graph form default; mirrors RunConfig.validate()'s cm.triangle_swaps default (8.0)"
   },
   "socio_sim/web/static/index.html::input#holdout_fraction.max": {
     "classification": "ui_formatting",

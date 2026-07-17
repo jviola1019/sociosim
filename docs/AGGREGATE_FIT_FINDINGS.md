@@ -101,6 +101,52 @@ realism, or a prediction of any real platform:
 Every target keeps its `applicability_limits`, and the comparison remains an
 aggregate-fit DIAGNOSTIC.
 
+## Third finding (2026-07-16): the seed-42 result does NOT generalize across seeds
+
+The I = 2.50 above is ONE realization (root seed 42 — the seed the matching
+pass used). A stochastic simulator cannot claim "matched" on one draw, so a
+seed-generalization protocol was added
+(`socio_sim/validation/seed_protocol.py`, evaluated by
+`scripts/seed_protocol_eval.py`, committed artifact
+`socio_sim/data/seed_protocol_results_v1.json`):
+
+- **20 fitting seeds** (42 + reserved seeds parameters MAY be tuned on),
+- **20 validation seeds** (generalization checks during tuning),
+- **20 LOCKED holdout seeds** (hash-pinned; never used for any parameter
+  decision — the profile parameters were frozen before these seeds were
+  first evaluated, and that attestation is recorded in the artifact).
+
+Every run is replay-verified. Results (implausibility I, cutoff 3.0):
+
+| group | median | mean | p5 | p25 | p75 | p95 | max | pass (<3) | Wilson 95% |
+|---|---|---|---|---|---|---|---|---|---|
+| fitting seeds (20) | 2.50 | 3.05 | 1.25 | 2.41 | 2.86 | 5.80 | 10.77 | 15/20 = 75% | [0.53, 0.89] |
+| validation seeds (20) | 2.50 | 3.10 | 1.07 | 2.03 | 3.18 | 7.56 | 10.49 | 11/20 = 55% | [0.34, 0.74] |
+| **holdout seeds (20)** | **2.50** | **2.89** | 1.99 | 2.50 | 3.26 | **4.64** | **5.08** | **12/20 = 60%** | [0.39, 0.78] |
+
+Per-metric failure rates on the holdout seeds (fraction of seeds with
+z ≥ 3): appeal_grant_rate 30%, ad_ctr 5%, clustering 5%,
+degree_tail_exponent 5%, diurnal peak/trough and posting volume 0%.
+All 60 runs replayed byte-identically; no runtime failures.
+
+**Acceptance verdict: FAILED.** The provisional criteria require ≥80% of
+locked holdout seeds under the cutoff; the observed rate is 60%
+(median 2.50 does pass; no structural metric fails in >20% of seeds; all
+replays pass). Per protocol, no target value or tolerance was touched and
+no parameter was retuned on holdout results. Instead the label is
+downgraded: the profile is the **seed-42 aggregate demonstration
+profile** — a demonstration that these mechanisms CAN reach the target
+regime on the fitting seed, not a distributionally matched model.
+
+Why it fails: the dominant failures are the small-count behavioural rates.
+`appeal_grant_rate` is a handful of appeals per run, so its observed rate
+jumps between 0 and 0.25 across seeds (z 2.05–3.18 straddling the cutoff),
+and a couple of chance ad clicks push `ad_ctr` far past its ±0.001
+tolerance (z up to 7.4 on one fitting seed). The structural graph/temporal
+aggregates are stable across seeds — exactly what the per-metric table
+shows. Fixing this honestly requires larger runs or mechanism work, not
+wider tolerances.
+
 ## What this does and does not license
 
 - It **does** support: aggregate-fit diagnostics; sensitivity and mechanism

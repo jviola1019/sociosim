@@ -4,6 +4,52 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
 
 ## [Unreleased] — audit P0/P1 remediation
 
+### Added (2026-07-16 material-audit remediation, from main @ 86bb4b7)
+- **Seed-generalization protocol** (`socio_sim/validation/seed_protocol.py`,
+  `scripts/seed_protocol_eval.py`): 20 fitting / 20 validation / 20 LOCKED
+  holdout seeds (hash-pinned), per-seed implausibility + component z-scores +
+  replay verification, distribution summaries (median/mean/p5/p25/p75/p95/max,
+  pass proportion with Wilson + bootstrap 95% intervals, dominant-failing-metric
+  frequencies), and distributional acceptance criteria. Committed artifact:
+  `socio_sim/data/seed_protocol_results_v1.json` (ships in the wheel).
+  **Outcome: holdout acceptance FAILED (60% pass vs >=80% required)** — the
+  profile label is downgraded to **seed-42 aggregate demonstration profile**
+  everywhere (config docstring, README, KNOWN_LIMITATIONS, findings doc, web
+  UI); no tolerance was widened and no parameter retuned on holdout results.
+  Tests pin list disjointness, holdout immutability, target value/tolerance
+  immutability, only-seed-42-good acceptance failure, artifact/label coupling,
+  and live cross-session replay of protocol seeds.
+- **Reproducible source verification:** every `sourced_aggregates_v1` target
+  now records a `source_artifact` block (SHA-256, byte size, retrieval time,
+  version-pinned URL, stability class, quote patterns mechanically re-located
+  in the hashed bytes) plus `scripts/verify_sources.py` to re-verify;
+  `scripts/evidence_gate.py` rejects source-verified claims lacking a
+  statistic location, transformation, or hashed artifact.
+- **Supply-chain pinning:** Syft pinned to v1.48.0 with published-checksum
+  verification (fail closed) replacing `curl .../main/install.sh | sh`; all
+  GitHub Actions pinned by full commit SHA; release `workflow_dispatch` fails
+  when checkout does not resolve to the requested SHA; provenance now records
+  the workflow-file hash and python/pip/setuptools/build/wheel/syft versions;
+  CI tests fail any workflow that downloads executables from mutable refs or
+  pipes downloads into a shell. Exact-SHA CI ledger added to docs/RELEASE.md
+  (86bb4b7 -> run 29398446514).
+- **Cache concurrency gap tests:** ClaudeAdapter blocked-branch adoption of a
+  concurrent writer's accepted winner; byte-identical cache after a losing
+  same-key update; lock sidecar holds no cache content; win32 msvcrt lock
+  blocking test (documented CI gap: GitHub CI is ubuntu-only).
+- **Web console honesty + fidelity:** the web "aggregate" profile now builds
+  the REAL profile config (cm graph + homophily 0 — it previously built a plc
+  approximation with homophily 0.15 under the profile's label); cm graph
+  configurable in the form; Target Comparison tab shows the status hierarchy
+  (Synthetic -> source-linked/unsupported targets -> fitting/validation/
+  holdout seed group -> multi-seed holdout verdict -> "Not empirically
+  validated") and a per-target provenance drawer (source, population, period,
+  definition limits, transformation, tolerance origin, artifact hash, seed +
+  replicates, valid/invalid uses); `/api/meta` and run payloads carry the
+  seed-protocol status. A11y: fixed heading order (fairness h4->h3), export
+  menu aria-expanded/Escape/focus-return, radiogroup labelling, run-phase
+  aria-live, error stage role=alert.
+
 ### Added
 - **Audit-4 black-box remediation:** ad auctions now enforce hard campaign
   budgets, reports render undefined metrics as `n/a` instead of literal `nan`,

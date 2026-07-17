@@ -183,34 +183,43 @@ class RunConfig:
 
     @classmethod
     def aggregate_matched_prototype(cls, **overrides) -> "RunConfig":
-        """Aggregate-matched prototype profile.
+        """SEED-42 AGGREGATE DEMONSTRATION PROFILE.
 
-        A synthetic scenario preset HISTORY-MATCHED (2026-07-14) against the
-        source-verified ``sourced_aggregates_v1`` target set -- every target
-        value there was read out of its primary source. Matching is done
-        only by moving MODEL parameters (never by editing a target value or
-        widening a tolerance), through principled mechanisms:
+        (The factory keeps its historical name for manifest/replay
+        compatibility; the honest human-facing label is the one above --
+        see socio_sim.validation.seed_protocol.profile_label().)
+
+        A synthetic scenario preset whose parameters were history-matched
+        (2026-07-14) against the source-verified ``sourced_aggregates_v1``
+        target set ON ROOT SEED 42 ONLY, by moving MODEL parameters (never
+        by editing a target value or widening a tolerance):
         - graph_kind ``cm``: a configuration model with a power-law degree
-          exponent, so the realized degree tail sits near 2.3 (real social
-          graphs, Barabasi & Albert 1999); vanilla preferential attachment
-          asymptotes to 3 and cannot;
-        - triangle-forming, degree-preserving swaps for realistic clustering;
+          exponent, so the realized degree tail sits near 2.3 (Barabasi &
+          Albert 1999); vanilla preferential attachment asymptotes to 3;
+        - triangle-forming, degree-preserving swaps for clustering;
         - homophily rewiring off, so it does not flatten the matched tail;
         - diurnal_peak_shift = 3h, aligning the activity peak with the
           verified Golder 2007 evening peak (~20h);
         - campaign_ctr_multiplier lowering the demo-ad CTR toward the
-          verified display-ad measurement (iPinYou 2014, ~0.001) rather than
-          the unsourced 0.012 assumption.
+          verified display-ad measurement (iPinYou 2014, ~0.001).
 
-        With these it scores I ~= 2.5 (< the 3-sigma history-matching cutoff)
-        on seed 42: the graph and temporal aggregates land in band; the ad-
-        and appeal-rate terms sit nearer the tolerance edge because their
-        real sources are incompatible surfaces (China display RTB; one
-        platform's video appeals) and are small-count in a single run. This
-        is NOT validation, calibration, realism, or prediction of any real
-        platform -- see docs/AGGREGATE_FIT_FINDINGS.md and each target's
-        applicability_limits. The base/quick model (no matching) still scores
-        I ~= 6.
+        On seed 42 it scores I ~= 2.5 (< the 3-sigma cutoff). BUT the
+        2026-07-16 seed-generalization protocol (20 fitting / 20 validation
+        / 20 LOCKED holdout seeds, replay-verified, committed at
+        socio_sim/data/seed_protocol_results_v1.json) shows this does NOT
+        hold in distribution: holdout pass rate 60% (12/20, Wilson 95%
+        [0.39, 0.78]), median I 2.50, p95 4.64, max 5.08 -- FAILING the
+        >=80% holdout acceptance criterion. The failures concentrate in the
+        small-count behavioural rates (appeal_grant_rate 30% of holdout
+        seeds, ad_ctr 5%) plus occasional structural excursions (clustering
+        5%, degree tail 5%). Per protocol, no tolerance was widened and no
+        parameter was retuned on holdout results; the label is downgraded
+        instead. This profile is a demonstration that the mechanisms CAN
+        reach the target regime on its fitting seed -- it is NOT matched in
+        distribution, NOT validation, NOT calibration, NOT realism, and NOT
+        prediction of any real platform (see docs/AGGREGATE_FIT_FINDINGS.md
+        and each target's applicability_limits). The base/quick model
+        (no matching) scores I ~= 6 on seed 42.
         """
         base = dict(n_agents=1_000, n_ticks=7 * 24, n_replicates=20,
                     graph_kind="cm",

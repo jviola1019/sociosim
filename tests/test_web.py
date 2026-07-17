@@ -63,10 +63,18 @@ def test_build_config_rejects_invalid_api_values():
 
 
 def test_build_config_parses_boolean_strings_and_preserves_aggregate_profile():
+    """The web profile must build the REAL aggregate profile config (cm
+    graph, homophily 0), not the old plc/homophily-0.15 approximation that
+    was silently a different model than its label claimed."""
+    from socio_sim.config import RunConfig
     cfg = app._build_config({"profile": "aggregate_matched_prototype", "ftc_enabled": "false",
                              "ads_enabled": "true"})
-    assert cfg.graph_kind == "plc"
-    assert cfg.graph_params == {"m": 5, "p": 0.7}
+    truth = RunConfig.aggregate_matched_prototype()
+    assert cfg.graph_kind == truth.graph_kind == "cm"
+    assert cfg.graph_params == truth.graph_params
+    assert cfg.homophily_rewire_fraction == truth.homophily_rewire_fraction == 0.0
+    assert cfg.diurnal_peak_shift == truth.diurnal_peak_shift
+    assert cfg.campaign_ctr_multiplier == truth.campaign_ctr_multiplier
     assert cfg.ftc_enabled is False and cfg.ads_enabled is True
 
 
@@ -80,8 +88,8 @@ def test_legacy_calibrated_profile_migrates_to_aggregate_matched_prototype():
     normal choice or rejected outright."""
     cfg = app._build_config({"profile": "calibrated"})
     cfg2 = app._build_config({"profile": "aggregate_matched_prototype"})
-    assert cfg.graph_kind == cfg2.graph_kind == "plc"
-    assert cfg.graph_params == cfg2.graph_params == {"m": 5, "p": 0.7}
+    assert cfg.graph_kind == cfg2.graph_kind == "cm"
+    assert cfg.graph_params == cfg2.graph_params
     assert cfg.n_agents == cfg2.n_agents
     assert cfg.n_ticks == cfg2.n_ticks
 

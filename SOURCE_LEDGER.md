@@ -39,27 +39,44 @@ operational-use claims.
 - Every decision-facing metric is expected to carry evidence metadata in JSON/web
   payloads and rendered reports.
 
-## Legacy Aggregate Targets
+## Sourced Aggregate Targets (default set)
 
-- `socio_sim/data/benchmarks/*.json` (`default_targets.json`,
-  `twitter_like.json`, `facebook_like.json`) are legacy aggregate target
-  manifests, 7 (6 for facebook_like) targets each with their own one-line
-  citation and tolerance, now also carrying an `evidence_id` field pointing
-  at `ev.unsupported.aggregate_targets_legacy`.
-- They lack complete source version, date range, population, unit, source hash,
-  and tolerance-rationale metadata (the one-line `source` string is not a
-  substitute for that schema). Finding real, verifiable URLs/DOIs for these
-  is deferred — see `HANDOFF.md` item 4 — rather than fabricated from memory.
-- Valid use: aggregate-fit diagnostics and synthetic mechanism checks.
+- `socio_sim/data/benchmarks/sourced_aggregates_v1.json` is the DEFAULT
+  target set: every value was read out of its primary source (verification
+  pass 2026-07-13) and quoted in `statistic_location`.
+- As of 2026-07-16 every target also carries a `source_artifact` block:
+  the exact reviewed artifact's SHA-256, byte size, retrieval timestamp,
+  canonical (version-pinned where possible) URL, stability class, and the
+  quote patterns mechanically re-located in the hashed bytes. Artifacts are
+  NOT committed (licensing); `python scripts/verify_sources.py` re-downloads
+  and re-verifies hash + quotes (network-dependent, not a default CI step).
+  Status ladder: `citation_identifier_verified` < `artifact_hash_recorded`
+  (current) with `value_reproduced_from_artifact: true` where the quoted
+  statistic was mechanically re-found.
+- `scripts/evidence_gate.py` (CI) rejects any target claiming
+  `value_verified_against_source` / `value_derived_from_verified_source`
+  without a statistic_location, transformation statement, and hashed
+  source artifact.
+- Multi-seed status of the aggregate profile: see
+  `socio_sim/data/seed_protocol_results_v1.json` (holdout acceptance
+  FAILED — the profile label is "seed-42 aggregate demonstration profile").
+
+## Legacy Aggregate Targets (retired)
+
+- `socio_sim/data/benchmarks/legacy_unsupported_{default,twitter_like,facebook_like}.json`
+  are the retired pre-verification target sets, kept loadable by explicit
+  name only for reproducing older runs. Each carries an `evidence_id`
+  pointing at `ev.unsupported.aggregate_targets_legacy`.
+- Their numbers could NOT be verified against the sources they cited
+  (several are contradicted by them — see docs/AGGREGATE_FIT_FINDINGS.md),
+  so their evidence kind stays `unsupported`.
+- Valid use: reproducing older runs; synthetic mechanism checks.
 - Invalid use: empirical validation, calibration seals, backtest seals,
   operational decisions, or real-platform prediction.
-- As of 2026-06-30, the web UI enforces this: `_targets_metadata_complete()`
-  in `web/app.py` checks each target's evidence-record kind, and the
-  "Target Comparison" tab (formerly labeled "Calibration") shows a plain
-  "Unsupported legacy target comparison" with no pass/fail seal and no
-  "closer to published benchmarks" claim whenever any loaded target is
-  `kind=unsupported` — which is always true today, since all three bundled
-  target sets share that evidence record.
+- The web UI enforces this: `_targets_metadata_complete()` in `web/app.py`
+  checks each target's evidence-record kind, and the "Target Comparison"
+  tab shows a plain "Unsupported legacy target comparison" with no
+  pass/fail seal whenever any loaded target is `kind=unsupported`.
 
 ## Classifier Benchmarks
 

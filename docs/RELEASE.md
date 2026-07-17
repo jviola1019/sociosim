@@ -77,7 +77,16 @@ JSON
 Independently of protection, the release gate still holds: **never tag or
 announce a release whose exact SHA lacks a completed successful run**
 (`gh run list --commit <sha>` + `gh api .../commits/<sha>/check-runs`).
-CI has `workflow_dispatch` so any ref can be re-proven manually.
+CI has `workflow_dispatch` so any ref can be re-proven manually, and the
+release workflow fails when a `workflow_dispatch` SHA does not resolve to
+the exact requested commit. Release documentation must record the exact
+SHA's run URL.
+
+### Exact-SHA verification ledger
+
+| main SHA | CI run (exact SHA, push event) | result |
+|---|---|---|
+| `86bb4b7ccf4867ba091d2c0e1a1e0c46c245d039` | <https://github.com/jviola1019/sociosim/actions/runs/29398446514> | success (job `test`); the run's headSha equals this merge SHA |
 
 ## Corrupted run-history database (recovery)
 

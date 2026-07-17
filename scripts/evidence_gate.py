@@ -22,8 +22,58 @@ def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+#: verification_status values that CLAIM the value was read out of (or
+#: derived from) a primary source. Such a claim without a reproducible
+#: statistic location -- and, for derived values, an explicit derivation --
+#: is unauditable and must fail the gate.
+_SOURCE_VERIFIED_STATUSES = {
+    "value_verified_against_source",
+    "value_derived_from_verified_source",
+}
+
+
+def sourced_target_errors() -> list:
+    """Reject source-verified claims that another auditor could not reproduce:
+    every such target needs a quoted statistic_location, a stated
+    transformation, and a hashed source artifact with retrieval instructions."""
+    errors = []
+    path = ROOT / "socio_sim" / "data" / "benchmarks" / "sourced_aggregates_v1.json"
+    if not path.is_file():
+        # Fail CLOSED: without the default target set the sourced-claim
+        # checks cannot run, which is itself a gate failure, not a skip.
+        return [f"sourced targets file missing: {path} "
+                "(source-verified claims cannot be checked; gate fails closed)"]
+    targets = json.loads(path.read_text(encoding="utf-8"))["targets"]
+    for name, spec in targets.items():
+        status = spec.get("verification_status", "")
+        if status not in _SOURCE_VERIFIED_STATUSES:
+            continue
+        where = f"sourced_aggregates_v1:{name}"
+        if not str(spec.get("statistic_location", "")).strip():
+            errors.append(f"{where}: claims {status} but has no "
+                          "statistic_location (not reproducible)")
+        if not str(spec.get("transformation", "")).strip():
+            errors.append(f"{where}: claims {status} but has no "
+                          "transformation statement")
+        if (status == "value_derived_from_verified_source"
+                and str(spec.get("transformation", "")).strip().lower()
+                .startswith("none")):
+            errors.append(f"{where}: derived value must state its "
+                          "derivation, not 'none'")
+        art = spec.get("source_artifact") or {}
+        if not (art.get("sha256") and art.get("artifact_url")
+                and art.get("retrieval_instructions")):
+            errors.append(f"{where}: claims {status} but source_artifact is "
+                          "missing sha256/artifact_url/retrieval_instructions")
+        elif spec.get("source_hash") != art.get("sha256"):
+            errors.append(f"{where}: source_hash does not match "
+                          "source_artifact.sha256")
+    return errors
+
+
 def main() -> int:
     errors = validate_registry()
+    errors.extend(sourced_target_errors())
     registry = ROOT / "socio_sim" / "web" / "static" / "assets" / "v4" / "registry.json"
     if not registry.is_file():
         errors.append("missing v4 asset registry")

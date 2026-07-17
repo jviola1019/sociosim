@@ -218,6 +218,7 @@ const FIELD_DEFAULTS = {
   label: "", root_seed: 42, tick_hours: 1, verify_replay: true,
   n_replicates: 1, n_agents: "", n_ticks: "", n_topics: 8,
   graph_kind: "ba", graph_m: 5, graph_plc_p: 0.7, graph_k: 10, graph_p: 0.05,
+  graph_gamma: 2.3, graph_min_degree: 2, graph_swaps: 8,
   ftc_enabled: true, feed_strategy: "personalized", eu_optout_rate: 0.20,
   exploration_epsilon: 0.10, human_review_accuracy: 0.92,
   human_review_delay_ticks: 6, appeal_grant_fp_rate: 0.70, ftc_compliance: true,
@@ -300,10 +301,13 @@ function syncClassifierMode() {
 $("#content_mode").addEventListener("change", e => $$("[data-llm]").forEach(el => el.hidden = e.target.value === "template"));
 $("#graph_kind").addEventListener("change", e => $$("[data-graph]").forEach(el => el.hidden = el.dataset.graph !== e.target.value));
 $("#classifier_mode").addEventListener("change", syncClassifierMode);
-// Selecting the aggregate-matched prototype configures the graph preset.
+// Selecting the seed-42 demo profile configures the REAL profile graph
+// (configuration model + homophily 0), so what runs is what the label says.
 $$("input[name=profile]").forEach(r => r.addEventListener("change", e => {
   if (e.target.value === "aggregate_matched_prototype" && e.target.checked) {
-    setVal("graph_kind", "plc"); setVal("graph_plc_p", 0.7);
+    setVal("graph_kind", "cm"); setVal("graph_gamma", 2.05);
+    setVal("graph_min_degree", 2); setVal("graph_swaps", 15);
+    setVal("homophily_rewire_fraction", 0);
     $("#graph_kind").dispatchEvent(new Event("change"));
   }
 }));
@@ -463,7 +467,7 @@ function collect() {
   const num = id => { const x = v(id); return x == null ? null : +x; }, chk = id => $("#" + id).checked, checked = sel => $$(sel + " input:checked").map(i => i.value);
   const body = {
     label: v("label") || "", profile: $("input[name=profile]:checked").value, root_seed: num("root_seed"), tick_hours: num("tick_hours"), verify_replay: chk("verify_replay"), n_replicates: num("n_replicates"),
-    n_agents: num("n_agents"), n_ticks: num("n_ticks"), n_topics: num("n_topics"), graph_kind: v("graph_kind"), graph_m: num("graph_m"), graph_plc_p: num("graph_plc_p"), graph_k: num("graph_k"), graph_p: num("graph_p"), homophily_rewire_fraction: num("homophily_rewire_fraction"),
+    n_agents: num("n_agents"), n_ticks: num("n_ticks"), n_topics: num("n_topics"), graph_kind: v("graph_kind"), graph_m: num("graph_m"), graph_plc_p: num("graph_plc_p"), graph_k: num("graph_k"), graph_p: num("graph_p"), graph_gamma: num("graph_gamma"), graph_min_degree: num("graph_min_degree"), graph_swaps: num("graph_swaps"), homophily_rewire_fraction: num("homophily_rewire_fraction"),
     benchmark: v("benchmark"), follow_rate: num("follow_rate"), unfollow_rate: num("unfollow_rate"), churn_rate: num("churn_rate"),
     content_mode: v("content_mode"), classifier_mode: v("classifier_mode"), llm_model: v("llm_model"), llm_base_url: v("llm_base_url"), jurisdictions: checked("#jurisdictions"), ftc_enabled: chk("ftc_enabled"),
     classifier_precision: num("classifier_precision"), classifier_recall: num("classifier_recall"), human_review_accuracy: num("human_review_accuracy"), human_review_delay_ticks: num("human_review_delay_ticks"), appeal_grant_fp_rate: num("appeal_grant_fp_rate"),
@@ -517,6 +521,7 @@ function renderCompare(r) {
   $("#fairness").innerHTML = msg;
   $("#ads").innerHTML = msg;
   $("#implaus").textContent = "Compare mode does not produce a single-run aggregate-fit score.";
+  const fs = $("#fitStatus"); if (fs) fs.innerHTML = "";
   $("#calib").innerHTML = msg;
   $("#audit").innerHTML = msg;
   $("#rawReport").textContent = "COMPARE RUN\n" + JSON.stringify(r.compare || {}, null, 2);
@@ -718,6 +723,61 @@ function ibar(lo, hi, pt, lo0, hi0, cls = "") {
   return `<div class="bar"><span class="axis"></span><span class="tk" style="left:0"></span><span class="tk" style="left:100%"></span><span class="span ${cls}" style="left:${L(lo)}%;width:${Math.max(L(hi) - L(lo), .6)}%"></span><span class="pt ${cls}" style="left:${L(pt)}%"></span></div>`;
 }
 
+/* ---------- aggregate-fit status hierarchy (honesty chips) ---------- */
+// Status ladder rendered on every Target Comparison view:
+//   Synthetic -> Source-linked aggregate | Unsupported legacy ->
+//   seed group (fitting / validation / held-out / outside protocol) ->
+//   multi-seed holdout verdict -> Not empirically validated.
+// All values escaped via esc(); data comes from the local research server.
+function renderFitStatus(r) {
+  const host = $("#fitStatus"); if (!host) return;
+  const sp = r.seed_protocol || {};
+  const chips = [`<span class="fs-chip base">Synthetic scenario</span>`];
+  chips.push(r.targets_metadata_complete
+    ? `<span class="fs-chip src">Source-linked aggregate targets</span>`
+    : `<span class="fs-chip warn">Unsupported legacy targets</span>`);
+  const groupTxt = {
+    fitting: `Fitting-seed run (seed ${esc(sp.run_seed)}) — parameters may be tuned on this seed`,
+    // seed-split group name (like "training set"), not a validity claim
+    validation: `Validation-seed run (seed ${esc(sp.run_seed)})`,
+    holdout: `Held-out seed run (seed ${esc(sp.run_seed)}, locked list)`,
+    outside_protocol: `Seed ${esc(sp.run_seed)} — outside the fit/validation/holdout protocol`,
+  }[sp.run_seed_group];
+  if (groupTxt) chips.push(`<span class="fs-chip seed">${groupTxt}</span>`);
+  if (sp.holdout) {
+    const h = sp.holdout;
+    chips.push(sp.holdout_accepted
+      ? `<span class="fs-chip ok">Multi-seed holdout: passed (${pct(h.pass_proportion, 0)} of ${esc(h.n_seeds)} locked seeds)</span>`
+      : `<span class="fs-chip bad">Multi-seed holdout: FAILED — ${pct(h.pass_proportion, 0)} of ${esc(h.n_seeds)} locked seeds under the cutoff (needs ≥80%); median I ${fmt(h.median_implausibility, 2)}, p95 ${fmt(h.p95, 2)}, max ${fmt(h.max_implausibility, 2)}</span>`);
+  }
+  chips.push(`<span class="fs-chip warn">Not empirically validated</span>`);
+  const seedNote = `<p class="dim small">Profile label: <b>${esc(sp.label || "n/a")}</b> · this run: seed ${esc((r.manifest || {}).root_seed)}, ${esc(r.n_replicates || 1)} replicate${(r.n_replicates || 1) > 1 ? "s" : ""} · full protocol artifact: ${esc(sp.protocol_artifact || "not present")}</p>`;
+  host.innerHTML = `<div class="fs-row">${chips.join("")}</div>${seedNote}`;
+}
+
+// Per-target provenance drawer: source, population, period, definition
+// mismatch, transformation, tolerance origin, artifact hash, uses.
+function targetDetails(name, spec, obs, r) {
+  const li = (k, v) => v ? `<li><b>${esc(k)}:</b> ${esc(v)}</li>` : "";
+  const art = spec.source_artifact || {};
+  const uses = (arr) => (arr || []).map(esc).join("; ");
+  return `<details class="tgt-details"><summary>Provenance, definition limits &amp; valid uses</summary><ul>`
+    + li("Source", spec.source)
+    + li("Population", spec.population)
+    + li("Time window", spec.time_window)
+    + li("Statistic location", spec.statistic_location)
+    + li("Definition / applicability limits", spec.applicability_limits)
+    + li("Transformation (derived value?)", spec.transformation)
+    + li("Tolerance origin", spec.tolerance_rationale)
+    + li("Verification status", spec.verification_status)
+    + li("Source artifact", art.sha256 ? `sha256 ${art.sha256.slice(0, 16)}… (${art.stability || "recorded"}; retrieved ${art.retrieved_at_utc || "?"})` : "")
+    + li("Observed (this run)", `${fmt(obs, 4)} at seed ${(r.manifest || {}).root_seed}, ${r.n_replicates || 1} replicate(s)`)
+    + li("Target ± tolerance", `${spec.value} ± ${spec.tolerance}`)
+    + li("Valid uses", uses(spec.valid_uses))
+    + li("Invalid uses", uses(spec.invalid_uses))
+    + `</ul></details>`;
+}
+
 /* ---------- render ---------- */
 function metric(k, count, { dec = 0, suf = "", pre = "", ci = "" } = {}) {
   const cnt = count == null || Number.isNaN(count) ? `<div class="v">—</div>` : `<div class="v"><span data-count="${count}" data-dec="${dec}" data-suf="${suf}" data-pre="${pre}">${pre}0${suf}</span></div>`;
@@ -768,12 +828,13 @@ function render(r) {
   renderAds(Object.values(s.ads));
   $("#compare").innerHTML = `<p class="dim small">No comparison run for this result.</p>`;
 
+  renderFitStatus(r);
   if (r.targets_metadata_complete) {
     $("#implaus").textContent = `Aggregate-fit diagnostic I = ${fmt(r.implausibility, 2)} (dominant: ${esc(r.implausibility_dominant_metric || "n/a")}; history-matching cutoff 3.0; lower = closer to the loaded target set). NOT validation or calibration: these targets measure different populations, metric definitions and periods than this synthetic world — see each target's applicability limits in the loaded benchmark file.`;
     $("#calib").innerHTML = Object.entries(r.targets).map(([name, spec]) => {
       const obs = r.observed[name]; if (obs == null) return "";
       const lo0 = spec.value - 3 * spec.tolerance, hi0 = spec.value + 3 * spec.tolerance, sp = Math.max(hi0 - lo0, 1e-9), L = v => Math.max(0, Math.min(100, 100 * (v - lo0) / sp)), inb = Math.abs(obs - spec.value) <= spec.tolerance;
-      return `<div class="calib-row"><span class="nm">${esc(name.replace(/_/g, " "))}</span><div class="ctrack"><span class="tol" style="left:${L(spec.value - spec.tolerance)}%;width:${L(spec.value + spec.tolerance) - L(spec.value - spec.tolerance)}%"></span><span class="ctr" style="left:${L(spec.value)}%"></span><span class="obs ${inb ? "in" : "out"}" style="left:${L(obs)}%"></span></div><span class="vl">${fmt(obs, 3)} <span class="dim">/ ${spec.value}</span></span></div>`;
+      return `<div class="calib-item"><div class="calib-row"><span class="nm">${esc(name.replace(/_/g, " "))}</span><div class="ctrack"><span class="tol" style="left:${L(spec.value - spec.tolerance)}%;width:${L(spec.value + spec.tolerance) - L(spec.value - spec.tolerance)}%"></span><span class="ctr" style="left:${L(spec.value)}%"></span><span class="obs ${inb ? "in" : "out"}" style="left:${L(obs)}%"></span></div><span class="vl">${fmt(obs, 3)} <span class="dim">/ ${spec.value}</span> <span class="${inb ? "inband" : "outband"}">${inb ? "in band" : "out of band"}</span></span></div>${targetDetails(name, spec, obs, r)}</div>`;
     }).join("");
   } else {
     // Bundled legacy target sets are all evidence-kind "unsupported" (missing
@@ -869,7 +930,16 @@ function renderAds(ads) {
 }
 
 /* ---------- export + history ---------- */
-$("#exportBtn").addEventListener("click", () => $("#exportMenu").hidden = !$("#exportMenu").hidden);
+function setExportMenu(open) {
+  $("#exportMenu").hidden = !open;
+  $("#exportBtn").setAttribute("aria-expanded", String(open));
+}
+$("#exportBtn").addEventListener("click", () => setExportMenu($("#exportMenu").hidden));
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && !$("#exportMenu").hidden) {
+    setExportMenu(false); $("#exportBtn").focus();
+  }
+});
 ["expReport", "expJson", "expTransparency"].forEach(id => {
   $("#" + id)?.addEventListener("click", e => {
     e.preventDefault();
@@ -879,7 +949,7 @@ $("#exportBtn").addEventListener("click", () => $("#exportMenu").hidden = !$("#e
     downloadProtected(href, `sociosim-${currentRunId || "run"}-${id}.${ext}`);
   });
 });
-document.addEventListener("click", e => { if (!e.target.closest(".export")) $("#exportMenu").hidden = true; });
+document.addEventListener("click", e => { if (!e.target.closest(".export")) setExportMenu(false); });
 const ago = ts => { const d = Date.now() / 1000 - ts; if (d < 60) return "just now"; if (d < 3600) return Math.floor(d / 60) + "m ago"; if (d < 86400) return Math.floor(d / 3600) + "h ago"; return Math.floor(d / 86400) + "d ago"; };
 async function refreshHistory() {
   let data; try { data = await (await fetch("/api/runs", { headers: authHeaders() })).json(); } catch (e) { return; }

@@ -140,6 +140,13 @@ EXEMPT_PHRASES = (
     "verified against primary source",
     "verified against their primary source",
     "verified against the primary source",
+    # Seed-split group names from the seed-generalization protocol
+    # (fitting / validation / holdout seeds): "validation seed" names which
+    # SPLIT a seed belongs to, exactly like "training set" -- it is not an
+    # empirical-validity claim, and the protocol's own verdict (committed
+    # artifact) is what any validity language must be derived from.
+    "validation seed",
+    "validation-seed",
 )
 
 NEGATION_RE = re.compile(

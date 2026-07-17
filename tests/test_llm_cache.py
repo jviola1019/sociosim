@@ -350,6 +350,78 @@ def test_blocked_and_accepted_entries_survive_reload_with_same_meaning(tmp_path)
     assert accepted.hit is True and accepted.text == "good text"
 
 
+def test_accepted_winner_replays_byte_identically_after_losing_update(tmp_path):
+    """First-writer-wins must leave the on-disk cache BYTE-identical when a
+    later candidate loses: the winner is what every future same-seed run
+    replays, so even a no-op rewrite must not change the bytes."""
+    path = tmp_path / "cache.json"
+    llm_cache.update(path, "k", llm_cache.make_entry("winner text", "accepted", []))
+    h1 = llm_cache.file_hash(path)
+    llm_cache.update(path, "k", llm_cache.make_entry("loser text", "accepted", []))
+    assert llm_cache.file_hash(path) == h1, "losing update must not change bytes"
+    lookup = llm_cache.resolve(llm_cache.load(path)["k"])
+    assert lookup.hit and lookup.text == "winner text"
+
+
+def test_lock_sidecar_holds_no_cache_content_or_secrets(tmp_path):
+    """The advisory .lock sidecar is a pure coordination file: it must never
+    receive cache payload (a world-readable lock file must not leak text)."""
+    path = tmp_path / "cache.json"
+    secret = "SECRET-PAYLOAD-hunter2-do-not-leak"
+    llm_cache.update(path, "k", llm_cache.make_entry(secret, "accepted", []))
+    lock = tmp_path / "cache.json.lock"
+    assert lock.exists()
+    data = lock.read_bytes()
+    assert secret.encode() not in data
+    assert data == b"", "lock sidecar must stay empty (no payload, no secrets)"
+
+
+def test_windows_msvcrt_lock_blocks_a_second_process(tmp_path):
+    """Platform-specific coverage for the win32 locking path (msvcrt).
+
+    Documented CI gap: GitHub CI runs ubuntu-latest, so this test is
+    exercised only on Windows development machines; the POSIX flock path is
+    what CI covers (test_update_multiprocess_no_lost_entries runs on both).
+
+    A child process takes the advisory lock and holds it; update() in this
+    process must block until the child releases, then complete correctly.
+    """
+    import subprocess
+    import sys
+    import time as _time
+    if sys.platform != "win32":
+        import pytest as _pytest
+        _pytest.skip("win32-only: exercises the msvcrt.locking path")
+    path = tmp_path / "cache.json"
+    marker = tmp_path / "holding"
+    hold_s = 1.5
+    script = (
+        "import sys, time\n"
+        "from pathlib import Path\n"
+        "from socio_sim.content import llm_cache\n"
+        "path, marker, hold = Path(sys.argv[1]), Path(sys.argv[2]), float(sys.argv[3])\n"
+        "with llm_cache._FileLock(path):\n"
+        "    marker.write_text('held')\n"
+        "    time.sleep(hold)\n"
+    )
+    child = subprocess.Popen(
+        [sys.executable, "-c", script, str(path), str(marker), str(hold_s)])
+    try:
+        deadline = _time.time() + 30
+        while not marker.exists():
+            assert _time.time() < deadline, "child never acquired the lock"
+            _time.sleep(0.02)
+        t0 = _time.time()
+        llm_cache.update(path, "k", llm_cache.make_entry("t", "accepted", []))
+        waited = _time.time() - t0
+    finally:
+        assert child.wait(timeout=60) == 0
+    assert waited >= 0.3, (
+        f"update() returned after {waited:.2f}s while the child held the "
+        "lock for ~1.5s: the msvcrt lock did not actually block")
+    assert llm_cache.load(path)["k"]["text"] == "t"
+
+
 def test_file_hash_none_when_missing_and_stable_when_present(tmp_path):
     path = tmp_path / "cache.json"
     assert llm_cache.file_hash(path) is None
