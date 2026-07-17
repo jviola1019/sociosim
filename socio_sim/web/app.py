@@ -33,6 +33,7 @@ from socio_sim.analytics.lens import run_lens
 from socio_sim.analytics.metrics import cascade_sizes, cascade_tree
 from socio_sim.ads.auction import RESERVE_PRICE
 from socio_sim.ads.campaigns import Campaign
+from socio_sim.ads import markets
 from socio_sim.config import (ADVERSARIES, CATEGORIES,
                               DEFAULT_CLASSIFIER_PRECISION,
                               DEFAULT_CLASSIFIER_RECALL,
@@ -146,6 +147,33 @@ CAMPAIGN_ECON_DEFAULTS = {
 
 _JOBS: dict = {}
 _LOCK = threading.Lock()
+
+
+class _RateLimiter:
+    """Token-bucket limiter for state-changing requests.
+
+    A DoS guard against runaway local scripts/browser loops, NOT network
+    authentication (that is the access token) and NOT a security boundary.
+    Attached to the server by serve(); tests constructing the Handler
+    without one are unlimited (same pattern as access_token)."""
+
+    def __init__(self, rate_per_min: float = 60.0, burst: int = 20):
+        self.rate_per_s = float(rate_per_min) / 60.0
+        self.burst = float(burst)
+        self._tokens = float(burst)
+        self._last = time.monotonic()
+        self._lock = threading.Lock()
+
+    def allow(self) -> bool:
+        with self._lock:
+            now = time.monotonic()
+            self._tokens = min(self.burst,
+                               self._tokens + (now - self._last) * self.rate_per_s)
+            self._last = now
+            if self._tokens >= 1.0:
+                self._tokens -= 1.0
+                return True
+            return False
 
 
 def _job_set(job: dict, **fields) -> None:
@@ -488,8 +516,11 @@ def _normalize_campaign_specs(body: dict) -> list[dict]:
             raise ValueError(f"campaigns[{idx}]: expected an object")
 
         def c_float(key, default):
+            raw = s.get(key, default)
+            if raw in (None, ""):        # blank = adopt the default/anchor
+                raw = default
             try:
-                return float(s.get(key, default))
+                return float(raw)
             except (TypeError, ValueError):
                 raise ValueError(f"campaigns[{idx}].{key}: expected number")
 
@@ -519,22 +550,36 @@ def _normalize_campaign_specs(body: dict) -> list[dict]:
                     raise ValueError(f"campaigns[{idx}].market: expected non-negative topic")
                 targeting["topics"] = [topic]
             d = CAMPAIGN_ECON_DEFAULTS
+            # Optional advertiser vertical: adopting one anchors base_ctr to
+            # the SOURCE-VERIFIED per-vertical display CTR (iPinYou Table 3;
+            # see socio_sim/ads/markets.py for the honesty boundary). An
+            # explicit base_ctr from the user always wins over the anchor.
+            vertical = str(s.get("vertical", "") or "")
+            if vertical and vertical not in markets.ADVERTISER_VERTICALS:
+                raise ValueError(
+                    f"campaigns[{idx}].vertical: unknown advertiser vertical "
+                    f"(known: {sorted(markets.ADVERTISER_VERTICALS)})")
+            ctr_default = (markets.vertical_base_ctr(vertical)
+                           if vertical else d["base_ctr"])
             bid = c_float("bid", d["bid"])
             budget = c_float("budget", d["budget"])
-            base_ctr = c_float("base_ctr", d["base_ctr"])
+            base_ctr = c_float("base_ctr", ctr_default)
             base_cvr = c_float("base_cvr", d["base_cvr"])
             conversion_value = c_float("conversion_value", d["conversion_value"])
             ltv_multiplier = c_float("ltv_multiplier", d["ltv_multiplier"])
             attribution_window_ticks = c_int(
                 "attribution_window_ticks", d["attribution_window_ticks"])
             # A-03: record, per economics field, whether the value came from
-            # the user or is a scenario-assumption default -- these numbers
-            # resemble industry benchmarks and must not masquerade as such.
+            # the user, a scenario-assumption default, or (base_ctr only) a
+            # sourced vertical anchor -- these numbers resemble industry
+            # benchmarks and must not masquerade as such.
             provenance = {
                 f: ("user_supplied" if s.get(f) not in (None, "")
                     else "scenario_assumption_default")
                 for f in CAMPAIGN_ECON_DEFAULTS
             }
+            if vertical and s.get("base_ctr") in (None, ""):
+                provenance["base_ctr"] = f"sourced_vertical_anchor:{vertical}"
             # Audit F1: a bid or budget below the auction reserve can never
             # win an impression -- the campaign would report an empty
             # exposed arm instead of measurements. Reject it up front.
@@ -559,6 +604,7 @@ def _normalize_campaign_specs(body: dict) -> list[dict]:
                     f"campaigns[{idx}].attribution_window_ticks: must be positive")
             clean.append(dict(
                 id=str(s.get("id") or f"camp{len(clean) + 1}"),
+                vertical=vertical or None,
                 advertiser=str(s.get("advertiser") or "Advertiser"),
                 bid=bid,
                 budget=budget,
@@ -582,9 +628,11 @@ def _campaigns_fn(body: dict):
     clean = _normalize_campaign_specs(body)
     if not clean:
         return None
-    # economics_provenance is payload metadata (A-03), not a Campaign field.
+    # economics_provenance and vertical are payload metadata (A-03), not
+    # Campaign constructor fields.
+    _meta_keys = ("economics_provenance", "vertical")
     return lambda cfg: [
-        Campaign(**{k: v for k, v in c.items() if k != "economics_provenance"})
+        Campaign(**{k: v for k, v in c.items() if k not in _meta_keys})
         for c in clean]
 
 
@@ -678,6 +726,8 @@ def _sample_feed(result, limit: int = 9) -> list:
             "ai_generated": bool(d.get("ai_generated")),
             "media_type": d.get("media_type", "text"),
             "action": action_by_id.get(e["content_id"], "none"),
+            # real event time, for the feed card timestamp (never fabricated)
+            "tick": int(e["tick"]),
         })
         if len(out) >= limit:
             break
@@ -917,6 +967,10 @@ class Handler(BaseHTTPRequestHandler):
                 # Honest multi-seed status for the aggregate profile (drives
                 # the profile radio's label and the target-comparison chips).
                 "aggregate_profile": _seed_protocol_status(),
+                # Named content markets + sourced advertiser verticals for
+                # the campaign editor (provenance included; see
+                # socio_sim/ads/markets.py for the honesty boundary).
+                "markets": markets.meta_payload(),
             })
         elif route.startswith("/api/job"):
             # F-03: snapshot under the lock -- worker threads insert keys via
@@ -1007,6 +1061,10 @@ class Handler(BaseHTTPRequestHandler):
         if not self._token_ok():                        # access-token guard
             self._send_json({"error": "missing or invalid access token"}, 403)
             return
+        limiter = getattr(self.server, "rate_limiter", None)
+        if limiter is not None and not limiter.allow():  # DoS guard (429)
+            self._send_json({"error": "rate limit exceeded; retry shortly"}, 429)
+            return
         ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip()
         if ctype != "application/json":
             self._send_json({"error": "Content-Type must be application/json"}, 415)
@@ -1083,6 +1141,9 @@ def serve(host="127.0.0.1", port=8765, open_browser=True):
             "Non-loopback bind requires explicit SOCIOSIM_ALLOWED_HOSTS "
             "(comma-separated hostnames or IPs clients will use).")
     server.access_token = configured_token or secrets.token_urlsafe(32)
+    # State-changing requests are token-bucket limited (60/min, burst 20):
+    # a local DoS guard, not authentication.
+    server.rate_limiter = _RateLimiter()
     # F-01: do not expose the token via /api/meta when SOCIOSIM_ACCESS_TOKEN
     # is explicitly set -- the operator is supplying it out-of-band and does
     # not want it auto-revealed to any same-origin page (reverse tunnel risk).

@@ -44,14 +44,14 @@
     <form id="cfgForm" class="cfg-body">
       <!-- SCENARIO -->
       <section data-panel="scenario" class="tabpanel on">
-        <label class="field"><span class="lbl">Preset Scenario</span><select id="preset"></select></label>
+        <label class="field" title="A ready-made starting configuration. Regulatory presets model a jurisdiction's rules; Research presets model study designs; Business presets model marketing scenarios. You can adjust anything afterwards."><span class="lbl">Preset Scenario</span><select id="preset"></select></label>
         <p class="hint" id="presetDesc"></p>
         <div id="presetSummary" class="preset-summary" hidden>
           <span class="ps-title">This preset changes:</span>
           <ul id="presetSummaryList"></ul>
           <p id="presetSources" class="ps-sources"></p>
         </div>
-        <label class="field"><span class="lbl">Run Label <i>optional · for history</i></span><input type="text" id="label" placeholder="EU baseline — Q3" maxlength="60"></label>
+        <label class="field" title="A name for this run so you can find it again in History. Does not change the simulation."><span class="lbl">Run Label <i>optional · for history</i></span><input type="text" id="label" placeholder="EU baseline — Q3" maxlength="60"></label>
         <hr>
         <span class="lbl" id="profileLbl" title="Number of agents and simulated hours. Larger = richer dynamics, slower runs.">Scale Profile</span>
         <div class="seg" id="profile" role="radiogroup" aria-labelledby="profileLbl">
@@ -62,16 +62,16 @@
         </div>
         <p class="hint">The seed-42 demo profile reaches the sourced aggregate targets on its fitting seed (42) only. In the locked 20-seed holdout evaluation it passed on 60% of seeds — below the 80% acceptance bar — so it is a demonstration, not a matched or validated model (Target Comparison tab shows the full status).</p>
         <div class="duo">
-          <label class="field"><span class="lbl">Random Seed</span><input type="number" id="root_seed" value="42"></label>
-          <label class="field"><span class="lbl">Tick (hours)</span><select id="tick_hours"><option value="1" selected>1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="6">6</option><option value="8">8</option><option value="12">12</option><option value="24">24</option></select></label>
+          <label class="field" title="Starting number for the random generator. The same seed with the same settings reproduces the run exactly; change it to see a different random draw of the same scenario."><span class="lbl">Random Seed</span><input type="number" id="root_seed" value="42"></label>
+          <label class="field" title="How many simulated hours pass per step. 1 = hourly resolution (finest); larger values run faster but coarser."><span class="lbl">Tick (hours)</span><select id="tick_hours"><option value="1" selected>1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="6">6</option><option value="8">8</option><option value="12">12</option><option value="24">24</option></select></label>
         </div>
-        <label class="switch"><input type="checkbox" id="verify_replay" checked><span class="track"></span><span class="switch-txt">Verify Deterministic Replay</span></label>
+        <label class="switch" title="After the run, re-run it from the saved manifest and confirm the event stream is byte-identical — proof the result is exactly reproducible."><input type="checkbox" id="verify_replay" checked><span class="track"></span><span class="switch-txt">Verify Deterministic Replay</span></label>
         <p class="hint">Re-runs from the manifest and confirms an identical event-stream hash. Auto-skipped above 2,000 agents.</p>
-        <label class="field"><span class="lbl">Monte Carlo Replicates <i>1 = preview · &gt;1 = research</i></span><input type="number" id="n_replicates" value="1" min="1" max="200"></label>
+        <label class="field" title="How many independently-seeded repeats to run. 1 = quick preview; more repeats show how much outputs vary by chance and add percentile intervals to every headline number."><span class="lbl">Monte Carlo Replicates <i>1 = preview · &gt;1 = research</i></span><input type="number" id="n_replicates" value="1" min="1" max="200"></label>
         <p class="hint">Research mode runs N seeded replicates and reports replicate percentile intervals. Preview uses descriptive within-run diagnostics only.</p>
         <hr>
         <span class="lbl">A/B Compare <i>baseline = current config</i></span>
-        <label class="field"><span class="lbl">Intervention</span>
+        <label class="field" title="The one change to test against your current settings. Both worlds share the same random events, so any difference in outputs comes from this change alone."><span class="lbl">Intervention</span>
           <select id="cmpIntervention">
             <option value='{"jurisdictions":["EU"]}'>Swap to EU · DSA pack</option>
             <option value='{"jurisdictions":["US"]}'>Swap to US · §230 pack</option>
@@ -81,7 +81,7 @@
             <option value='{"ftc_compliance":false}'>No FTC disclosures</option>
           </select></label>
         <div class="duo">
-          <label class="field"><span class="lbl">Replicates</span><input type="number" id="cmpReplicates" value="5" min="2" max="50"></label>
+          <label class="field" title="Repeats per arm for the A/B comparison. More repeats = tighter intervals on the differences."><span class="lbl">Replicates</span><input type="number" id="cmpReplicates" value="5" min="2" max="50"></label>
           <button type="button" id="cmpBtn" class="pill" style="align-self:end">Run A/B Compare</button>
         </div>
         <p class="hint">Baseline vs intervention with common random numbers; per-metric deltas with replicate percentile intervals (Compare tab).</p>
@@ -91,12 +91,12 @@
       <section data-panel="network" class="tabpanel">
         <span class="lbl">Population <i>blank = use profile</i></span>
         <div class="duo">
-          <label class="field"><span class="lbl">Agents</span><input type="number" id="n_agents" placeholder="profile" min="10"></label>
-          <label class="field"><span class="lbl">Ticks (h)</span><input type="number" id="n_ticks" placeholder="profile" min="1"></label>
+          <label class="field" title="Number of simulated people. More agents = richer network effects and steadier statistics, but slower runs."><span class="lbl">Agents</span><input type="number" id="n_agents" placeholder="profile" min="10"></label>
+          <label class="field" title="How many steps (simulated hours) the world runs. 168 = one week at hourly resolution."><span class="lbl">Ticks (h)</span><input type="number" id="n_ticks" placeholder="profile" min="1"></label>
         </div>
-        <label class="field"><span class="lbl">Topics in Circulation</span><input type="number" id="n_topics" value="8" min="1" max="32"></label>
+        <label class="field" title="How many distinct subjects people post about (the 8 named content markets by default). More topics spread attention thinner."><span class="lbl">Topics in Circulation</span><input type="number" id="n_topics" value="8" min="1" max="32"></label>
         <hr>
-        <label class="field"><span class="lbl">Network Model</span>
+        <label class="field" title="How people are connected. Barabási–Albert grows a few big hubs; Holme-Kim adds friend-of-friend clustering; the configuration model lets you set how steep the follower inequality is; Watts–Strogatz is a small world of mostly-local ties; stochastic block builds separate communities."><span class="lbl">Network Model</span>
           <select id="graph_kind">
             <option value="ba" selected>Barabási–Albert · scale-free hubs</option>
             <option value="plc">Holme-Kim · scale-free + clustering prototype</option>
@@ -104,25 +104,25 @@
             <option value="ws">Watts–Strogatz · small-world</option>
             <option value="sbm">Stochastic block · communities</option>
           </select></label>
-        <div data-graph="ba" class="duo gp"><label class="field"><span class="lbl">Attachments m</span><input type="number" id="graph_m" value="5" min="1"></label></div>
+        <div data-graph="ba" class="duo gp"><label class="field" title="New connections each person makes on joining. Higher = denser network."><span class="lbl">Attachments m</span><input type="number" id="graph_m" value="5" min="1"></label></div>
         <div data-graph="plc" class="duo gp" hidden>
-          <label class="field"><span class="lbl">Triad prob p <i>clustering</i></span><input type="number" id="graph_plc_p" value="0.7" step="0.05" min="0" max="1"></label>
+          <label class="field" title="Chance a new connection also links to a friend-of-a-friend, creating tight social triangles."><span class="lbl">Triad prob p <i>clustering</i></span><input type="number" id="graph_plc_p" value="0.7" step="0.05" min="0" max="1"></label>
         </div>
         <div data-graph="cm" class="duo gp" hidden>
-          <label class="field"><span class="lbl">Degree exponent γ</span><input type="number" id="graph_gamma" value="2.3" step="0.05" min="2" max="4"></label>
-          <label class="field"><span class="lbl">Min degree</span><input type="number" id="graph_min_degree" value="2" min="1"></label>
-          <label class="field"><span class="lbl">Triangle swaps <i>× edges</i></span><input type="number" id="graph_swaps" value="8" step="1" min="0"></label>
+          <label class="field" title="Steepness of follower inequality: lower values mean a few accounts hold a much larger share of connections (2.3 matches the sourced actor-graph measurement)."><span class="lbl">Degree exponent γ</span><input type="number" id="graph_gamma" value="2.3" step="0.05" min="2" max="4"></label>
+          <label class="field" title="The fewest connections any person can have."><span class="lbl">Min degree</span><input type="number" id="graph_min_degree" value="2" min="1"></label>
+          <label class="field" title="How much friend-of-friend clustering to inject after building the network, without changing anyone's connection count."><span class="lbl">Triangle swaps <i>× edges</i></span><input type="number" id="graph_swaps" value="8" step="1" min="0"></label>
         </div>
         <div data-graph="ws" class="duo gp" hidden>
-          <label class="field"><span class="lbl">Neighbours k</span><input type="number" id="graph_k" value="10" min="2"></label>
-          <label class="field"><span class="lbl">Rewire p</span><input type="number" id="graph_p" value="0.05" step="0.01" min="0" max="1"></label>
+          <label class="field" title="Connections per person in the starting ring, before rewiring."><span class="lbl">Neighbours k</span><input type="number" id="graph_k" value="10" min="2"></label>
+          <label class="field" title="Chance each local tie is rewired to a random distant person, creating shortcuts across the network."><span class="lbl">Rewire p</span><input type="number" id="graph_p" value="0.05" step="0.01" min="0" max="1"></label>
         </div>
         <label class="field" title="Fraction of cross-group ties rewired toward similar agents — higher = more echo-chamber clustering.">
           <span class="lbl">Homophily Rewiring <b id="homoVal" class="val">0.15</b></span>
           <input type="range" id="homophily_rewire_fraction" min="0" max="0.8" step="0.05" value="0.15"></label>
         <p class="hint">How strongly agents prefer connecting to similar others.</p>
         <hr>
-        <label class="field"><span class="lbl">Benchmark <i>aggregate-fit target set</i></span>
+        <label class="field" title="Which published aggregate statistics the run is compared against on the Target Comparison tab. A small distance is a diagnostic, never proof of realism."><span class="lbl">Benchmark <i>aggregate-fit target set</i></span>
           <select id="benchmark">
             <option value="sourced_aggregates_v1" selected>Sourced aggregates v1 · values verified against primary sources</option>
             <option value="legacy_unsupported_default">Legacy (unsupported) · generic — numbers unverifiable</option>
@@ -131,24 +131,24 @@
           </select></label>
         <p class="hint">Target distance is an aggregate-fit diagnostic, never validation: the sourced targets measure different populations, definitions and periods than this synthetic world (each target carries its applicability limits). The legacy sets are retired — their numbers could not be verified against the sources they cited.</p>
         <span class="lbl">Dynamic Graph <i>per active agent / day · 0 = static</i></span>
-        <label class="field"><span class="lbl">Follow rate <b id="folVal" class="val">0.00</b></span>
+        <label class="field" title="Chance per active person per day of forming one new connection (via a friend-of-a-friend). 0 keeps the network fixed."><span class="lbl">Follow rate <b id="folVal" class="val">0.00</b></span>
           <input type="range" id="follow_rate" min="0" max="0.2" step="0.005" value="0"></label>
-        <label class="field"><span class="lbl">Unfollow rate <b id="unfVal" class="val">0.00</b></span>
+        <label class="field" title="Chance per active person per day of dropping one existing connection."><span class="lbl">Unfollow rate <b id="unfVal" class="val">0.00</b></span>
           <input type="range" id="unfollow_rate" min="0" max="0.2" step="0.005" value="0"></label>
-        <label class="field"><span class="lbl">Churn rate <b id="chuVal" class="val">0.00</b></span>
+        <label class="field" title="Chance per active person per day of leaving the platform permanently."><span class="lbl">Churn rate <b id="chuVal" class="val">0.00</b></span>
           <input type="range" id="churn_rate" min="0" max="0.1" step="0.002" value="0"></label>
       </section>
 
       <!-- CONTENT -->
       <section data-panel="content" class="tabpanel">
-        <label class="field"><span class="lbl">Content Generator</span>
+        <label class="field" title="Where post text comes from. Template = instant, fully reproducible; the local-LLM modes generate free-form text on your machine (no data leaves it) and cache it for exact replay."><span class="lbl">Content Generator</span>
           <select id="content_mode">
             <option value="template" selected>Template · deterministic, instant</option>
             <option value="ollama">Ollama · free local LLM</option>
             <option value="openai_compatible">OpenAI-compatible · local server</option>
           </select></label>
-        <label class="field llm" data-llm hidden><span class="lbl">Model</span><input type="text" id="llm_model" value="qwen2.5:0.5b" spellcheck="false"></label>
-        <label class="field llm" data-llm hidden><span class="lbl">Server URL <i>blank = default</i></span><input type="text" id="llm_base_url" placeholder="http://localhost:11434" spellcheck="false"></label>
+        <label class="field llm" data-llm hidden title="Which local language model generates post text."><span class="lbl">Model</span><input type="text" id="llm_model" value="qwen2.5:0.5b" spellcheck="false"></label>
+        <label class="field llm" data-llm hidden title="Address of your local LLM server. Only local/allow-listed addresses are accepted."><span class="lbl">Server URL <i>blank = default</i></span><input type="text" id="llm_base_url" placeholder="http://localhost:11434" spellcheck="false"></label>
         <label class="field" title="Both modes are synthetic mechanics. Noise uses configured scenario operating points; template classifier fits synthetic category-signal text at runtime.">
           <span class="lbl">Moderation Classifier</span>
           <select id="classifier_mode">
@@ -168,11 +168,11 @@
       <section data-panel="moderation" class="tabpanel">
         <span class="lbl">Jurisdiction Packs</span>
         <div class="chips" id="jurisdictions">
-          <label class="chip"><input type="checkbox" value="US"><b>US · §230</b></label>
-          <label class="chip"><input type="checkbox" value="EU" checked><b>EU · DSA</b></label>
-          <label class="chip"><input type="checkbox" value="CN"><b>CN · AI-label</b></label>
+          <label class="chip" title="Apply a research approximation of US Section 230 platform-liability rules."><input type="checkbox" value="US"><b>US · §230</b></label>
+          <label class="chip" title="Apply a research approximation of the EU Digital Services Act: notice-and-action, statements of reasons, appeals, opt-out of personalization."><input type="checkbox" value="EU" checked><b>EU · DSA</b></label>
+          <label class="chip" title="Apply a research approximation of China's synthetic-content labeling rules: AI-generated posts carry an explicit label."><input type="checkbox" value="CN"><b>CN · AI-label</b></label>
         </div>
-        <label class="switch"><input type="checkbox" id="ftc_enabled" checked><span class="track"></span><span class="switch-txt">FTC Disclosure Pack</span></label>
+        <label class="switch" title="Apply US FTC endorsement-guide style rules: sponsored content must carry a disclosure, and violations are tracked."><input type="checkbox" id="ftc_enabled" checked><span class="track"></span><span class="switch-txt">FTC Disclosure Pack</span></label>
         <hr>
         <span class="lbl">Classifier Operating Point <i>real systems ≈ 0.77–0.92</i></span>
         <label class="field" title="Precision: share of FLAGGED items that are truly violating (higher = fewer false positives). Hate-speech detectors ≈ 0.77–0.92 (2025 benchmarks).">
@@ -193,7 +193,7 @@
 
       <!-- FEED & ADS -->
       <section data-panel="feedads" class="tabpanel">
-        <label class="field"><span class="lbl">Feed Ranking</span>
+        <label class="field" title="How each person's feed is ordered. Personalized ranks by predicted interest; Chronological shows newest first (a common regulatory alternative); Random is a neutral baseline."><span class="lbl">Feed Ranking</span>
           <select id="feed_strategy">
             <option value="personalized" selected>Personalized · weighted</option>
             <option value="chronological">Chronological</option>
@@ -203,10 +203,10 @@
           <label class="field" title="Share of EU users who opt out of personalization (DSA right)."><span class="lbl">EU Opt-out</span><input type="number" id="eu_optout_rate" value="0.20" step="0.05" min="0" max="1"></label>
           <label class="field" title="Exploration rate — chance of injecting an unseen author into the feed. Production recsys ε ≈ 0.01–0.10."><span class="lbl">Exploration ε</span><input type="number" id="exploration_epsilon" value="0.10" step="0.05" min="0" max="1"></label>
         </div>
-        <label class="field"><span class="lbl">Feed Size</span><input type="number" id="feed_size" value="20" min="1"></label>
+        <label class="field" title="How many posts a person sees per session."><span class="lbl">Feed Size</span><input type="number" id="feed_size" value="20" min="1"></label>
         <hr>
-        <label class="switch"><input type="checkbox" id="ads_enabled" checked><span class="track"></span><span class="switch-txt">Advertising Enabled</span></label>
-        <label class="switch"><input type="checkbox" id="ftc_compliance" checked><span class="track"></span><span class="switch-txt">FTC Disclosures on Creatives</span></label>
+        <label class="switch" title="Run the ad auction and insert paid posts into feeds. Turn off to simulate an ad-free platform."><input type="checkbox" id="ads_enabled" checked><span class="track"></span><span class="switch-txt">Advertising Enabled</span></label>
+        <label class="switch" title="Stamp every ad creative with an #ad disclosure. Turn off to study what undisclosed advertising does to the metrics."><input type="checkbox" id="ftc_compliance" checked><span class="track"></span><span class="switch-txt">FTC Disclosures on Creatives</span></label>
         <div class="duo">
           <label class="field" title="Randomized-control holdout share for measuring incremental ad lift. 10% default, 10–20% preferred; size it in the Marketing A/B Lab."><span class="lbl">RCT Holdout</span><input type="number" id="holdout_fraction" value="0.10" step="0.05" min="0" max="0.9"></label>
           <label class="field" title="Max ad impressions per user per day. Programmatic norm ≈ 3–7 (effective-frequency band)."><span class="lbl">Freq Cap / Day</span><input type="number" id="ad_frequency_cap_per_day" value="4" min="1"></label>
@@ -214,14 +214,9 @@
         <label class="field" title="Show one ad slot every N feed items (1 ad per N organic)."><span class="lbl">Ad Slot Interval <i>1 ad / N items</i></span><input type="number" id="ad_slot_interval" value="5" min="1"></label>
         <hr>
         <span class="lbl">Campaigns <i>blank = 3 default campaigns</i></span>
-        <div class="camp-head" aria-hidden="true">
-          <span>Advertiser</span><span>Bid</span><span>Budget</span><span>CTR</span>
-          <span>CVR</span><span>Value</span><span>LTVx</span><span>Window</span>
-          <span>Segment</span><span>Market</span><span></span>
-        </div>
         <div id="campaigns" class="campaigns"></div>
-        <button type="button" id="addCampaign" class="pill" style="margin-top:8px">+ Add campaign</button>
-        <p class="hint">Custom campaigns replace the defaults. Incremental lift uses the organic-baseline holdout (Newcombe CI + MDE).</p>
+        <button type="button" id="addCampaign" class="pill camp-add">+ Add campaign</button>
+        <p class="hint">Custom campaigns replace the defaults. Incremental lift uses the organic-baseline holdout (Newcombe CI + MDE). Picking a vertical pre-fills the click rate with the only auditable per-vertical measurement bundled here (iPinYou 2014 display RTB; a sourced scenario anchor, not a forecast for that industry).</p>
       </section>
 
       <!-- MARKETING — business suite (subsections) -->
