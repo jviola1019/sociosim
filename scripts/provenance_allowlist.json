@@ -74,6 +74,26 @@
     "value": "8",
     "justification": "local process-pool size for the settings-sweep script; a runtime performance knob, not a modelled quantity"
   },
+  "scripts/verify_sources.py::CONNECT_TIMEOUT_S": {
+    "classification": "security_limit",
+    "value": "15.0",
+    "justification": "hardened source-retrieval limit for the developer evidence verifier (security control, not a modelled quantity)"
+  },
+  "scripts/verify_sources.py::MAX_BYTES": {
+    "classification": "security_limit",
+    "value": "25 * 1024 * 1024",
+    "justification": "hardened source-retrieval limit for the developer evidence verifier (security control, not a modelled quantity)"
+  },
+  "scripts/verify_sources.py::MAX_REDIRECTS": {
+    "classification": "security_limit",
+    "value": "3",
+    "justification": "hardened source-retrieval limit for the developer evidence verifier (security control, not a modelled quantity)"
+  },
+  "scripts/verify_sources.py::READ_TIMEOUT_S": {
+    "classification": "security_limit",
+    "value": "60.0",
+    "justification": "hardened source-retrieval limit for the developer evidence verifier (security control, not a modelled quantity)"
+  },
   "scripts/wheel_qa.py::EXPECTED_ROLE_COUNTS['ad-creative-v4-']": {
     "classification": "technical_constant",
     "value": "32",
@@ -238,6 +258,11 @@
     "classification": "technical_constant",
     "value": "3.0",
     "justification": "conventional 3-sigma history-matching implausibility cutoff; the same threshold socio_sim/validation/calibrate.py documents (I < 3), restated for the seed protocol"
+  },
+  "socio_sim/validation/seed_protocol.py::PROTOCOL_V2['version']": {
+    "classification": "technical_constant",
+    "value": "2",
+    "justification": "protocol version number of the PREDECLARED (not evaluated) seed-protocol v2 -- an identifier, not a modelled quantity"
   },
   "socio_sim/web/app.py::MAX_BODY_BYTES": {
     "classification": "security_limit",
