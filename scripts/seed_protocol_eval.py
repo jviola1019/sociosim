@@ -74,7 +74,22 @@ def main() -> int:
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--no-replay", action="store_true",
                     help="skip replay verification (faster; artifact records it)")
+    ap.add_argument("--verify-committed", action="store_true",
+                    help="verify the COMMITTED artifact (schema, hash pins, "
+                         "summary/verdict reproduction) without re-running "
+                         "any simulation; exit 1 on any failure")
     args = ap.parse_args()
+
+    if args.verify_committed:
+        verdict = sp.verify_committed()
+        for crit, ok in verdict["criteria"].items():
+            print(f"  {'PASS' if ok else 'FAIL'}  {crit}")
+        print(f"recomputed accepted={verdict.get('recomputed_accepted')}  "
+              f"label: {sp.profile_label()}")
+        print("committed artifact verification:",
+              "OK" if verdict["ok"] else "FAILED")
+        return 0 if verdict["ok"] else 1
+
     verify_replay = not args.no_replay
 
     from socio_sim.config import RunConfig
@@ -91,7 +106,7 @@ def main() -> int:
         summaries[name] = sp.summarize(groups[name])
         _print_summary(name, summaries[name])
 
-    verdict = sp.acceptance(summaries["holdout"])
+    verdict = sp.acceptance(summaries["holdout"], groups["holdout"])
     label = (sp.PROFILE_LABEL_VALIDATED if verdict["accepted"]
              else sp.PROFILE_LABEL_DEMONSTRATION)
     print("\n== holdout acceptance ==")

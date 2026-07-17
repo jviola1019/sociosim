@@ -62,6 +62,33 @@ HOLDOUT_SEEDS = tuple(range(9001, 9021))
 #: The default committed protocol artifact (ships in the wheel).
 RESULTS_RESOURCE = "seed_protocol_results_v1.json"
 
+#: PROTOCOL v2 -- PREDECLARED, NOT EVALUATED (audit Phase 5). The 2026-07-17
+#: event-support analysis on fitting/validation seeds showed the two
+#: behavioural rates are not statistically estimable at this profile's
+#: scale (appeals filed per run 3-12 vs ~195 required; ad impressions
+#: 119-451 vs ~3,838 required for the interval at the target rate to be as
+#: tight as the tolerance). v2 therefore scores acceptance on the
+#: STRUCTURAL metrics only and keeps the sparse rates as descriptive
+#: diagnostics with full support records. v1's committed verdict is NEVER
+#: rewritten; v2's holdout seeds are declared HERE, BEFORE any evaluation,
+#: and are disjoint from every v1 list. Evaluating them happens only in a
+#: future protocol run.
+PROTOCOL_V2 = {
+    "version": 2,
+    "status": "predeclared_not_evaluated",
+    "declared_utc": "2026-07-17",
+    "acceptance_metrics": STRUCTURAL_METRICS,
+    "descriptive_only_metrics": ("ad_ctr", "appeal_grant_rate"),
+    "exclusion_rationale": (
+        "insufficient event support at profile scale (see "
+        "socio_sim/validation/support.py and "
+        "docs/AGGREGATE_FIT_FINDINGS.md); rates remain reported as "
+        "descriptive diagnostics with numerator/denominator/interval"),
+    "fitting_seeds": FITTING_SEEDS,
+    "validation_seeds": VALIDATION_SEEDS,
+    "holdout_seeds": tuple(range(17001, 17021)),
+}
+
 #: The honest label for the profile given the committed protocol outcome.
 PROFILE_LABEL_DEMONSTRATION = "seed-42 aggregate demonstration profile"
 PROFILE_LABEL_VALIDATED = "aggregate-matched profile (holdout-validated)"
@@ -182,9 +209,59 @@ def summarize(records: list) -> dict:
     }
 
 
-def acceptance(holdout_summary: dict) -> dict:
+#: Every per-seed record must carry these keys with these types (fail
+#: closed: a malformed record invalidates acceptance, it is never skipped).
+_RECORD_SCHEMA = {
+    "seed": (int,),
+    "implausibility": (int, float),
+    "dominant_metric": (str, type(None)),
+    "components": (dict,),
+    "observed": (dict,),
+    "replay_checked": (bool,),
+    "replay_ok": (bool, type(None)),
+    "runtime_failure": (str, type(None)),
+}
+
+
+def _record_criteria(records: list) -> dict:
+    """Fail-closed record-level criteria: schema validity, and -- for every
+    record that RAN (no runtime failure) -- every required structural metric
+    present with finite observed value and finite z-distance."""
+    def schema_ok(r):
+        return (isinstance(r, dict)
+                and all(k in r and isinstance(r[k], t)
+                        for k, t in _RECORD_SCHEMA.items()))
+
+    all_schema = bool(records) and all(schema_ok(r) for r in records)
+    ran = [r for r in records
+           if isinstance(r, dict) and not r.get("runtime_failure")]
+
+    def present(r):
+        return all(m in r.get("components", {}) and m in r.get("observed", {})
+                   for m in STRUCTURAL_METRICS)
+
+    def finite(r):
+        return all(np.isfinite(r["components"].get(m, float("nan")))
+                   and np.isfinite(r["observed"].get(m, float("nan")))
+                   for m in STRUCTURAL_METRICS)
+
+    all_present = bool(ran) and all(present(r) for r in ran)
+    all_finite = all_present and all(finite(r) for r in ran)
+    return {
+        "all_seed_records_schema_valid": all_schema,
+        "all_required_metrics_present": all_present,
+        "all_required_metrics_finite": all_finite,
+    }
+
+
+def acceptance(holdout_summary: dict, records: list) -> dict:
     """The provisional acceptance criteria over the LOCKED holdout seeds.
-    Success is a distributional property; one good seed proves nothing."""
+    Success is a distributional property; one good seed proves nothing.
+
+    FAIL CLOSED (audit Phase 4): a missing or non-finite structural failure
+    rate fails the structural criterion (the old logic accepted
+    `not finite(rate)`); a missing required metric, a non-finite z/observed
+    value, or a malformed seed record makes accepted=False."""
     structural_rates = {
         m: holdout_summary["component_failure_rates"].get(m, float("nan"))
         for m in STRUCTURAL_METRICS}
@@ -194,8 +271,9 @@ def acceptance(holdout_summary: dict) -> dict:
         "median_implausibility_below_cutoff":
             bool(holdout_summary["median_implausibility"] < CUTOFF),
         "p95_reported": bool(np.isfinite(holdout_summary["p95"])),
+        # fail closed: the rate must EXIST, be finite, AND sit at/below 20%
         "no_structural_metric_fails_more_than_20pct":
-            bool(all((not np.isfinite(r)) or r <= 0.20
+            bool(all(np.isfinite(r) and r <= 0.20
                      for r in structural_rates.values())),
         "all_holdout_replays_ok":
             bool(holdout_summary["replay_all_ok"]
@@ -203,11 +281,59 @@ def acceptance(holdout_summary: dict) -> dict:
                  == holdout_summary["n_seeds"]),
         "no_runtime_failures": bool(holdout_summary["n_runtime_failures"] == 0),
     }
+    criteria.update(_record_criteria(records))
     return {
         "criteria": criteria,
         "accepted": all(criteria.values()),
         "structural_failure_rates": structural_rates,
     }
+
+
+def verify_committed(results: dict | None = None) -> dict:
+    """Verify the committed protocol artifact WITHOUT re-running anything:
+    schema + required-metric checks on every record, hash pins against the
+    CURRENT environment (targets values/tolerances, profile config, locked
+    holdout list), and reproduction of the stored summaries/verdict from
+    the stored records. Fail closed: a missing artifact, a schema break, or
+    any hash divergence is a failure -- never a skip."""
+    from socio_sim.config import RunConfig
+    from socio_sim.validation.targets import load_targets
+    if results is None:
+        results = load_results()
+    if not results:
+        return {"criteria": {"artifact_present": False}, "ok": False}
+    records = results.get("records", {})
+    all_records = [r for grp in ("fitting", "validation", "holdout")
+                   for r in records.get(grp, [])]
+    holdout = records.get("holdout", [])
+    rec = _record_criteria(all_records)
+    resummary = summarize(holdout) if holdout else None
+    stored = results.get("summaries", {}).get("holdout", {})
+    reacc = acceptance(resummary, holdout) if resummary else None
+    current_cfg = RunConfig.aggregate_matched_prototype(jurisdictions=("EU",))
+    criteria = {
+        "artifact_present": True,
+        **rec,
+        "all_target_hashes_match_protocol":
+            results.get("targets_values_sha256")
+            == targets_values_sha256(load_targets()),
+        "all_profile_config_hashes_match":
+            results.get("profile_config_hash") == current_cfg.config_hash(),
+        "all_holdout_seed_hashes_match":
+            results.get("holdout_seeds_sha256") == seeds_sha256(HOLDOUT_SEEDS)
+            == seeds_sha256(results.get("seed_lists", {}).get("holdout", [])),
+        "summaries_reproducible_from_records":
+            bool(resummary
+                 and stored.get("n_pass") == resummary["n_pass"]
+                 and abs(float(stored.get("median_implausibility", -1))
+                         - resummary["median_implausibility"]) < 1e-9),
+        "stored_verdict_reproducible":
+            bool(reacc is not None
+                 and results.get("acceptance", {}).get("accepted")
+                 == reacc["accepted"]),
+    }
+    return {"criteria": criteria, "ok": all(criteria.values()),
+            "recomputed_accepted": None if reacc is None else reacc["accepted"]}
 
 
 def profile_label(results: dict | None = None) -> str:
