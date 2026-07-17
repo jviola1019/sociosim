@@ -4,6 +4,51 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
 
 ## [Unreleased] — audit P0/P1 remediation
 
+### Added (2026-07-16 sprint 12: markets, UX navigability, coherence sweep — from main @ e7ca1f9)
+- **Named markets in the campaign editor** (`socio_sim/ads/markets.py`): the
+  opaque "Topic 0..7" selector now shows the 8 named content markets, and a
+  new advertiser-vertical selector offers 9 verticals whose base-CTR anchors
+  are the ONLY auditable per-vertical measurements in the project (iPinYou
+  2014 Tables 2+3, the same hash-verified artifact behind the ad_ctr target;
+  applicability limits stated — 2013 China display RTB, not a forecast).
+  Adopting an anchor is recorded as `sourced_vertical_anchor:<id>` in the
+  per-field economics provenance; an explicit user CTR always wins.
+- **Campaign editor redesign**: the misaligned header-row grid (the
+  "spacing is off" defect) is replaced by per-field labeled cards that wrap
+  responsively; every field carries a plain-language tooltip readable by
+  both marketing and government users. Found+fixed: the wrapper labels
+  initially reused the inputs' class names, breaking field lookup.
+- **Settings sweep** (`scripts/settings_sweep.py` → docs/SETTINGS_SWEEP.md):
+  all 76 knob cases run the engine and pass coherence checks (finite
+  outputs, rates in [0,1], NaN only with a genuinely zero denominator) plus
+  5 directional relations under common random numbers (ads off → 0
+  impressions; 3x harmful rates never decrease exposure; etc.). The sweep
+  found and fixed 2 real defects: a float `exploration_pool_size` crashed
+  numpy inside the engine, and one campaign's undefined lift NaN-poisoned
+  the exposure-weighted ITT mean (now excludes undefined strata; NaN only
+  when NO stratum is defined). CI holds a fast subset
+  (tests/test_settings_sweep.py).
+- **Persona sandbox flows** (tests/test_persona_flows.py): a first-time
+  marketing user (2 Business presets: configure a named-vertical campaign,
+  run, read the Ads tab with its honest footnotes) and a first-time
+  government analyst (EU-DSA and CN-label sandboxes: fairness table, audit
+  log, transparency export, honesty chips) drive the real console
+  end-to-end under Playwright.
+- **Tooltips everywhere**: 34 controls that lacked hovers now explain
+  themselves in one or two plain sentences (dual-audience wording).
+- **POST rate limiting**: token-bucket (60/min, burst 20 → HTTP 429) on
+  state-changing requests — a local DoS guard, documented in SECURITY.md
+  as NOT authentication; row-level security restated as NOT APPLICABLE
+  (single-user tool, no tenant rows).
+- **Feed cards** show the real simulated timestamp (Day d · HH:00 from the
+  event tick) and @agent handles; ad cards carry a "Sponsored" chip. No
+  fabricated engagement counts — decorative numbers would be fake data.
+- **Repo pruning** (286 tracked files audited): removed the orphaned
+  `scripts/asset_contactsheet_review.py` (superseded by asset_qa.py's
+  contact sheet) and unreferenced `docs/ASSET_MANIFEST.md`; gate-coupled
+  historical records retained deliberately.
+- docs/RELEASE.md exact-SHA ledger row for merge e7ca1f9 (run 29548709876).
+
 ### Added (2026-07-16 material-audit remediation, from main @ 86bb4b7)
 - **Seed-generalization protocol** (`socio_sim/validation/seed_protocol.py`,
   `scripts/seed_protocol_eval.py`): 20 fitting / 20 validation / 20 LOCKED

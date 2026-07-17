@@ -1,5 +1,34 @@
 # SocioSim Handoff
 
+## Context-Reset Packet — 2026-07-16 SPRINT 12 (markets/UX/coherence, from main @ e7ca1f9, branch feat/sprint12-markets-ux)
+
+- **Objective (user directive):** fix Campaigns spacing; NAMED markets with
+  honest sourced anchors; tooltips on every setting; full synthetic
+  settings sweep with printed docs; persona sandbox testing (marketing +
+  government first-time users); rate limiting; repo file audit/pruning;
+  graphs/ADA; ship only after GitHub CI green.
+- **Done & verified:** PR #8 merged (main e7ca1f9; exact-SHA push run
+  29548709876 success, ledger row added). socio_sim/ads/markets.py — 8
+  named content markets + 9 iPinYou-sourced advertiser verticals (Tables
+  2+3 of the hash-pinned artifact; anchors recorded as
+  sourced_vertical_anchor provenance). Campaign editor rebuilt as labeled
+  cards (fixed class-collision bug found by persona test). 34 tooltips
+  added. Settings sweep: 76/76 cases coherent + 5/5 directional checks
+  (docs/SETTINGS_SWEEP.md); found+fixed engine int-coercion crash
+  (exploration_pool_size float) and ITT-lift NaN poisoning in
+  _headline_metrics. 4 persona flows green. POST rate limiter (60/min,
+  burst 20, 429) + SECURITY.md control #9 + RLS N/A restated. Repo audit
+  subagent: 286 tracked files; removed asset_contactsheet_review.py +
+  docs/ASSET_MANIFEST.md. Feed cards: real Day/HH:00 timestamps; ad cards
+  "Sponsored" chip; NO fabricated engagement counts (honesty).
+- **Constraint honoured:** no per-industry "benchmark" tables from
+  commercial aggregators (non-auditable — rejected in the 2026-07-13
+  pass); iPinYou is the only citable per-vertical CTR source and its
+  limits are stated everywhere it surfaces.
+- **Not done / next:** run full pytest+coverage suite, commit increments,
+  push branch, PR, verify CI green on head + merge SHAs; update the
+  RELEASE ledger for the next merge in the following cycle.
+
 ## Context-Reset Packet — 2026-07-16 material-audit remediation (from main @ 86bb4b7)
 
 - **Objective:** remediate the 2026-07-16 material audit (exact-SHA CI proof;

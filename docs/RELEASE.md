@@ -87,6 +87,7 @@ SHA's run URL.
 | main SHA | CI run (exact SHA, push event) | result |
 |---|---|---|
 | `86bb4b7ccf4867ba091d2c0e1a1e0c46c245d039` | <https://github.com/jviola1019/sociosim/actions/runs/29398446514> | success (job `test`); the run's headSha equals this merge SHA |
+| `e7ca1f9818a2dbc117fc54766b41787be2aec44e` (PR #8 merge) | <https://github.com/jviola1019/sociosim/actions/runs/29548709876> | success (push event, job `test`); the run's headSha equals this merge SHA |
 
 ## Corrupted run-history database (recovery)
 
