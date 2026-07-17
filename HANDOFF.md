@@ -1,5 +1,40 @@
 # SocioSim Handoff
 
+## Context-Reset Packet — 2026-07-17 SPRINT 13 (fail-closed evidence + protocol integrity, audit of main @ e7ca1f9, branch feat/sprint12-markets-ux)
+
+- **Objective (audit):** exact-SHA proof for e7ca1f9; fail-closed source
+  verification with explicit levels; hardened retrieval; fail-closed
+  seed-protocol acceptance with hash pins + --verify-committed; mechanism
+  diagnosis of appeal_grant_rate/ad_ctr; release-gate strengthening; UI
+  honesty (dominant failures, support statuses, holdout failure never
+  hidden).
+- **Done & verified:** e7ca1f9 push run 29548709876 success (headSha
+  equal). verify_sources.py rewritten (6 levels; pypdf-missing/empty-text/
+  missing-quote = FAILURE; derivations EXECUTED from recorded specs, 5/5
+  reproduce; HTTPS-only + public-IP-only DNS precheck + manual redirects
+  + 25MB streamed cap + identity encoding + split timeouts; offline
+  modes); [evidence] extra; 20 faked-network tests; clean-venv live run:
+  7/7 required level, 6/7 fully_verified (Pew HTML mutable → quote-pass,
+  correctly not full). Seed-protocol acceptance fail-closed (missing/
+  non-finite structural metrics, record schema) + verify_committed hash
+  pins (targets/config/holdout order) + CLI --verify-committed; committed
+  v1 verdict UNCHANGED (recomputed accepted=False). Event support
+  measured on fitting/validation seeds ONLY: appeals 3-12 vs ~195 needed;
+  impressions 119-451 vs ~3838 → both rates not estimable at scale;
+  support records (num/den/ESS/Wilson95/min-n/rationale) attached to
+  every run + UI; PROTOCOL_V2 PREDECLARED (structural-only acceptance,
+  holdout 17001-17020, hash-pinned, never evaluated); v1 untouched.
+  Release gate: run-name + step-summary SHA, offline derivation check,
+  artifact verification step, machine-readable release_verdict.json
+  (holdout accepted false / demo label / enterprise false / ADA not
+  claimed / tenancy absent / RLS n/a), notes claim-scan, deterministic
+  double-build (REAL local failure found → fixed with SOURCE_DATE_EPOCH
+  = commit time; now byte-identical). Installed-wheel battery green.
+- **Open risks / next:** run full suite, commit, push, PR, CI green on
+  head + merge SHAs; future work (separate cycle): evaluate protocol v2
+  on its predeclared holdout; consider scientifically defensible exposure
+  increases for the sparse rates.
+
 ## Context-Reset Packet — 2026-07-16 SPRINT 12 (markets/UX/coherence, from main @ e7ca1f9, branch feat/sprint12-markets-ux)
 
 - **Objective (user directive):** fix Campaigns spacing; NAMED markets with

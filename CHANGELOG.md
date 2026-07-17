@@ -4,6 +4,57 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
 
 ## [Unreleased] — audit P0/P1 remediation
 
+### Added (2026-07-17 sprint 13: fail-closed evidence + protocol integrity — audit of main @ e7ca1f9)
+- **Fail-closed source verification** (`scripts/verify_sources.py` rewrite):
+  six explicit verification levels (artifact_retrieved → hash_matched →
+  text_extracted → statistic_quote_matched → derivation_reproduced →
+  fully_verified); missing pypdf, empty extraction, or a missing quote is
+  now a FAILURE (the old script warned and exited 0); a matching hash alone
+  is never statistic verification; a mutable-source hash mismatch passes
+  only while every quote matches and is never fully_verified; success
+  output reports exact counts per level. Derivations are now EXECUTED from
+  recorded specs (mean/sd, midpoint, weighted mean, ratio, percent), never
+  asserted — all 5 reproduce the committed values. New `[evidence]` extra
+  (pypdf). Live run: 7/7 targets at required level, 6/7 fully verified.
+- **Hardened retrieval** for the verifier: HTTPS-only; credentials-in-URL
+  rejected; IDNA hostname normalization; DNS resolved pre-connect with all
+  non-public destinations refused (stricter than the app's LLM policy);
+  manual redirects (max 3, every hop re-validated, final URL recorded);
+  identity-encoding only; Content-Length pre-check + streamed download
+  under a 25 MB cap; separate connect/read timeouts; deterministic offline
+  modes (`--derivations-only` for CI; `--offline DIR` for archives).
+  20 new tests, all network faked.
+- **Fail-closed seed-protocol acceptance**: the structural criterion no
+  longer accepts a missing/non-finite failure rate; every record that ran
+  must carry every structural metric with finite observed value and finite
+  z; records are schema-validated; `verify_committed()` +
+  `seed_protocol_eval.py --verify-committed` re-verify the committed
+  artifact against hash pins (target values/tolerances, profile config,
+  locked holdout order) and reproduce its summaries/verdict. The committed
+  v1 verdict is untouched: recomputed accepted remains **false**.
+- **Event-support accounting** (`socio_sim/validation/support.py`):
+  measured on fitting/validation seeds only — appeals filed per run 3–12
+  vs ~195 needed; ad impressions 119–451 vs ~3,838 needed — so both rates
+  are not statistically estimable at profile scale. Every run now carries
+  per-rate support records (numerator/denominator/ESS/zero-denominator/
+  Wilson-95 interval/minimum-support/acceptance inclusion + rationale),
+  surfaced in the web payload and Target Comparison tab as
+  "insufficient event support" statuses. **Protocol v2 PREDECLARED, not
+  evaluated**: acceptance on structural metrics only, sparse rates
+  descriptive, new hash-pinned holdout seeds (17001–17020) disjoint from
+  every v1 list. v1's committed results are not rewritten.
+- **Release gate**: exact ref in the run name + step summary; offline
+  evidence-derivation check and committed-artifact verification as release
+  steps (fail closed); machine-readable `release_verdict.json` derived
+  from the artifact (holdout accepted: false; seed-42 demonstration label;
+  enterprise readiness false; ADA not claimed; tenant isolation absent;
+  RLS n/a); generated release notes scanned with the claim vocabulary;
+  deterministic double-build wheel hash comparison.
+- **UI**: holdout-FAILED chip now names the dominant failure metrics and
+  replay status; rate targets without adequate support show the
+  insufficient-support status inline (never hidden in a drawer) plus full
+  support records in the provenance details.
+
 ### Added (2026-07-16 sprint 12: markets, UX navigability, coherence sweep — from main @ e7ca1f9)
 - **Named markets in the campaign editor** (`socio_sim/ads/markets.py`): the
   opaque "Topic 0..7" selector now shows the 8 named content markets, and a
