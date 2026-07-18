@@ -23,6 +23,7 @@ from socio_sim.validation.calibrate import (dominant_implausibility_metric,
                                             implausibility,
                                             implausibility_components)
 from socio_sim.validation.montecarlo import run_replicates
+from socio_sim.validation.support import rate_support
 from socio_sim.validation.targets import compute_observed, load_targets
 
 #: Replay verification doubles runtime, so it is auto-skipped above this size.
@@ -38,9 +39,20 @@ def _headline_metrics(result) -> dict:
     ad_conversions = sum(float(a.get("conversions", 0)) for a in ads)
     ad_spend = sum(float(a.get("spend", 0)) for a in ads)
     ad_revenue = sum(float(a.get("revenue", 0)) for a in ads)
-    exposed_n = sum(float(a.get("n_exposed", 0)) for a in ads)
-    ad_lift = (sum(float(a.get("lift", 0)) * float(a.get("n_exposed", 0))
-                   for a in ads) / exposed_n) if exposed_n else 0.0
+    # Exposure-weighted ITT lift over campaigns whose lift is DEFINED: a
+    # campaign with an empty/zero-denominator arm reports lift as NaN/None
+    # (honest n/a) and previously poisoned the whole weighted mean to NaN
+    # even when every other campaign measured fine (found by
+    # scripts/settings_sweep.py). Undefined strata are excluded; if NO
+    # campaign has a defined lift the aggregate is NaN, never a made-up 0.
+    lift_pairs = [(float(a["lift"]), float(a.get("n_exposed", 0)))
+                  for a in ads
+                  if a.get("lift") is not None
+                  and float(a.get("lift")) == float(a.get("lift"))
+                  and float(a.get("n_exposed", 0)) > 0]
+    exposed_n = sum(n for _, n in lift_pairs)
+    ad_lift = (sum(lift * n for lift, n in lift_pairs) / exposed_n
+               if exposed_n else float("nan"))
     disclosures = [1.0 if a.get("disclosure_present") else 0.0 for a in ads]
     return {
         "harmful_exposure_rate": float(s["harmful_exposure"]["rate"]),
@@ -97,6 +109,9 @@ class Analysis:
     replay: dict          # {checked, ok, msg}
     mc: object = None     # None in Preview; {metric: {median, ci, n_replicates, provenance}} in Research
     transparency: object = None  # DSA/§230/CN/FTC-style transparency-report tally
+    #: per-rate event-support records (numerator/denominator/interval/
+    #: min-support; audit Phase 5) for rate-type aggregate targets
+    rate_support: dict = None
 
 
 def run_and_analyze(cfg: RunConfig, *, write: bool = True,
@@ -155,4 +170,5 @@ def run_and_analyze(cfg: RunConfig, *, write: bool = True,
         implausibility_components=i_components,
         implausibility_dominant_metric=dominant_implausibility_metric(i_components),
         replay=replay, mc=mc,
-        transparency=transparency)
+        transparency=transparency,
+        rate_support=rate_support(summary, targets))

@@ -426,40 +426,82 @@ function wireMarketing() {
   });
 }
 
-/* ---------- campaign editor (S3) ---------- */
+/* ---------- campaign editor (S3; labeled grid, named markets) ---------- */
 const AGE_SEGMENTS = ["all", "13-17", "18-24", "25-34", "35-49", "50-64", "65+"];
+// Plain-language tooltips readable by BOTH audiences (a marketer sizing a
+// buy; a policy analyst reading what the knob does to the simulation).
+const CAMP_HELP = {
+  adv: "Display name for this advertiser. Appears on the ad creative and in every report row.",
+  vert: "Advertiser vertical. Picking one pre-fills the click rate below with the only auditable per-vertical measurement in this project (iPinYou 2014, display RTB, China 2013) — a sourced scenario anchor, NOT a prediction for that industry today.",
+  bid: "How much this campaign offers per ad impression in the auction. Higher bids win more slots until the budget runs out.",
+  bud: "Total spend cap. When it is exhausted the campaign stops winning impressions.",
+  ctr: "Base click-through rate: the chance a shown ad is clicked (0.001 = 0.1%). Pre-filled by the vertical above; type your own to override.",
+  cvr: "Conversion rate: the chance a CLICK becomes a purchase/sign-up. Scenario assumption.",
+  val: "Value of one conversion in currency units. Drives ROAS and revenue outputs.",
+  ltv: "Lifetime-value multiplier: total long-run value = conversion value × this. Scenario assumption.",
+  attr: "Attribution window in hours: a conversion counts only within this window after an impression.",
+  seg: "Audience age segment this campaign targets. 'All ages' means no age targeting.",
+  mkt: "Content market (topic) where the ad may appear. 'Any market' shows it everywhere.",
+};
 function campaignRow(c = {}) {
   const d = document.createElement("div"); d.className = "camp-row";
   const segOpts = AGE_SEGMENTS.map(s => `<option value="${s}"${(c.segment || "all") === s ? " selected" : ""}>${s === "all" ? "All ages" : s}</option>`).join("");
+  const marketNames = META?.markets?.content_markets || [];
   const mktOpts = ['<option value="any">Any market</option>']
-    .concat([...Array(8).keys()].map(t => `<option value="${t}"${String(c.market) === String(t) ? " selected" : ""}>Topic ${t}</option>`)).join("");
-  d.innerHTML = `<input class="cf-adv" placeholder="Advertiser" aria-label="advertiser" value="${esc(c.advertiser || "")}">`
-    + `<input class="cf-bid" type="number" step="0.1" min="0" title="bid per impression" aria-label="bid" value="${c.bid ?? 2}">`
-    + `<input class="cf-bud" type="number" step="1" min="0" title="budget" aria-label="budget" value="${c.budget ?? 100}">`
-    + `<input class="cf-ctr" type="number" step="0.001" min="0" max="1" title="base CTR" aria-label="base CTR" value="${c.base_ctr ?? 0.012}">`
-    + `<input class="cf-cvr" type="number" step="0.01" min="0" max="1" title="base CVR" aria-label="base CVR" value="${c.base_cvr ?? 0.05}">`
-    + `<input class="cf-val" type="number" step="0.1" min="0" title="conversion value" aria-label="conversion value" value="${c.conversion_value ?? 1}">`
-    + `<input class="cf-ltv" type="number" step="0.1" min="0" title="LTV multiplier" aria-label="LTV multiplier" value="${c.ltv_multiplier ?? 3}">`
-    + `<input class="cf-attr" type="number" step="1" min="1" title="attribution window in ticks" aria-label="attribution window ticks" value="${c.attribution_window_ticks ?? 168}">`
-    + `<select class="cf-seg" title="audience segment" aria-label="audience segment">${segOpts}</select>`
-    + `<select class="cf-mkt" title="market / topic" aria-label="market topic">${mktOpts}</select>`
-    + `<button type="button" class="cf-del" title="remove" aria-label="remove campaign">×</button>`;
+    .concat(marketNames.map((name, t) => `<option value="${t}"${String(c.market) === String(t) ? " selected" : ""}>${esc(name)}</option>`)).join("");
+  const verts = META?.markets?.advertiser_verticals || {};
+  const vertOpts = ['<option value="">Custom / none</option>']
+    .concat(Object.entries(verts).map(([vid, v]) =>
+      `<option value="${esc(vid)}" data-ctr="${v.base_ctr}"${c.vertical === vid ? " selected" : ""}>${esc(v.label)} · CTR ${(v.base_ctr * 100).toFixed(3)}%</option>`)).join("");
+  // NOTE: the wrapper label must NOT reuse the input's own class name
+  // (cf-adv etc.) or querySelector('.cf-*') finds the label instead of
+  // the control; layout hooks use data-f instead.
+  const f = (cls, label, control) =>
+    `<label class="cf" data-f="${cls}" title="${esc(CAMP_HELP[cls] || "")}"><span>${esc(label)}</span>${control}</label>`;
+  d.innerHTML =
+    f("adv", "Advertiser", `<input class="cf-adv" placeholder="e.g. Brand A" value="${esc(c.advertiser || "")}">`)
+    + f("vert", "Vertical (sourced CTR anchor)", `<select class="cf-vert">${vertOpts}</select>`)
+    + f("seg", "Audience segment", `<select class="cf-seg">${segOpts}</select>`)
+    + f("mkt", "Content market", `<select class="cf-mkt">${mktOpts}</select>`)
+    + f("bid", "Bid / impression", `<input class="cf-bid" type="number" step="0.1" min="0" value="${c.bid ?? 2}">`)
+    + f("bud", "Budget", `<input class="cf-bud" type="number" step="1" min="0" value="${c.budget ?? 100}">`)
+    + f("ctr", "Base CTR", `<input class="cf-ctr" type="number" step="0.0001" min="0" max="1" value="${c.base_ctr ?? 0.012}">`)
+    + f("cvr", "Base CVR", `<input class="cf-cvr" type="number" step="0.01" min="0" max="1" value="${c.base_cvr ?? 0.05}">`)
+    + f("val", "Conversion value", `<input class="cf-val" type="number" step="0.1" min="0" value="${c.conversion_value ?? 1}">`)
+    + f("ltv", "LTV multiplier", `<input class="cf-ltv" type="number" step="0.1" min="0" value="${c.ltv_multiplier ?? 3}">`)
+    + f("attr", "Attribution (h)", `<input class="cf-attr" type="number" step="1" min="1" value="${c.attribution_window_ticks ?? 168}">`)
+    + `<button type="button" class="cf-del" title="Remove this campaign" aria-label="remove campaign">×</button>`;
+  // Picking a vertical adopts its sourced CTR anchor (visible, editable).
+  d.querySelector(".cf-vert").addEventListener("change", e => {
+    const opt = e.target.selectedOptions[0];
+    if (opt && opt.dataset.ctr) d.querySelector(".cf-ctr").value = opt.dataset.ctr;
+  });
   d.querySelector(".cf-del").addEventListener("click", () => d.remove());
   return d;
 }
 $("#addCampaign")?.addEventListener("click", () => $("#campaigns").appendChild(campaignRow()));
 
 function collectCampaigns() {
-  return $$("#campaigns .camp-row").map((r, i) => ({
+  return $$("#campaigns .camp-row").map((r, i) => {
+    // If a vertical is selected and the CTR still equals its sourced
+    // anchor, omit base_ctr so the backend records the honest provenance
+    // (sourced_vertical_anchor) instead of "user_supplied".
+    const vertical = r.querySelector(".cf-vert").value || "";
+    const anchor = r.querySelector(".cf-vert").selectedOptions[0]?.dataset.ctr;
+    const ctrRaw = r.querySelector(".cf-ctr").value;
+    const ctrIsAnchor = vertical && anchor && Number(ctrRaw) === Number(anchor);
+    return ({
     id: "c" + (i + 1),
     advertiser: r.querySelector(".cf-adv").value || "Advertiser",
+    vertical,
     bid: +r.querySelector(".cf-bid").value, budget: +r.querySelector(".cf-bud").value,
-    base_ctr: +r.querySelector(".cf-ctr").value, base_cvr: +r.querySelector(".cf-cvr").value,
+    base_ctr: ctrIsAnchor ? "" : +ctrRaw, base_cvr: +r.querySelector(".cf-cvr").value,
     conversion_value: +r.querySelector(".cf-val").value,
     ltv_multiplier: +r.querySelector(".cf-ltv").value,
     attribution_window_ticks: +r.querySelector(".cf-attr").value,
     segment: r.querySelector(".cf-seg").value, market: r.querySelector(".cf-mkt").value,
-  }));
+    });
+  });
 }
 
 function collect() {
@@ -746,9 +788,13 @@ function renderFitStatus(r) {
   if (groupTxt) chips.push(`<span class="fs-chip seed">${groupTxt}</span>`);
   if (sp.holdout) {
     const h = sp.holdout;
+    const dom = Object.entries(h.dominant_failing_metrics || {})
+      .sort((a, b) => b[1] - a[1])
+      .map(([m, n]) => `${esc(m.replace(/_/g, " "))} ×${esc(n)}`).join(", ");
     chips.push(sp.holdout_accepted
       ? `<span class="fs-chip ok">Multi-seed holdout: passed (${pct(h.pass_proportion, 0)} of ${esc(h.n_seeds)} locked seeds)</span>`
-      : `<span class="fs-chip bad">Multi-seed holdout: FAILED — ${pct(h.pass_proportion, 0)} of ${esc(h.n_seeds)} locked seeds under the cutoff (needs ≥80%); median I ${fmt(h.median_implausibility, 2)}, p95 ${fmt(h.p95, 2)}, max ${fmt(h.max_implausibility, 2)}</span>`);
+      : `<span class="fs-chip bad">Multi-seed holdout: FAILED — ${pct(h.pass_proportion, 0)} of ${esc(h.n_seeds)} locked seeds under the cutoff (needs ≥80%); median I ${fmt(h.median_implausibility, 2)}, p95 ${fmt(h.p95, 2)}, max ${fmt(h.max_implausibility, 2)}${dom ? "; dominant failures: " + dom : ""}</span>`);
+    if (h.replay_all_ok) chips.push(`<span class="fs-chip ok">Replay verified (all protocol runs)</span>`);
   }
   chips.push(`<span class="fs-chip warn">Not empirically validated</span>`);
   const seedNote = `<p class="dim small">Profile label: <b>${esc(sp.label || "n/a")}</b> · this run: seed ${esc((r.manifest || {}).root_seed)}, ${esc(r.n_replicates || 1)} replicate${(r.n_replicates || 1) > 1 ? "s" : ""} · full protocol artifact: ${esc(sp.protocol_artifact || "not present")}</p>`;
@@ -773,6 +819,15 @@ function targetDetails(name, spec, obs, r) {
     + li("Source artifact", art.sha256 ? `sha256 ${art.sha256.slice(0, 16)}… (${art.stability || "recorded"}; retrieved ${art.retrieved_at_utc || "?"})` : "")
     + li("Observed (this run)", `${fmt(obs, 4)} at seed ${(r.manifest || {}).root_seed}, ${r.n_replicates || 1} replicate(s)`)
     + li("Target ± tolerance", `${spec.value} ± ${spec.tolerance}`)
+    + (((r.rate_support || {})[name])
+        ? li("Event support",
+             `${(r.rate_support[name].numerator)}/${(r.rate_support[name].denominator)} events; ` +
+             `95% interval [${fmt(r.rate_support[name].interval[0], 3)}, ${fmt(r.rate_support[name].interval[1], 3)}] ` +
+             `(${r.rate_support[name].interval_method}); minimum support n=${r.rate_support[name].minimum_support_n}; ` +
+             (r.rate_support[name].adequately_supported
+               ? "adequately supported"
+               : "INSUFFICIENT — descriptive diagnostic only; excluded from the predeclared protocol v2 acceptance score"))
+        : "")
     + li("Valid uses", uses(spec.valid_uses))
     + li("Invalid uses", uses(spec.invalid_uses))
     + `</ul></details>`;
@@ -834,7 +889,15 @@ function render(r) {
     $("#calib").innerHTML = Object.entries(r.targets).map(([name, spec]) => {
       const obs = r.observed[name]; if (obs == null) return "";
       const lo0 = spec.value - 3 * spec.tolerance, hi0 = spec.value + 3 * spec.tolerance, sp = Math.max(hi0 - lo0, 1e-9), L = v => Math.max(0, Math.min(100, 100 * (v - lo0) / sp)), inb = Math.abs(obs - spec.value) <= spec.tolerance;
-      return `<div class="calib-item"><div class="calib-row"><span class="nm">${esc(name.replace(/_/g, " "))}</span><div class="ctrack"><span class="tol" style="left:${L(spec.value - spec.tolerance)}%;width:${L(spec.value + spec.tolerance) - L(spec.value - spec.tolerance)}%"></span><span class="ctr" style="left:${L(spec.value)}%"></span><span class="obs ${inb ? "in" : "out"}" style="left:${L(obs)}%"></span></div><span class="vl">${fmt(obs, 3)} <span class="dim">/ ${spec.value}</span> <span class="${inb ? "inband" : "outband"}">${inb ? "in band" : "out of band"}</span></span></div>${targetDetails(name, spec, obs, r)}</div>`;
+      // rate-type targets without adequate event support: the band label is
+      // replaced by an explicit insufficient-support status (a z-distance
+      // is not meaningful when one chance event spans several tolerances)
+      const sup = (r.rate_support || {})[name];
+      const weak = sup && !sup.adequately_supported;
+      const bandTxt = weak
+        ? `insufficient event support (${esc(sup.numerator)}/${esc(sup.denominator)} events; needs ≥${esc(sup.minimum_support_n)})`
+        : (inb ? "in band" : "out of band");
+      return `<div class="calib-item"><div class="calib-row"><span class="nm">${esc(name.replace(/_/g, " "))}</span><div class="ctrack"><span class="tol" style="left:${L(spec.value - spec.tolerance)}%;width:${L(spec.value + spec.tolerance) - L(spec.value - spec.tolerance)}%"></span><span class="ctr" style="left:${L(spec.value)}%"></span><span class="obs ${inb ? "in" : "out"}" style="left:${L(obs)}%"></span></div><span class="vl">${fmt(obs, 3)} <span class="dim">/ ${spec.value}</span> <span class="${weak ? "weaksupport" : (inb ? "inband" : "outband")}">${bandTxt}</span></span></div>${targetDetails(name, spec, obs, r)}</div>`;
     }).join("");
   } else {
     // Bundled legacy target sets are all evidence-kind "unsupported" (missing
@@ -886,7 +949,12 @@ function renderFeed(feed) {
     const badge = f.action !== "none" ? `<span class="badge">${esc(f.action.replace(/_/g, " "))}</span>` : (f.ai_generated ? `<span class="badge">AI-generated</span>` : "");
     const tags = [...harm.map(c => `<span class="tag harm">${esc(c.replace(/_/g, " "))}</span>`), f.ai_generated ? `<span class="tag ai">ai-generated</span>` : "", f.categories.includes("political") ? `<span class="tag">political</span>` : "", f.media_type ? `<span class="tag media">${esc(f.media_type)}</span>` : "", f.action !== "none" ? `<span class="tag act">${esc(f.action.replace(/_/g, " "))}</span>` : ""].join("");
     const img = pickAsset(META?.assets?.feed_covers || [], `${f.id}|${f.topic}|${f.media_type}|${f.author}`, usedAssets);
-    return `<article class="post" style="animation-delay:${i * 50}ms"><div class="cover"><img class="feed-img" src="${img}" alt="Synthetic decorative artwork for ${esc(f.topic)} post; not evidence">${badge}</div><div class="body"><div class="who"><span class="av">${avatarSVG(f.author)}</span><span class="meta"><b>Agent ${f.author}</b><span>${esc(f.age)} · ${esc(f.ideology)} · ${esc(f.topic)}</span></span></div><p class="txt">${esc(f.text)}</p><div class="tags">${tags}</div></div></article>`;
+    // Real simulated time only (Day d · HH:00 from the event tick); no
+    // fabricated like/share counts — decorative engagement numbers would
+    // be fake data on a research surface.
+    const when = Number.isFinite(f.tick)
+      ? `Day ${Math.floor(f.tick / 24) + 1} · ${String(f.tick % 24).padStart(2, "0")}:00` : "";
+    return `<article class="post" style="animation-delay:${i * 50}ms"><div class="cover"><img class="feed-img" src="${img}" alt="Synthetic decorative artwork for ${esc(f.topic)} post; not evidence">${badge}</div><div class="body"><div class="who"><span class="av">${avatarSVG(f.author)}</span><span class="meta"><b>@agent-${f.author}</b><span>${esc(f.age)} · ${esc(f.ideology)} · ${esc(f.topic)}${when ? " · " + when : ""}</span></span></div><p class="txt">${esc(f.text)}</p><div class="tags">${tags}</div></div></article>`;
   }).join("");
 }
 
@@ -901,7 +969,7 @@ function renderAds(ads) {
     const name = esc(a.advertiser || a.campaign_id);
     const img = pickAsset(META?.assets?.ad_creatives || [], key, usedAssets) || `/api/creative?key=${key}`;
     const src = remoteProtected ? "" : ` src="${img}"`;
-    return `<div class="adcard" style="animation-delay:${i * 50}ms"><div class="creative"><img class="creative-img protected-creative"${src} data-src="${img}" alt="Synthetic decorative ad artwork for ${name}; not evidence">${disc}<button type="button" class="dl-creative" data-download="${img}" data-filename="creative-${key}.png" title="Download deterministic creative">download</button></div><div class="ad-body"><div class="adname">${name}</div><div class="adtarget">${targeting}</div><div class="adstat"><span>CTR <b>${fmt(a.ctr, 4)}</b></span><span>lift <b>${fmt(a.lift, 4)}</b></span><span>iROAS <b>${fmt(a.iroas, 2)}</b></span></div></div></div>`;
+    return `<div class="adcard" style="animation-delay:${i * 50}ms"><div class="creative"><img class="creative-img protected-creative"${src} data-src="${img}" alt="Synthetic decorative ad artwork for ${name}; not evidence">${disc}<button type="button" class="dl-creative" data-download="${img}" data-filename="creative-${key}.png" title="Download deterministic creative">download</button></div><div class="ad-body"><div class="adname">${name} <span class="sponsored">Sponsored</span></div><div class="adtarget">${targeting}</div><div class="adstat"><span>CTR <b>${fmt(a.ctr, 4)}</b></span><span>lift <b>${fmt(a.lift, 4)}</b></span><span>iROAS <b>${fmt(a.iroas, 2)}</b></span></div></div></div>`;
   }).join("");
   const tableV2 = `<div class="table-wrap"><table class="read"><thead><tr><th>campaign</th><th>impr</th><th>eligible</th><th>budget</th><th>CTR</th><th>CVR</th><th>lift diagnostic interval</th><th>oracle diagnostic</th><th>p(raw)</th><th>q(BH)</th><th>MDE</th><th>ROAS*</th><th>iROAS*</th><th>CAC*</th><th>LTV*</th><th>holdout</th><th>attr W</th></tr></thead><tbody>${ads.map(a => `<tr><td>${esc(a.campaign_id)}</td><td class="num">${a.impressions}</td><td class="num">${a.eligible_opportunities ?? "—"}</td><td class="num">${fmt(a.spend, 2)} / ${fmt(a.budget_configured, 2)}</td><td class="num">${fmt(a.ctr, 4)}</td><td class="num">${fmt(a.cvr, 4)}</td><td class="num">${a.lift_ci ? `${fmt(a.lift_ci[0], 4)}-${fmt(a.lift_ci[1], 4)}` : "—"}</td><td class="num">${fmt(a.oracle_covariate_adjusted_simulation_diagnostic, 4)}</td><td class="num">${fmt(a.lift_pvalue_raw ?? a.lift_pvalue, 3)}</td><td class="num">${fmt(a.lift_qvalue_bh, 3)}</td><td class="num">${fmt(a.mde, 4)}</td><td class="num">${fmt(a.roas, 2)}</td><td class="num">${fmt(a.iroas, 2)}</td><td class="num">${fmt(a.cac, 2)}</td><td class="num">${fmt(a.ltv, 2)}</td><td class="num">${a.n_holdout}</td><td class="num">${a.attribution_window_ticks}</td></tr>`).join("")}</tbody></table><p class="hint">Synthetic scenario output - not an estimate of real-world performance. * Scenario economics are assumption-derived from conversion value, LTV multiplier, and attribution window inputs.</p></div>`;
   // Campaign screen — each campaign is measured against its own holdout. This is

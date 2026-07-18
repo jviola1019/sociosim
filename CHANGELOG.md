@@ -4,6 +4,102 @@ All notable changes to SocioSim. Format: Keep a Changelog. Branch: `feat/audit-p
 
 ## [Unreleased] — audit P0/P1 remediation
 
+### Added (2026-07-17 sprint 13: fail-closed evidence + protocol integrity — audit of main @ e7ca1f9)
+- **Fail-closed source verification** (`scripts/verify_sources.py` rewrite):
+  six explicit verification levels (artifact_retrieved → hash_matched →
+  text_extracted → statistic_quote_matched → derivation_reproduced →
+  fully_verified); missing pypdf, empty extraction, or a missing quote is
+  now a FAILURE (the old script warned and exited 0); a matching hash alone
+  is never statistic verification; a mutable-source hash mismatch passes
+  only while every quote matches and is never fully_verified; success
+  output reports exact counts per level. Derivations are now EXECUTED from
+  recorded specs (mean/sd, midpoint, weighted mean, ratio, percent), never
+  asserted — all 5 reproduce the committed values. New `[evidence]` extra
+  (pypdf). Live run: 7/7 targets at required level, 6/7 fully verified.
+- **Hardened retrieval** for the verifier: HTTPS-only; credentials-in-URL
+  rejected; IDNA hostname normalization; DNS resolved pre-connect with all
+  non-public destinations refused (stricter than the app's LLM policy);
+  manual redirects (max 3, every hop re-validated, final URL recorded);
+  identity-encoding only; Content-Length pre-check + streamed download
+  under a 25 MB cap; separate connect/read timeouts; deterministic offline
+  modes (`--derivations-only` for CI; `--offline DIR` for archives).
+  20 new tests, all network faked.
+- **Fail-closed seed-protocol acceptance**: the structural criterion no
+  longer accepts a missing/non-finite failure rate; every record that ran
+  must carry every structural metric with finite observed value and finite
+  z; records are schema-validated; `verify_committed()` +
+  `seed_protocol_eval.py --verify-committed` re-verify the committed
+  artifact against hash pins (target values/tolerances, profile config,
+  locked holdout order) and reproduce its summaries/verdict. The committed
+  v1 verdict is untouched: recomputed accepted remains **false**.
+- **Event-support accounting** (`socio_sim/validation/support.py`):
+  measured on fitting/validation seeds only — appeals filed per run 3–12
+  vs ~195 needed; ad impressions 119–451 vs ~3,838 needed — so both rates
+  are not statistically estimable at profile scale. Every run now carries
+  per-rate support records (numerator/denominator/ESS/zero-denominator/
+  Wilson-95 interval/minimum-support/acceptance inclusion + rationale),
+  surfaced in the web payload and Target Comparison tab as
+  "insufficient event support" statuses. **Protocol v2 PREDECLARED, not
+  evaluated**: acceptance on structural metrics only, sparse rates
+  descriptive, new hash-pinned holdout seeds (17001–17020) disjoint from
+  every v1 list. v1's committed results are not rewritten.
+- **Release gate**: exact ref in the run name + step summary; offline
+  evidence-derivation check and committed-artifact verification as release
+  steps (fail closed); machine-readable `release_verdict.json` derived
+  from the artifact (holdout accepted: false; seed-42 demonstration label;
+  enterprise readiness false; ADA not claimed; tenant isolation absent;
+  RLS n/a); generated release notes scanned with the claim vocabulary;
+  deterministic double-build wheel hash comparison.
+- **UI**: holdout-FAILED chip now names the dominant failure metrics and
+  replay status; rate targets without adequate support show the
+  insufficient-support status inline (never hidden in a drawer) plus full
+  support records in the provenance details.
+
+### Added (2026-07-16 sprint 12: markets, UX navigability, coherence sweep — from main @ e7ca1f9)
+- **Named markets in the campaign editor** (`socio_sim/ads/markets.py`): the
+  opaque "Topic 0..7" selector now shows the 8 named content markets, and a
+  new advertiser-vertical selector offers 9 verticals whose base-CTR anchors
+  are the ONLY auditable per-vertical measurements in the project (iPinYou
+  2014 Tables 2+3, the same hash-verified artifact behind the ad_ctr target;
+  applicability limits stated — 2013 China display RTB, not a forecast).
+  Adopting an anchor is recorded as `sourced_vertical_anchor:<id>` in the
+  per-field economics provenance; an explicit user CTR always wins.
+- **Campaign editor redesign**: the misaligned header-row grid (the
+  "spacing is off" defect) is replaced by per-field labeled cards that wrap
+  responsively; every field carries a plain-language tooltip readable by
+  both marketing and government users. Found+fixed: the wrapper labels
+  initially reused the inputs' class names, breaking field lookup.
+- **Settings sweep** (`scripts/settings_sweep.py` → docs/SETTINGS_SWEEP.md):
+  all 76 knob cases run the engine and pass coherence checks (finite
+  outputs, rates in [0,1], NaN only with a genuinely zero denominator) plus
+  5 directional relations under common random numbers (ads off → 0
+  impressions; 3x harmful rates never decrease exposure; etc.). The sweep
+  found and fixed 2 real defects: a float `exploration_pool_size` crashed
+  numpy inside the engine, and one campaign's undefined lift NaN-poisoned
+  the exposure-weighted ITT mean (now excludes undefined strata; NaN only
+  when NO stratum is defined). CI holds a fast subset
+  (tests/test_settings_sweep.py).
+- **Persona sandbox flows** (tests/test_persona_flows.py): a first-time
+  marketing user (2 Business presets: configure a named-vertical campaign,
+  run, read the Ads tab with its honest footnotes) and a first-time
+  government analyst (EU-DSA and CN-label sandboxes: fairness table, audit
+  log, transparency export, honesty chips) drive the real console
+  end-to-end under Playwright.
+- **Tooltips everywhere**: 34 controls that lacked hovers now explain
+  themselves in one or two plain sentences (dual-audience wording).
+- **POST rate limiting**: token-bucket (60/min, burst 20 → HTTP 429) on
+  state-changing requests — a local DoS guard, documented in SECURITY.md
+  as NOT authentication; row-level security restated as NOT APPLICABLE
+  (single-user tool, no tenant rows).
+- **Feed cards** show the real simulated timestamp (Day d · HH:00 from the
+  event tick) and @agent handles; ad cards carry a "Sponsored" chip. No
+  fabricated engagement counts — decorative numbers would be fake data.
+- **Repo pruning** (286 tracked files audited): removed the orphaned
+  `scripts/asset_contactsheet_review.py` (superseded by asset_qa.py's
+  contact sheet) and unreferenced `docs/ASSET_MANIFEST.md`; gate-coupled
+  historical records retained deliberately.
+- docs/RELEASE.md exact-SHA ledger row for merge e7ca1f9 (run 29548709876).
+
 ### Added (2026-07-16 material-audit remediation, from main @ 86bb4b7)
 - **Seed-generalization protocol** (`socio_sim/validation/seed_protocol.py`,
   `scripts/seed_protocol_eval.py`): 20 fitting / 20 validation / 20 LOCKED

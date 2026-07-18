@@ -1,5 +1,69 @@
 # SocioSim Handoff
 
+## Context-Reset Packet — 2026-07-17 SPRINT 13 (fail-closed evidence + protocol integrity, audit of main @ e7ca1f9, branch feat/sprint12-markets-ux)
+
+- **Objective (audit):** exact-SHA proof for e7ca1f9; fail-closed source
+  verification with explicit levels; hardened retrieval; fail-closed
+  seed-protocol acceptance with hash pins + --verify-committed; mechanism
+  diagnosis of appeal_grant_rate/ad_ctr; release-gate strengthening; UI
+  honesty (dominant failures, support statuses, holdout failure never
+  hidden).
+- **Done & verified:** e7ca1f9 push run 29548709876 success (headSha
+  equal). verify_sources.py rewritten (6 levels; pypdf-missing/empty-text/
+  missing-quote = FAILURE; derivations EXECUTED from recorded specs, 5/5
+  reproduce; HTTPS-only + public-IP-only DNS precheck + manual redirects
+  + 25MB streamed cap + identity encoding + split timeouts; offline
+  modes); [evidence] extra; 20 faked-network tests; clean-venv live run:
+  7/7 required level, 6/7 fully_verified (Pew HTML mutable → quote-pass,
+  correctly not full). Seed-protocol acceptance fail-closed (missing/
+  non-finite structural metrics, record schema) + verify_committed hash
+  pins (targets/config/holdout order) + CLI --verify-committed; committed
+  v1 verdict UNCHANGED (recomputed accepted=False). Event support
+  measured on fitting/validation seeds ONLY: appeals 3-12 vs ~195 needed;
+  impressions 119-451 vs ~3838 → both rates not estimable at scale;
+  support records (num/den/ESS/Wilson95/min-n/rationale) attached to
+  every run + UI; PROTOCOL_V2 PREDECLARED (structural-only acceptance,
+  holdout 17001-17020, hash-pinned, never evaluated); v1 untouched.
+  Release gate: run-name + step-summary SHA, offline derivation check,
+  artifact verification step, machine-readable release_verdict.json
+  (holdout accepted false / demo label / enterprise false / ADA not
+  claimed / tenancy absent / RLS n/a), notes claim-scan, deterministic
+  double-build (REAL local failure found → fixed with SOURCE_DATE_EPOCH
+  = commit time; now byte-identical). Installed-wheel battery green.
+- **Open risks / next:** run full suite, commit, push, PR, CI green on
+  head + merge SHAs; future work (separate cycle): evaluate protocol v2
+  on its predeclared holdout; consider scientifically defensible exposure
+  increases for the sparse rates.
+
+## Context-Reset Packet — 2026-07-16 SPRINT 12 (markets/UX/coherence, from main @ e7ca1f9, branch feat/sprint12-markets-ux)
+
+- **Objective (user directive):** fix Campaigns spacing; NAMED markets with
+  honest sourced anchors; tooltips on every setting; full synthetic
+  settings sweep with printed docs; persona sandbox testing (marketing +
+  government first-time users); rate limiting; repo file audit/pruning;
+  graphs/ADA; ship only after GitHub CI green.
+- **Done & verified:** PR #8 merged (main e7ca1f9; exact-SHA push run
+  29548709876 success, ledger row added). socio_sim/ads/markets.py — 8
+  named content markets + 9 iPinYou-sourced advertiser verticals (Tables
+  2+3 of the hash-pinned artifact; anchors recorded as
+  sourced_vertical_anchor provenance). Campaign editor rebuilt as labeled
+  cards (fixed class-collision bug found by persona test). 34 tooltips
+  added. Settings sweep: 76/76 cases coherent + 5/5 directional checks
+  (docs/SETTINGS_SWEEP.md); found+fixed engine int-coercion crash
+  (exploration_pool_size float) and ITT-lift NaN poisoning in
+  _headline_metrics. 4 persona flows green. POST rate limiter (60/min,
+  burst 20, 429) + SECURITY.md control #9 + RLS N/A restated. Repo audit
+  subagent: 286 tracked files; removed asset_contactsheet_review.py +
+  docs/ASSET_MANIFEST.md. Feed cards: real Day/HH:00 timestamps; ad cards
+  "Sponsored" chip; NO fabricated engagement counts (honesty).
+- **Constraint honoured:** no per-industry "benchmark" tables from
+  commercial aggregators (non-auditable — rejected in the 2026-07-13
+  pass); iPinYou is the only citable per-vertical CTR source and its
+  limits are stated everywhere it surfaces.
+- **Not done / next:** run full pytest+coverage suite, commit increments,
+  push branch, PR, verify CI green on head + merge SHAs; update the
+  RELEASE ledger for the next merge in the following cycle.
+
 ## Context-Reset Packet — 2026-07-16 material-audit remediation (from main @ 86bb4b7)
 
 - **Objective:** remediate the 2026-07-16 material audit (exact-SHA CI proof;

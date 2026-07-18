@@ -28,6 +28,7 @@ cited inline below; this repo bundles no copies of those documents).
 | 6 | **SSRF allow-list with IP pinning** on `llm_base_url`: http(s) only; loopback by default; private/RFC1918 hosts require explicit `SOCIOSIM_LLM_ALLOWED_HOSTS`; block link-local incl. cloud-metadata `169.254.169.254`, multicast, reserved. The allow-list check runs on every transport call and returns the exact IP it checked; the TCP connection is made to **that pinned IP** (original hostname kept for the Host header and TLS SNI/certificate checks), so no second DNS lookup exists for a rebinding server to exploit. Any 3xx response is a hard error, never followed | SSRF to internal/metadata services incl. DNS-rebind TOCTOU (A10 / CWE-918) | `validate_llm_url`, `_PinnedHTTP(S)Connection` |
 | 7 | **Path jail** on `/static/` (canonicalize + contain to dir) | Path traversal / symlink escape (CWE-22) | `safe_static_path` |
 | 8 | No client input reflected into response headers | CRLF/header injection (stdlib caveat, bpo-32084) | response builders |
+| 9 | **Token-bucket rate limit on state-changing POSTs** (60/min, burst 20 → HTTP 429). A local DoS guard against runaway scripts/browser loops — NOT authentication and not an enterprise WAF | Runaway-request DoS on the single-user server | `_RateLimiter`, `Handler.do_POST` |
 
 ## LLM response-cache trust model (summary)
 
@@ -44,12 +45,17 @@ the module docstring.
 - **Spoofing / Elevation (CSRF, DNS-rebinding):** access token + Origin/Host check + loopback bind (controls 1–3).
 - **Tampering / Info disclosure (XSS, traversal, MIME):** CSP + `nosniff` + output escaping in the JS + path jail (4, 7).
 - **SSRF via `llm_base_url`:** scheme/host allow-list, resolve-then-validate, metadata block (6).
-- **DoS:** body-size limit + content-type gate (5); runs execute in background threads.
+- **DoS:** body-size limit + content-type gate (5) + POST token-bucket rate limit (9); runs execute in background threads.
 - **Clickjacking:** `frame-ancestors 'none'` / `X-Frame-Options: DENY` (4).
 
 ## Explicitly out of scope (single-user localhost research tool)
+Row-level security / tenant isolation: **NOT APPLICABLE — there are no
+rows to isolate.** This is a local single-user research tool with one
+operator and one local SQLite run-history cache; no tenant-isolation
+architecture exists, and none is claimed.
 Multi-tenant authN/authZ, TLS/cert management (loopback only), enterprise
-rate-limiting/WAF, secrets-vault integration, full audit-logging/SIEM, and
+rate-limiting/WAF (the built-in 429 bucket is a local DoS guard only),
+secrets-vault integration, full audit-logging/SIEM, and
 dependency supply-chain attestation. Running with `--bind 0.0.0.0` exposes the
 console beyond loopback and is supported only with `SOCIOSIM_ACCESS_TOKEN`,
 `SOCIOSIM_ALLOWED_HOSTS`, and trusted network controls. The built-in token is not

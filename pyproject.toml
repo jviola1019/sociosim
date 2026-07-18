@@ -23,6 +23,10 @@ viz = ["matplotlib>=3.8"]
 llm = ["anthropic>=0.40"]
 security = ["bandit>=1.7", "pip-audit>=2.7"]
 asset = ["pillow>=12.2.0"]
+# Source-evidence re-verification (scripts/verify_sources.py): PDF text
+# extraction is REQUIRED for quote verification -- the verifier fails
+# closed without it rather than skipping.
+evidence = ["pypdf>=4.0"]
 
 [tool.ruff]
 line-length = 100

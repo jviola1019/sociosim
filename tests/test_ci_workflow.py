@@ -120,6 +120,30 @@ def test_all_third_party_actions_are_pinned_to_full_commit_shas():
                     "40-hex commit SHA (floating tags can be retargeted)")
 
 
+def test_release_gate_includes_evidence_and_verdict_steps():
+    """The release path must (1) verify the committed seed-protocol artifact
+    (schema + hash pins), (2) reproduce the evidence derivations offline,
+    (3) emit a machine-readable verdict derived from the artifact, (4) scan
+    its own generated release notes with the claim vocabulary, and (5) prove
+    the wheel build is deterministic across two clean builds."""
+    text = (WORKFLOW_DIR / "release.yml").read_text(encoding="utf-8")
+    assert "--verify-committed" in text
+    assert "--derivations-only" in text
+    assert "release_verdict.json" in text
+    assert "PASS FOR LOCAL SYNTHETIC RESEARCH USE ONLY" in text
+    assert "_context_aware_errors" in text          # notes claim gate
+    assert "Deterministic double-build" in text
+    assert 'run-name: "Release verify @' in text    # exact ref in run name
+    assert "GITHUB_STEP_SUMMARY" in text            # exact SHA in summary
+    # the generated notes must not trip the claim gate the workflow runs
+    # on itself (e.g. an unhedged "Verified on exact SHA" line)
+    import re as _re
+    for m in _re.finditer(r'echo "([^"]*)"', text):
+        line = m.group(1)
+        if "gate above ran" in line:
+            assert "Verified" not in line
+
+
 def test_release_verifies_syft_checksum_before_generating_the_sbom():
     text = (WORKFLOW_DIR / "release.yml").read_text(encoding="utf-8")
     assert "SYFT_SHA256" in text and "sha256sum --check --strict" in text, (

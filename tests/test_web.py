@@ -94,6 +94,59 @@ def test_legacy_calibrated_profile_migrates_to_aggregate_matched_prototype():
     assert cfg.n_ticks == cfg2.n_ticks
 
 
+def test_rate_limiter_token_bucket_blocks_bursts_and_refills():
+    """POST DoS guard: a burst beyond the bucket is refused (429 path) and
+    tokens refill with time. Attached only by serve(), so handler tests
+    without a limiter stay unlimited (same pattern as the access token)."""
+    import time as _time
+    lim = app._RateLimiter(rate_per_min=600.0, burst=3)   # 10 tokens/s
+    assert [lim.allow() for _ in range(3)] == [True, True, True]
+    assert lim.allow() is False                            # bucket empty
+    _time.sleep(0.25)                                      # ~2.5 tokens back
+    assert lim.allow() is True
+
+
+def test_campaign_vertical_anchor_sets_sourced_ctr_and_provenance():
+    """Advertiser verticals anchor base_ctr to the SOURCE-VERIFIED iPinYou
+    per-vertical CTR, and the provenance labels the anchor honestly; an
+    explicit user CTR always wins; unknown verticals are rejected."""
+    import pytest as _pytest
+    specs = app._normalize_campaign_specs({"campaigns": [
+        {"advertiser": "A", "vertical": "telecom"}]})
+    assert specs[0]["base_ctr"] == 0.00030          # iPinYou Table 3: 0.030%
+    assert specs[0]["economics_provenance"]["base_ctr"] == \
+        "sourced_vertical_anchor:telecom"
+    specs = app._normalize_campaign_specs({"campaigns": [
+        {"advertiser": "A", "vertical": "telecom", "base_ctr": 0.01}]})
+    assert specs[0]["base_ctr"] == 0.01
+    assert specs[0]["economics_provenance"]["base_ctr"] == "user_supplied"
+    # blank base_ctr with no vertical -> scenario default, labelled as such
+    specs = app._normalize_campaign_specs({"campaigns": [
+        {"advertiser": "A", "base_ctr": ""}]})
+    assert specs[0]["base_ctr"] == app.CAMPAIGN_ECON_DEFAULTS["base_ctr"]
+    assert specs[0]["economics_provenance"]["base_ctr"] == \
+        "scenario_assumption_default"
+    with _pytest.raises(ValueError, match="vertical"):
+        app._normalize_campaign_specs({"campaigns": [{"vertical": "nope"}]})
+
+
+def test_markets_payload_and_campaign_factory_strip_metadata():
+    from socio_sim.ads import markets
+    p = markets.meta_payload()
+    assert len(p["content_markets"]) == 8 and "technology" in p["content_markets"]
+    assert len(p["advertiser_verticals"]) == 9
+    assert p["evidence_id"] == "ev.external_aggregate.ipinyou_2014"
+    assert "NOT social-feed" in p["applicability_limits"]
+    for v in p["advertiser_verticals"].values():
+        assert 0 < v["base_ctr"] < 0.01              # all Table-3 fractions
+    # the Campaign factory must strip the vertical metadata field
+    fn = app._campaigns_fn({"campaigns": [{"advertiser": "A",
+                                           "vertical": "software"}]})
+    camp = fn(None)[0]
+    assert camp.base_ctr == 0.00078                  # Table 3: 0.078%
+    assert not hasattr(camp, "vertical")
+
+
 def test_unknown_profile_still_rejected():
     with pytest.raises(ValueError, match="profile"):
         app._build_config({"profile": "made_up_profile"})
