@@ -254,6 +254,28 @@ def test_non_https_url_refused(monkeypatch):
         vs.fetch("http://example.org/x.pdf")
 
 
+def test_connection_dials_the_pinned_validated_ip(monkeypatch):
+    """SSRF/rebinding TOCTOU (security-review finding): the connection must
+    dial EXACTLY the IP that passed validation -- no second DNS lookup that
+    a rebinding resolver could redirect to a private address."""
+    _allow_dns(monkeypatch, ip="93.184.216.34")
+    seen = {}
+
+    def capture(host, port, pinned_ip):
+        seen["args"] = (host, port, pinned_ip)
+        return _FakeConn([_FakeResp(body=b"x", headers={"Content-Length": "1"})])
+
+    monkeypatch.setattr(vs, "_open_connection", capture)
+    data, final_url, _ = vs.fetch("https://example.org/x.pdf")
+    assert data == b"x"
+    assert seen["args"] == ("example.org", 443, "93.184.216.34")
+    # ...and the default factory produces a pinned connection (TLS SNI on
+    # the hostname, socket dialled to the validated IP)
+    conn = vs._PinnedHTTPSConnection("example.org", 443, "93.184.216.34",
+                                     timeout=1)
+    assert conn._pinned_ip == "93.184.216.34" and conn.host == "example.org"
+
+
 def test_credentials_in_url_refused():
     with pytest.raises(vs.RetrievalError, match="credentials"):
         vs.fetch("https://user:pw@example.org/x.pdf")
@@ -263,7 +285,7 @@ def test_redirect_to_non_https_fails(monkeypatch):
     _allow_dns(monkeypatch)
     conn = _FakeConn([_FakeResp(status=302,
                                 headers={"Location": "http://evil.example/x"})])
-    monkeypatch.setattr(vs, "_open_connection", lambda h, p: conn)
+    monkeypatch.setattr(vs, "_open_connection", lambda h, p, ip: conn)
     with pytest.raises(vs.RetrievalError, match="non-HTTPS"):
         vs.fetch("https://example.org/x.pdf")
 
@@ -273,7 +295,7 @@ def test_redirect_limit_enforced(monkeypatch):
     resp = lambda: _FakeResp(status=301,  # noqa: E731
                              headers={"Location": "https://example.org/next"})
     monkeypatch.setattr(vs, "_open_connection",
-                        lambda h, p: _FakeConn([resp()]))
+                        lambda h, p, ip: _FakeConn([resp()]))
     with pytest.raises(vs.RetrievalError, match="redirects"):
         vs.fetch("https://example.org/x.pdf")
 
@@ -289,7 +311,7 @@ def test_oversized_artifact_refused_before_download(monkeypatch):
     _allow_dns(monkeypatch)
     conn = _FakeConn([_FakeResp(headers={
         "Content-Length": str(vs.MAX_BYTES + 1)})])
-    monkeypatch.setattr(vs, "_open_connection", lambda h, p: conn)
+    monkeypatch.setattr(vs, "_open_connection", lambda h, p, ip: conn)
     with pytest.raises(vs.RetrievalError, match="too large"):
         vs.fetch("https://example.org/x.pdf")
 
@@ -298,7 +320,7 @@ def test_streaming_cap_enforced_without_content_length(monkeypatch):
     _allow_dns(monkeypatch)
     monkeypatch.setattr(vs, "MAX_BYTES", 100)
     conn = _FakeConn([_FakeResp(chunks=[b"x" * 64, b"x" * 64])])
-    monkeypatch.setattr(vs, "_open_connection", lambda h, p: conn)
+    monkeypatch.setattr(vs, "_open_connection", lambda h, p, ip: conn)
     with pytest.raises(vs.RetrievalError, match="cap"):
         vs.fetch("https://example.org/x.pdf")
 
@@ -311,7 +333,7 @@ def test_timeout_is_a_controlled_failure(monkeypatch):
             raise TimeoutError("simulated")
 
     monkeypatch.setattr(vs, "_open_connection",
-                        lambda h, p: _TimeoutConn([]))
+                        lambda h, p, ip: _TimeoutConn([]))
     with pytest.raises(vs.RetrievalError, match="timeout"):
         vs.fetch("https://example.org/x.pdf")
     # ...and through verify_targets it becomes a failure entry, not a crash
@@ -324,7 +346,7 @@ def test_compressed_response_refused(monkeypatch):
     _allow_dns(monkeypatch)
     conn = _FakeConn([_FakeResp(headers={"Content-Encoding": "gzip"},
                                 body=zlib.compress(b"x"))])
-    monkeypatch.setattr(vs, "_open_connection", lambda h, p: conn)
+    monkeypatch.setattr(vs, "_open_connection", lambda h, p, ip: conn)
     with pytest.raises(vs.RetrievalError, match="Content-Encoding"):
         vs.fetch("https://example.org/x.pdf")
 

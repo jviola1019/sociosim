@@ -55,6 +55,7 @@ import ipaddress
 import json
 import re
 import socket
+import ssl
 import statistics
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
@@ -109,10 +110,16 @@ def _validate_url(url: str):
     return parts
 
 
-def _resolve_public(host: str) -> None:
+def _resolve_public(host: str) -> str:
     """Resolve BEFORE connecting; every address must be publicly routable.
     Source verification has no business talking to private networks, so
-    this is deliberately stricter than the app's local-LLM allow-list."""
+    this is deliberately stricter than the app's local-LLM allow-list.
+
+    Returns the first validated IP: the connection dials EXACTLY that
+    address (see _PinnedHTTPSConnection). Without pinning there is a
+    second DNS lookup inside http.client between this check and the
+    connect -- the classic rebinding TOCTOU (flagged by security review;
+    same fix as the app's E-05 LLM transport)."""
     try:
         infos = socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)
     except OSError as exc:
@@ -125,11 +132,30 @@ def _resolve_public(host: str) -> None:
                 or ip.is_multicast or ip.is_reserved or ip.is_unspecified):
             raise RetrievalError(
                 f"{host!r} resolves to non-public address {ip} -- refused")
+    return str(infos[0][4][0])
 
 
-def _open_connection(host: str, port: int):
-    """Overridable in tests: returns an HTTPSConnection-like object."""
-    return http.client.HTTPSConnection(host, port, timeout=CONNECT_TIMEOUT_S)
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """Dials the pre-validated IP while keeping TLS SNI + certificate
+    hostname verification on the ORIGINAL hostname, so pinning does not
+    weaken certificate checks and no rebindable second lookup exists."""
+
+    def __init__(self, host, port, pinned_ip, timeout):
+        super().__init__(host, port, timeout=timeout,
+                         context=ssl.create_default_context())
+        self._pinned_ip = pinned_ip
+
+    def connect(self):
+        sock = socket.create_connection(
+            (self._pinned_ip, self.port), self.timeout)
+        self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
+
+
+def _open_connection(host: str, port: int, pinned_ip: str):
+    """Overridable in tests: returns an HTTPSConnection-like object that
+    dials the pinned, already-validated IP."""
+    return _PinnedHTTPSConnection(host, port, pinned_ip,
+                                  timeout=CONNECT_TIMEOUT_S)
 
 
 def fetch(url: str) -> tuple[bytes, str, str]:
@@ -142,11 +168,11 @@ def fetch(url: str) -> tuple[bytes, str, str]:
         parts = _validate_url(current)
         host = _normalize_host(parts.hostname)
         port = parts.port or 443
-        _resolve_public(host)
+        pinned_ip = _resolve_public(host)
         path = parts.path or "/"
         if parts.query:
             path += "?" + parts.query
-        conn = _open_connection(host, port)
+        conn = _open_connection(host, port, pinned_ip)
         try:
             conn.request("GET", path, headers={
                 "User-Agent": _UA,
